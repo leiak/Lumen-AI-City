@@ -4,9 +4,20 @@
 //! 详细设计见 docs/01-愿景.md §5 + docs/11-技术细节与玩法模式.md §B.1
 //!
 //! 性能目标：单实例支持 10,000 NPC + 1,000 玩家，TPS > 1000
+//!
+//! Sprint 1 状态：
+//! - gRPC stub（tonic）占位
+//! - REST API（axum）: /healthz, /v1/tiles, /v1/world/move
+//! - 内存 3×3 Tile 网格 + 3 个种子 NPC
+
+use std::net::SocketAddr;
+use std::sync::Arc;
 
 use anyhow::Result;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+use world_core::rest::{serve, AppState};
+use world_core::WorldGrid;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,9 +30,17 @@ async fn main() -> Result<()> {
 
     tracing::info!("world-engine starting");
 
-    // TODO: gRPC server (tonic)
-    // TODO: Tile grid 加载
-    // TODO: 多玩家同步（Redis Pub/Sub）
+    let bind_addr: SocketAddr = std::env::var("WORLD_BIND_ADDR")
+        .unwrap_or_else(|_| "0.0.0.0:50052".to_string())
+        .parse()?;
 
-    Ok(())
+    let state = AppState {
+        grid: Arc::new(WorldGrid::new()),
+    };
+
+    // TODO: gRPC server (tonic) — Sprint 2 接入
+    // TODO: PG tile 持久化加载
+    // TODO: Redis Pub/Sub 多玩家同步
+
+    serve(bind_addr, state).await
 }

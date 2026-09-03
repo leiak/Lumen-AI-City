@@ -1,16 +1,19 @@
-import Link from 'next/link';
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const token = localStorage.getItem('aicity_token');
+    router.push(token ? '/city' : '/login');
+  }, [router]);
+
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-8">
-      <h1 className="text-5xl font-bold mb-4">AI 城邦</h1>
-      <p className="text-gray-400 mb-8">基于真实或半虚构地图的 AI Agent 城市平台</p>
-      <Link
-        href="/city"
-        className="px-6 py-3 bg-brand-500 hover:bg-brand-700 rounded-lg transition"
-      >
-        进入城市
-      </Link>
+    <main className="min-h-screen flex items-center justify-center">
+      <div className="text-gray-400">载入中...</div>
     </main>
   );
 }
