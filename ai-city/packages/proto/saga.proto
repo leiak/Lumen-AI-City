@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package aicity.saga.v1;
+
+option go_package = "github.com/aicity/proto/gen/go/saga/v1;sagav1";
+
+service SagaOrchestrator {
+  rpc StartSaga(StartSagaRequest) returns (StartSagaResponse);
+  rpc GetSaga(GetSagaRequest) returns (Saga);
+  rpc CancelSaga(CancelSagaRequest) returns (CancelSagaResponse);
+  rpc ListRunning(ListRunningRequest) returns (ListRunningResponse);
+}
+
+message SagaStep {
+  string name = 1;
+  string action = 2;            // 调用 action handler
+  map<string, string> args = 3;
+  string compensation = 4;      // 补偿 action
+  int32 timeout_ms = 5;
+  int32 max_retries = 6;
+}
+
+message Saga {
+  string id = 1;
+  string state = 2;             // "pending" | "running" | "compensating" | "completed" | "failed"
+  repeated SagaStep steps = 3;
+  repeated string completed_steps = 4;
+  repeated string compensations = 5;
+  int64 started_at_ms = 6;
+  int64 finished_at_ms = 7;
+}
+
+message StartSagaRequest {
+  string saga_def_id = 1;       // 从 saga-dsl 仓库加载
+  map<string, string> params = 2;
+  string trace_id = 3;
+}
+
+message StartSagaResponse {
+  string saga_id = 1;
+}
+
+message GetSagaRequest {
+  string saga_id = 1;
+}
+
+message CancelSagaRequest {
+  string saga_id = 1;
+  string reason = 2;
+}
+
+message CancelSagaResponse {
+  bool ok = 1;
+}
+
+message ListRunningRequest {
+  int32 limit = 1;
+}
+
+message ListRunningResponse {
+  repeated Saga sagas = 1;
+}

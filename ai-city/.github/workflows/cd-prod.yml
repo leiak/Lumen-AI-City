@@ -1,0 +1,37 @@
+name: CD - Production
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://aicity.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG_PROD }}
+
+      - name: Apply manifests (canary 10%)
+        run: |
+          kubectl apply -k infra/k8s/prod/
+
+      - name: Wait canary
+        run: sleep 600  # 10 分钟观察期
+
+      - name: Promote to 100%
+        run: |
+          kubectl patch deployment -n aicity -p '{"spec":{"replicas":'$(kubectl get deploy -n aicity --no-headers | wc -l)'}}'
+
+      - name: Smoke test
+        run: |
+          curl -f https://aicity.dev/health || exit 1

@@ -1,0 +1,41 @@
+# Code Owners
+# 按服务 + 模块指定 owner，PR 自动请求审批
+
+# 默认 owner
+* @aicity/tech-leads
+
+# 后端核心
+/apps/agent-os/ @aicity/ai-team @aicity/tech-leads
+/apps/world-engine/ @aicity/rust-team
+/apps/api-gateway/ @aicity/backend-team
+/apps/ws-gateway/ @aicity/backend-team
+/apps/a2a-gateway/ @aicity/backend-team
+/apps/memory-service/ @aicity/ai-team
+/apps/saga-orchestrator/ @aicity/backend-team
+/apps/saga-worker/ @aicity/backend-team
+/apps/notification-engine/ @aicity/backend-team
+/apps/observability-agent/ @aicity/devops
+/apps/cdc-consumer/ @aicity/rust-team
+/apps/neo4j-sync/ @aicity/rust-team
+/apps/bt-editor-api/ @aicity/ai-team
+/apps/economy-service/ @aicity/backend-team
+
+# 前端
+/apps/admin-portal/ @aicity/frontend-team
+/web/ @aicity/frontend-team
+
+# 共享包
+/packages/proto/ @aicity/tech-leads
+/packages/saga-dsl/ @aicity/ai-team
+/packages/bt-editor-spec/ @aicity/ai-team
+/packages/federation-id/ @aicity/backend-team
+/packages/sdk-py/ @aicity/backend-team
+/packages/sdk-ts/ @aicity/frontend-team
+/packages/sdk-go/ @aicity/backend-team
+
+# 基础设施
+/infra/ @aicity/devops
+/scripts/ @aicity/devops
+
+# 文档
+/docs/ @aicity/tech-leads

@@ -1,0 +1,20 @@
+# KEDA ScaledObject for Agent OS（按 Kafka lag 自动扩缩）
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: agent-os-scaler
+  namespace: aicity
+spec:
+  scaleTargetRef:
+    name: agent-os
+  minReplicaCount: 3
+  maxReplicaCount: 30
+  cooldownPeriod: 60
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: aicity-kafka:9092
+        consumerGroup: agent-os
+        topic: agent.perception
+        lagThreshold: '100'
+        activationLagThreshold: '10'

@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "DecisionEvent",
+  "namespace": "aicity.events.v1",
+  "doc": "决策事件 - LLM/行为树产生的决策，用于回放与分析",
+  "fields": [
+    {"name": "ts_ms", "type": "long"},
+    {"name": "trace_id", "type": "string"},
+    {"name": "agent_id", "type": "string"},
+    {"name": "decision_type", "type": {"type": "enum", "name": "DecisionType", "symbols": ["BT","LLM","LOD_UPGRADE","FALLBACK"]}},
+    {"name": "action", "type": "string"},
+    {"name": "confidence", "type": "float"},
+    {"name": "why", "type": "string"},
+    {"name": "model", "type": ["null", "string"], "default": null, "doc": "LLM 模型名称（如 sonnet-4-6）"},
+    {"name": "tokens_in", "type": ["null", "int"], "default": null},
+    {"name": "tokens_out", "type": ["null", "int"], "default": null},
+    {"name": "duration_ms", "type": "int"}
+  ]
+}

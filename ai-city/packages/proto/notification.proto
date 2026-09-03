@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package aicity.notification.v1;
+
+option go_package = "github.com/aicity/proto/gen/go/notification/v1;notificationv1";
+
+service NotificationEngine {
+  rpc Send(SendRequest) returns (SendResponse);
+  rpc SetPreferences(PreferencesRequest) returns (PreferencesResponse);
+  rpc GetPreferences(GetPreferencesRequest) returns (PreferencesResponse);
+}
+
+message SendRequest {
+  string user_id = 1;
+  string title = 2;
+  string body = 3;
+  map<string, string> data = 4;
+  int32 priority = 5;
+  int32 ttl_seconds = 6;
+}
+
+message SendResponse {
+  bool delivered = 1;
+  bool throttled = 2;
+  string error = 3;
+}
+
+message NotificationPreferences {
+  bool enabled = 1;
+  int32 max_per_hour = 2;
+  int32 max_per_day = 3;
+  repeated string types_allowed = 4;  // "story" | "friend" | "market" | "system"
+}
+
+message PreferencesRequest {
+  string user_id = 1;
+  NotificationPreferences prefs = 2;
+}
+
+message GetPreferencesRequest {
+  string user_id = 1;
+}

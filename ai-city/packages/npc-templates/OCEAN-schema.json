@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aicity.dev/schemas/npc-OCEAN.json",
+  "title": "NPC Personality (OCEAN)",
+  "description": "NPC 个性五维人格模型（开放性/尽责性/外向性/宜人性/神经质）",
+  "type": "object",
+  "required": ["agent_id", "name", "ocean", "backstory"],
+  "properties": {
+    "agent_id": {
+      "type": "string",
+      "description": "全局唯一 ID（建议 UUID v7）"
+    },
+    "name": {
+      "type": "string",
+      "description": "NPC 显示名"
+    },
+    "avatar_url": {
+      "type": "string"
+    },
+    "ocean": {
+      "type": "object",
+      "description": "OCEAN 五维人格（每个维度 0-100）",
+      "required": ["O", "C", "E", "A", "N"],
+      "properties": {
+        "O": {"type": "integer", "minimum": 0, "maximum": 100, "description": "开放性 Openness"},
+        "C": {"type": "integer", "minimum": 0, "maximum": 100, "description": "尽责性 Conscientiousness"},
+        "E": {"type": "integer", "minimum": 0, "maximum": 100, "description": "外向性 Extraversion"},
+        "A": {"type": "integer", "minimum": 0, "maximum": 100, "description": "宜人性 Agreeableness"},
+        "N": {"type": "integer", "minimum": 0, "maximum": 100, "description": "神经质 Neuroticism"}
+      }
+    },
+    "speech_style": {
+      "type": "object",
+      "properties": {
+        "tone": {"type": "string", "enum": ["formal", "casual", "humorous", "cold", "warm"]},
+        "dialect": {"type": "string"},
+        "catchphrase": {"type": "string"}
+      }
+    },
+    "backstory": {
+      "type": "string",
+      "description": "背景故事（500-2000 字）"
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "home_tile_id": {
+      "type": "string"
+    },
+    "schedule": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "hour": {"type": "integer", "minimum": 0, "maximum": 23},
+          "activity": {"type": "string"},
+          "location": {"type": "string"}
+        }
+      }
+    }
+  }
+}

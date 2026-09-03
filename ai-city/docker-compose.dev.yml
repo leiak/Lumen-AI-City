@@ -1,0 +1,122 @@
+# ============================================
+# AI City - 开发用中间件（最小集）
+# ============================================
+# 用法: docker compose -f docker-compose.dev.yml up -d
+
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aicity-pg
+    environment:
+      POSTGRES_USER: aicity
+      POSTGRES_PASSWORD: aicity_dev
+      POSTGRES_DB: aicity
+    ports:
+      - '5432:5432'
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U aicity']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: aicity-redis
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: aicity-kafka
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    ports:
+      - '9092:9092'
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: aicity-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - '2181:2181'
+
+  neo4j:
+    image: neo4j:5.20-community
+    container_name: aicity-neo4j
+    environment:
+      NEO4J_AUTH: neo4j/neo4j_dev
+      NEO4J_PLUGINS: '["apoc"]'
+    ports:
+      - '7474:7474'  # HTTP
+      - '7687:7687'  # Bolt
+    volumes:
+      - neo4j_data:/data
+
+  milvus:
+    image: milvusdb/milvus:v2.4.0
+    container_name: aicity-milvus
+    command: ['milvus', 'run', 'standalone']
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    ports:
+      - '19530:19530'
+    depends_on:
+      - etcd
+      - minio
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: aicity-etcd
+    command: ['etcd', '-advertise-client-urls=http://etcd:2379', '-listen-client-urls=http://0.0.0.0:2379']
+    ports:
+      - '2379:2379'
+
+  minio:
+    image: minio/minio:latest
+    container_name: aicity-minio
+    command: ['minio', 'server', '/data']
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio_dev
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+
+  # 可观测性
+  grafana:
+    image: grafana/grafana:latest
+    container_name: aicity-grafana
+    ports:
+      - '3001:3000'
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: aicity-prometheus
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+volumes:
+  pg_data:
+  neo4j_data:

@@ -1,0 +1,67 @@
+# Node / pnpm
+node_modules/
+.pnpm-store/
+dist/
+.next/
+build/
+coverage/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Rust
+target/
+Cargo.lock.bak
+
+# Go
+bin/
+*.test
+*.out
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+
+# Build artifacts
+*.log
+logs/
+tmp/
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Local data
+data/
+*.sqlite
+*.db

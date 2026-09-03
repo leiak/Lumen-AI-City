@@ -1,0 +1,52 @@
+{
+  "id": "storyline_tavern_meeting",
+  "name": "酒馆聚会",
+  "version": "1.0",
+  "trigger": {
+    "type": "player_enters_tile",
+    "tile_id": "tile_0_0",
+    "time_range": ["19:00", "23:00"]
+  },
+  "actors": [
+    {"agent_id": "npc_wang_boss_001", "role": "host"},
+    {"agent_id": "npc_lihua_001", "role": "guest_optional"}
+  ],
+  "steps": [
+    {
+      "id": "step_1_greet",
+      "name": "王老板打招呼",
+      "actor": "npc_wang_boss_001",
+      "type": "say",
+      "prompt_template": "请用王老板的口吻欢迎 {{player_name}} 进入酒馆。如果玩家是新客，介绍本店；如果玩家是老熟客，问候'老 {{player_name}} 来了！'",
+      "expected_response": "any"
+    },
+    {
+      "id": "step_2_offer",
+      "name": "王老板推荐菜品",
+      "actor": "npc_wang_boss_001",
+      "type": "say",
+      "prompt_template": "根据玩家偏好（如果有）和当前季节推荐一道菜或一壶酒。强调本店招牌。",
+      "expected_response": "any"
+    },
+    {
+      "id": "step_3_chat",
+      "name": "对话轮",
+      "actor": "npc_wang_boss_001",
+      "type": "dialogue_loop",
+      "max_turns": 6,
+      "exit_condition": "player_says_goodbye OR chat_turns_reached"
+    }
+  ],
+  "compensations": [
+    {
+      "after_step": "step_3_chat",
+      "on_failure": "log_and_skip",
+      "action": "memory_service.remember({importance: 3, content: '玩家曾在酒馆发生异常对话'})"
+    }
+  ],
+  "success_criteria": "all_steps_completed",
+  "estimated_duration_minutes": 5,
+  "tags": ["日常", "可重复", "新客友好"],
+  "author": "narrative_team",
+  "created_at_ms": 1700000000000
+}

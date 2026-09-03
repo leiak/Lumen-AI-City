@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "NotificationEvent",
+  "namespace": "aicity.events.v1",
+  "doc": "Push 通知事件 - 由 Notification Engine 发出",
+  "fields": [
+    {"name": "ts_ms", "type": "long"},
+    {"name": "user_id", "type": "string"},
+    {"name": "title", "type": "string"},
+    {"name": "body", "type": "string"},
+    {"name": "channel", "type": {"type": "enum", "name": "Channel", "symbols": ["APNS","FCM","EMAIL","WEB"]}},
+    {"name": "delivered", "type": "boolean"},
+    {"name": "throttled", "type": "boolean"}
+  ]
+}

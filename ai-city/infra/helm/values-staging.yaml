@@ -1,0 +1,13 @@
+# 公共 values（按 chart 复用）
+# 实际部署时 helm install -f values-staging.yaml 或 -f values-prod.yaml
+
+global:
+  imageRegistry: ghcr.io/aicity
+  imageTag: latest
+
+logging:
+  level: info
+  lokiUrl: http://loki:3100
+
+tracing:
+  otelEndpoint: http://otel-collector:4317

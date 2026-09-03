@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "SagaEvent",
+  "namespace": "aicity.events.v1",
+  "doc": "Saga 生命周期事件 - 由 Orchestrator 发出",
+  "fields": [
+    {"name": "ts_ms", "type": "long"},
+    {"name": "trace_id", "type": "string"},
+    {"name": "saga_id", "type": "string"},
+    {"name": "event_type", "type": {"type": "enum", "name": "SagaEventType", "symbols": ["STARTED","STEP_OK","STEP_FAILED","COMPENSATED","COMPLETED","FAILED"]}},
+    {"name": "step_name", "type": ["null", "string"], "default": null},
+    {"name": "error", "type": ["null", "string"], "default": null},
+    {"name": "duration_ms", "type": ["null", "long"], "default": null}
+  ]
+}

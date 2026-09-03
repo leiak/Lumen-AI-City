@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package aicity.world.v1;
+
+option go_package = "github.com/aicity/proto/gen/go/world/v1;worldv1";
+
+// WorldEngine 服务 - 城市物理与移动
+service WorldEngine {
+  // 移动（玩家/NPC 通用）
+  rpc Move(MoveRequest) returns (MoveResponse);
+
+  // 获取 Tile 信息
+  rpc GetTile(GetTileRequest) returns (Tile);
+
+  // 订阅 Tile 内的位置更新（流式）
+  rpc SubscribePosition(SubscribeRequest) returns (stream PositionEvent);
+
+  // 计算两点间路径
+  rpc ComputePath(PathRequest) returns (PathResponse);
+}
+
+// =================== 消息 ===================
+
+message Vec2 {
+  float x = 1;
+  float y = 2;
+}
+
+message MoveRequest {
+  string entity_id = 1;   // 玩家或 NPC ID
+  int64 ts_ms = 2;
+  Vec2 target = 3;
+  bool predicted = 4;     // §E.6 客户端预测
+  uint64 sequence = 5;    // 用于服务端协调
+}
+
+message MoveResponse {
+  bool accepted = 1;
+  Vec2 corrected_position = 2;  // 服务端校正位置
+  uint64 sequence = 3;
+  int64 server_ts_ms = 4;
+}
+
+message GetTileRequest {
+  string tile_id = 1;
+}
+
+message Tile {
+  string id = 1;
+  Vec2 center = 2;
+  float size = 3;
+  LodLevel lod_level = 4;
+  repeated string npc_ids = 5;
+  repeated string player_ids = 6;
+  repeated Building buildings = 7;
+}
+
+enum LodLevel {
+  LOD_UNSPECIFIED = 0;
+  CBD = 1;
+  RESIDENTIAL = 2;
+  SUBURB = 3;
+}
+
+enum BuildingKind {
+  BUILDING_UNSPECIFIED = 0;
+  TAVERN = 1;
+  SHOP = 2;
+  HOUSE = 3;
+  PARK = 4;
+  ROAD = 5;
+  PLAZA = 6;
+  OFFICE = 7;
+}
+
+message Building {
+  string id = 1;
+  BuildingKind kind = 2;
+  repeated Vec2 polygon = 3;
+}
+
+message SubscribeRequest {
+  string tile_id = 1;
+  string subscriber_id = 2;
+}
+
+message PositionEvent {
+  string entity_id = 1;
+  string tile_id = 2;
+  Vec2 position = 3;
+  int64 ts_ms = 4;
+  bool predicted = 5;
+  uint64 sequence = 6;
+}
+
+message PathRequest {
+  string entity_id = 1;
+  Vec2 start = 2;
+  Vec2 end = 3;
+}
+
+message PathResponse {
+  repeated Vec2 waypoints = 1;
+  float distance_m = 2;
+}

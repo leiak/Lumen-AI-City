@@ -1,0 +1,32 @@
+name: CD - Staging
+
+on:
+  push:
+    branches: [release/*]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.aicity.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG_STAGING }}
+
+      - name: Apply manifests
+        run: |
+          kubectl apply -k infra/k8s/staging/
+          kubectl rollout status deployment -n aicity --timeout=5m
+
+      - name: Smoke test
+        run: |
+          curl -f https://staging.aicity.dev/health || exit 1
+          curl -f https://staging.aicity.dev/v1/health || exit 1

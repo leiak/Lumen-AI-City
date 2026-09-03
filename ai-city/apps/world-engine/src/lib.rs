@@ -1,0 +1,9 @@
+//! world-core: World Engine 核心库（碰撞 / 移动 / Tile）
+
+pub mod tile;
+pub mod movement;
+pub mod collision;
+pub mod multiplayer;
+
+pub use tile::Tile;
+pub use movement::Movement;

@@ -1,0 +1,18 @@
+[project]
+name = "notification-engine"
+version = "0.1.0"
+description = "Push 通知引擎（APNs + FCM + 用户偏好）"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "aiomcache>=0.8",
+    "aioapns>=2.1",
+    "aiofcm>=1.1",
+    "aiokafka>=0.12",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

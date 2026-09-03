@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: api-gateway
+  namespace: argocd
+spec:
+  project: aicity
+  source:
+    repoURL: https://github.com/aicity/ai-city
+    path: infra/helm/api-gateway
+    targetRevision: HEAD
+    helm:
+      valueFiles:
+        - values.yaml
+        - ../../../values-prod.yaml  # 会被覆盖
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: aicity
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

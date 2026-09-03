@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "PerceptionEvent",
+  "namespace": "aicity.events.v1",
+  "doc": "NPC 感知事件 - 由 Agent OS 发出，记忆服务/分析服务订阅",
+  "fields": [
+    {"name": "ts_ms", "type": "long", "doc": "事件时间戳（毫秒）"},
+    {"name": "trace_id", "type": "string", "doc": "全链路追踪 ID"},
+    {"name": "agent_id", "type": "string"},
+    {"name": "source", "type": {"type": "enum", "name": "PerceptSource", "symbols": ["TICK","PLAYER","NPC","FEDERATION","STORY"]}},
+    {"name": "kind", "type": "string", "doc": "感知类型：movement/dialogue/story_event"},
+    {"name": "priority", "type": "int", "doc": "0-10"},
+    {"name": "percepts", "type": {"type": "array", "items": "string"}},
+    {"name": "tile_id", "type": ["null", "string"], "default": null}
+  ]
+}

@@ -1,0 +1,47 @@
+// ============================================
+// Saga DSL - EBNF 语法规范
+// 完整定义见 docs/13-Saga-DSL-RFC.md §4.3
+// ============================================
+
+saga_file        = saga_header , statement_list ;
+
+saga_header      = "saga" , identifier , "{" , saga_meta , "}" ;
+saga_meta        = { meta_entry } ;
+meta_entry       = identifier , ":" , string_literal ;
+
+statement_list   = { statement } ;
+statement        = trigger_stmt | step_stmt | compensation_stmt | hook_stmt ;
+
+trigger_stmt     = "trigger" , "{" , trigger_field , "}" ;
+trigger_field    = ( "on" , string_literal ) | ( "when" , expression ) ;
+
+step_stmt        = "step" , identifier , "{" , step_body , "}" ;
+step_body        = { step_field } ;
+step_field       = "do" , ":" , identifier , "(" , [ arg_list ] , ")"
+                  | "args" , ":" , object_literal
+                  | "timeout" , ":" , duration
+                  | "retries" , ":" , integer
+                  | "on_success" , ":" , identifier
+                  | "on_failure" , ":" , identifier ;
+
+compensation_stmt = "compensation" , "for" , identifier , "{" , step_body , "}" ;
+
+hook_stmt        = "on" , ( "saga_start" | "saga_complete" | "saga_fail" ) , "{" , statement_list , "}" ;
+
+expression       = term , { ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) , term } ;
+term             = factor , { ( "+" | "-" ) , factor } ;
+factor           = atom , { ( "*" | "/" ) , atom } ;
+atom             = number | string_literal | identifier | function_call | "(" , expression , ")" ;
+
+function_call    = identifier , "(" , [ arg_list ] , ")" ;
+arg_list         = expression , { "," , expression } ;
+
+identifier       = letter , { letter | digit | "_" } ;
+string_literal   = '"' , { character } , '"' ;
+number           = digit , { digit } , [ "." , digit , { digit } ] ;
+duration         = integer , ( "ms" | "s" | "m" | "h" ) ;
+integer          = digit , { digit } ;
+
+letter           = "A" | ... | "Z" | "a" | ... | "z" | "_" ;
+digit            = "0" | ... | "9" ;
+character        = ? any character except " and newline ? ;

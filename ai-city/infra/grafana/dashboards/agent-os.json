@@ -1,0 +1,44 @@
+{
+  "title": "Agent OS (AI City)",
+  "uid": "aicity-agent-os",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["aicity", "agent"],
+  "panels": [
+    {
+      "title": "Active Agents (per LOD)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "agent_active_count{lod='L0'}", "legendFormat": "L0 Background" },
+        { "expr": "agent_active_count{lod='L1'}", "legendFormat": "L1 Interactive" },
+        { "expr": "agent_active_count{lod='L2'}", "legendFormat": "L2 Main Character" }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 }
+    },
+    {
+      "title": "LLM Calls / sec",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum(rate(agent_llm_calls_total[1m])) by (model)" }],
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 6 }
+    },
+    {
+      "title": "Decision Types",
+      "type": "piechart",
+      "targets": [{ "expr": "sum by (decision_type) (rate(agent_decisions_total[5m]))" }],
+      "gridPos": { "x": 0, "y": 6, "w": 8, "h": 8 }
+    },
+    {
+      "title": "Token Spend / hour (USD)",
+      "type": "stat",
+      "targets": [{ "expr": "sum(rate(agent_token_spend_usd_total[1h])) * 3600" }],
+      "gridPos": { "x": 8, "y": 6, "w": 8, "h": 8 }
+    },
+    {
+      "title": "Hallucination Rate (importance<2)",
+      "type": "stat",
+      "targets": [{ "expr": "sum(rate(agent_hallucination_total[5m])) / sum(rate(agent_decisions_total[5m]))" }],
+      "gridPos": { "x": 16, "y": 6, "w": 8, "h": 8 }
+    }
+  ]
+}

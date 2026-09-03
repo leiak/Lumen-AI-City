@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ===== Lint =====
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm install -g pnpm@9
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: TypeScript Lint
+        run: pnpm lint
+
+      - name: Python Lint
+        run: |
+          pip install uv
+          uv sync --all-packages
+          uv run ruff check apps/ packages/
+
+      - name: Rust Lint
+        run: |
+          rustup component add clippy
+          cargo clippy --workspace -- -D warnings
+
+      - name: Go Lint
+        run: |
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          golangci-lint run ./...
+
+  # ===== Test =====
+  test-py:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: aicity
+          POSTGRES_PASSWORD: aicity_dev
+          POSTGRES_DB: aicity_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install uv
+      - run: uv sync --all-packages
+      - run: uv run pytest apps/ packages/ -v --tb=short
+        env:
+          DATABASE_URL: postgresql://aicity:aicity_dev@localhost:5432/aicity_test
+          REDIS_URL: redis://localhost:6379/0
+
+  test-rust:
+    name: Rust Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.82.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --all-features
+
+  test-go:
+    name: Go Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - run: go test ./...
+
+  # ===== Build =====
+  build-images:
+    name: Build Docker Images
+    needs: [lint, test-py, test-rust, test-go]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - api-gateway
+          - world-engine
+          - agent-os
+          - memory-service
+          - saga-orchestrator
+          - admin-portal
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --tag ghcr.io/aicity/${{ matrix.service }}:${{ github.sha }} \
+            --tag ghcr.io/aicity/${{ matrix.service }}:latest \
+            --push \
+            ./apps/${{ matrix.service }}

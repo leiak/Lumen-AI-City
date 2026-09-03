@@ -1,0 +1,16 @@
+[package]
+name = "cdc-consumer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.40", features = ["full"] }
+tokio-postgres = "0.7"
+rdkafka = { version = "0.36", features = ["cmake-build"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+
+[bin]
+name = "cdc-consumer"
+path = "src/main.rs"

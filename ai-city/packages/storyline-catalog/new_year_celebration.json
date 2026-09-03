@@ -1,0 +1,36 @@
+{
+  "id": "storyline_new_year_celebration",
+  "name": "新年庆典",
+  "version": "1.0",
+  "trigger": {
+    "type": "calendar",
+    "date": "12-31",
+    "time_range": ["20:00", "23:59"]
+  },
+  "actors": [
+    {"agent_id": "all_residents", "role": "participant"}
+  ],
+  "phases": [
+    {
+      "id": "phase_1_countdown",
+      "name": "倒计时",
+      "duration_minutes": 10,
+      "narrative": "广场上的大钟开始倒数，所有 NPC 围在广场中央"
+    },
+    {
+      "id": "phase_2_fireworks",
+      "name": "烟花",
+      "duration_minutes": 5,
+      "narrative": "零点放烟花，全城 NPC 互相祝贺"
+    },
+    {
+      "id": "phase_3_new_year",
+      "name": "新年第一天",
+      "duration_hours": 24,
+      "narrative": "红包 / 拜年 / 走亲戚"
+    }
+  ],
+  "estimated_duration_minutes": 1440,
+  "tags": ["节日", "全城", "一次性"],
+  "author": "narrative_team"
+}

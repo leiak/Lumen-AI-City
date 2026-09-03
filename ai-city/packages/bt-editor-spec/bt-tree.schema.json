@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aicity.dev/schemas/bt-tree.json",
+  "title": "BT Tree",
+  "description": "完整行为树（根节点 + 树级元信息）",
+  "type": "object",
+  "required": ["version", "root"],
+  "properties": {
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "name": {"type": "string"},
+    "description": {"type": "string"},
+    "author": {"type": "string"},
+    "tags": {"type": "array", "items": {"type": "string"}},
+    "root": {"$ref": "bt-node.schema.json"},
+    "subtrees": {
+      "type": "object",
+      "additionalProperties": {"$ref": "bt-node.schema.json"}
+    },
+    "metadata": {"type": "object"},
+    "created_at_ms": {"type": "integer"},
+    "updated_at_ms": {"type": "integer"}
+  }
+}

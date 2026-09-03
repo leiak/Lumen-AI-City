@@ -1,0 +1,25 @@
+version: v1
+plugins:
+  # Go
+  - plugin: buf.build/protocolbuffers/go
+    out: gen/go
+    opt: paths=source_relative
+  - plugin: buf.build/grpc/go
+    out: gen/go
+    opt: paths=source_relative
+
+  # Python
+  - plugin: buf.build/protocolbuffers/python
+    out: gen/python
+    opt: paths=source_relative
+  - plugin: buf.build/grpc/python
+    out: gen/python
+    opt: paths=source_relative
+
+  # TypeScript
+  - plugin: buf.build/protocolbuffers/js
+    out: gen/ts
+    opt: paths=source_relative
+  - plugin: buf.build/grpc/web
+    out: gen/ts
+    opt: paths=source_relative,mode=grpcweb

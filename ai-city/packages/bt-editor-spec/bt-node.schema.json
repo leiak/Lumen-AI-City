@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aicity.dev/schemas/bt-node.json",
+  "title": "BT Node",
+  "description": "行为树节点类型（7 类节点，§12-BT编辑器PRD §5.1）",
+  "oneOf": [
+    {"$ref": "#/definitions/SequenceNode"},
+    {"$ref": "#/definitions/SelectorNode"},
+    {"$ref": "#/definitions/ConditionNode"},
+    {"$ref": "#/definitions/ActionNode"},
+    {"$ref": "#/definitions/DecoratorNode"},
+    {"$ref": "#/definitions/SubTreeNode"},
+    {"$ref": "#/definitions/LLMNode"}
+  ],
+  "definitions": {
+    "BaseNode": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {"type": "string"},
+        "name": {"type": "string"},
+        "metadata": {"type": "object"}
+      }
+    },
+    "SequenceNode": {
+      "allOf": [
+        {"$ref": "#/definitions/BaseNode"},
+        {
+          "type": "object",
+          "properties": {
+            "type": {""const": "Sequence"},
+            "children": {"type": "array", "items": {"$ref": "#/definitions/BaseNode"}}
+          }
+        }
+      ]
+    },
+    "SelectorNode": {
+      "allOf": [
+        {"$ref": "#/definitions/BaseNode"},
+        {
+          "type": "object",
+          "properties": {
+            "type": {""const": "Selector"},
+            "children": {"type": "array", "items": {"$ref": "#/definitions/BaseNode"}}
+          }
+        }
+      ]
+    },
+    "ConditionNode": {
+      "allOf": [
+        {"$ref": "#/definitions/BaseNode"},
+        {
+          "type": "object",
+          "properties": {
+            "type": {""const": "Condition"},
+            "expression": {"type": "string", "description": "如 player.distance_to(npc) < 10"},
+            "true_action": {"type": "string"},
+            "false_action": {"type": "string"}
+          }
+        }
+      ]
+    },
+    "ActionNode": {
+      "allOf": [
+        {"$ref": "#/definitions/BaseNode"},
+        {
+          "type": "object",
+          "properties": {
+            "type": {""const": "Action"},
+            "action": {"type": "string", "enum": ["move", "say", "give_item", "play_anim", "set_mood", "wait"]},
+            "args": {"type": "object"}
+          }
+        }
+      ]
+    },
+    "DecoratorNode": {
+      "allOf": [
+        {"$ref": "#/definitions/BaseNode"},
+        {
+          "type": "object",
+          "properties": {
+            "type": {""const": "Decorator"},
+            "decorator": {"type": "string", "enum": ["Inverter", "Repeater", "UntilSuccess", "Cooldown", "Random"]},
+            "args": {"type": "object"},
+            "child": {"$ref": "#/definitions/BaseNode"}
+          }
+        }
+      ]
+    },
+    "SubTreeNode": {
+      "allOf": [
+        {"$ref": "#/definitions/BaseNode"},
+        {
+          "type": "object",
+          "properties": {
+            "type": {""const": "SubTree"},
+            "ref": {"type": "string", "description": "引用的子树 ID"}
+          }
+        }
+      ]
+    },
+    "LLMNode": {
+      "allOf": [
+        {"$ref": "#/definitions/BaseNode"},
+        {
+          "type": "object",
+          "properties": {
+            "type": {""const": "LLM"},
+            "prompt_template": {"type": "string"},
+            "model": {"type": "string", "default": "claude-sonnet-4-6"},
+            "max_tokens": {"type": "integer", "default": 256},
+            "tools": {"type": "array", "items": {"type": "string"}}
+          }
+        }
+      ]
+    }
+  }
+}

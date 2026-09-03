@@ -1,0 +1,11 @@
+version: v1
+name: buf.build/aicity/proto
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - DEFAULT
+    - IMPORT_NO_WEAK
+  except:
+    - PACKAGE_VERSION_SUFFIX

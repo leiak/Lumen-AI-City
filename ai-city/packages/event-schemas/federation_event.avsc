@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "FederationEvent",
+  "namespace": "aicity.events.v1",
+  "doc": "A2A 联邦事件",
+  "fields": [
+    {"name": "ts_ms", "type": "long"},
+    {"name": "trace_id", "type": "string"},
+    {"name": "from_agent_id", "type": "string"},
+    {"name": "to_agent_id", "type": "string"},
+    {"name": "city", "type": "string"},
+    {"name": "event_type", "type": {"type": "enum", "name": "FedEventType", "symbols": ["SENT","RECEIVED","ACK","TIMEOUT","AUTH_FAILED"]}},
+    {"name": "capability", "type": ["null", "string"], "default": null},
+    {"name": "latency_ms", "type": ["null", "long"], "default": null}
+  ]
+}

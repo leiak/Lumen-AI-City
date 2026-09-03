@@ -1,0 +1,46 @@
+{
+  "title": "Saga Dashboard (AI City)",
+  "uid": "aicity-saga",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["aicity", "saga"],
+  "panels": [
+    {
+      "title": "Running Sagas",
+      "type": "stat",
+      "targets": [{ "expr": "saga_running_count" }],
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "title": "Completed (24h)",
+      "type": "stat",
+      "targets": [{ "expr": "saga_completed_24h_total" }],
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "title": "Failed (24h)",
+      "type": "stat",
+      "targets": [{ "expr": "saga_failed_24h_total" }],
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "title": "Compensation Rate",
+      "type": "stat",
+      "targets": [{ "expr": "rate(saga_compensated_total[5m]) / rate(saga_started_total[5m])" }],
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "title": "P99 Duration (ms)",
+      "type": "stat",
+      "targets": [{ "expr": "histogram_quantile(0.99, saga_duration_ms_bucket)" }],
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 }
+    },
+    {
+      "title": "Compensation Events by Step",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (step_name) (rate(saga_compensated_total[5m]))" }],
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "title": "LLM Cost (AI City)",
+  "uid": "aicity-llm-cost",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "tags": ["aicity", "cost"],
+  "panels": [
+    {
+      "title": "Daily Cost vs Budget ($)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(llm_cost_usd_total)", "legendFormat": "Actual" },
+        { "expr": "vector(5000)", "legendFormat": "Budget" }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 }
+    },
+    {
+      "title": "Cost by Model",
+      "type": "piechart",
+      "targets": [{ "expr": "sum by (model) (llm_cost_usd_total)" }],
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 6 }
+    },
+    {
+      "title": "Tokens / min",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum(rate(llm_tokens_total[1m])) by (direction)" }],
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 6 }
+    },
+    {
+      "title": "Cost Savings from LOD (%)",
+      "type": "stat",
+      "targets": [{ "expr": "(1 - sum(rate(llm_cost_usd_total[5m])) / sum(rate(llm_cost_usd_baseline_total[5m]))) * 100" }],
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 6 }
+    }
+  ]
+}

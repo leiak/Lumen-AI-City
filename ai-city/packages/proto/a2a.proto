@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package aicity.a2a.v1;
+
+option go_package = "github.com/aicity/proto/gen/go/a2a/v1;a2av1";
+
+// A2A 联邦协议（§20）
+service A2AGateway {
+  // Agent Card 注册
+  rpc RegisterCard(AgentCard) returns (RegisterResponse);
+
+  // 联邦发现
+  rpc Discover(DiscoverRequest) returns (DiscoverResponse);
+
+  // 发送消息
+  rpc SendMessage(Message) returns (MessageResponse);
+
+  // 双向流（用于对话）
+  rpc Stream(stream Message) returns (stream Message);
+}
+
+message AgentCard {
+  string agent_id = 1;
+  string name = 2;
+  string description = 3;
+  string url = 4;
+  string provider = 5;          // "openclaw" | "workbuddy" | "aicity"
+  string version = 6;
+  repeated string capabilities = 7;
+  map<string, string> auth = 8; // "ed25519:..." | "mtls:..."
+  int64 registered_at_ms = 9;
+}
+
+message RegisterResponse {
+  bool accepted = 1;
+  string card_id = 2;
+}
+
+message DiscoverRequest {
+  string capability = 1;
+  string city_filter = 2;
+}
+
+message DiscoverResponse {
+  repeated AgentCard cards = 1;
+}
+
+// Envelope（§20.3）
+message Message {
+  string message_id = 1;
+  string from_agent_id = 2;
+  string to_agent_id = 3;
+  string conversation_id = 4;
+  string type = 5;             // "request" | "response" | "event"
+  bytes payload = 6;           // 实际业务数据
+  int64 ts_ms = 7;
+  string trace_id = 8;
+  string signature = 9;        // ed25519 签名（§20.11）
+}
+
+message MessageResponse {
+  bool delivered = 1;
+  string error = 2;
+}

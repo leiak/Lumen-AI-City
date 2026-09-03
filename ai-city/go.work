@@ -1,0 +1,9 @@
+go 1.23
+
+use (
+	./apps/api-gateway
+	./apps/ws-gateway
+	./apps/a2a-gateway
+	./apps/observability-agent
+	./packages/sdk-go
+)

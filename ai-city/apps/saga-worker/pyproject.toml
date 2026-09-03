@@ -1,0 +1,14 @@
+[project]
+name = "saga-worker"
+version = "0.1.0"
+description = "Saga Step 执行器"
+requires-python = ">=3.12"
+dependencies = [
+    "aiokafka>=0.12",
+    "pydantic>=2.9",
+    "tenacity>=9.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

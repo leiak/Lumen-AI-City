@@ -1,0 +1,38 @@
+[tool.uv]
+# Python workspace root - all Python packages live under apps/ or packages/
+# Install with: uv sync --all-packages
+workspace = [
+    "apps/agent-os",
+    "apps/memory-service",
+    "apps/saga-orchestrator",
+    "apps/saga-worker",
+    "apps/notification-engine",
+    "apps/bt-editor-api",
+    "apps/economy-service",
+    "packages/saga-dsl",
+    "packages/sdk-py"
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/node_modules", "**/dist", "**/.venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = ["E501"]  # line-length handled by formatter
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "integration: integration tests",
+    "e2e: end-to-end tests",
+    "load: load tests",
+    "slow: slow tests"
+]

@@ -1,0 +1,10 @@
+global:
+  imageRegistry: ghcr.io/aicity
+  imageTag: v0.1.0
+
+logging:
+  level: warn
+  lokiUrl: http://loki.monitoring:3100
+
+tracing:
+  otelEndpoint: http://otel-collector.monitoring:4317

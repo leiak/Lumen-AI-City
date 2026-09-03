@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package aicity.agent.v1;
+
+option go_package = "github.com/aicity/proto/gen/go/agent/v1;agentv1";
+
+// AgentOS 服务 - AI 决策循环
+service AgentOS {
+  // 触发一次决策
+  rpc Decide(DecideRequest) returns (DecideResponse);
+
+  // 获取 Agent 状态
+  rpc GetState(GetStateRequest) returns (AgentState);
+
+  // 提交决策反馈（用于 RL）
+  rpc SubmitFeedback(FeedbackRequest) returns (FeedbackResponse);
+
+  // 流式对话（WebSocket 升级）
+  rpc Dialogue(stream DialogueMessage) returns (stream DialogueMessage);
+}
+
+message Percept {
+  string source = 1;        // "tick" | "player" | "npc" | "federation"
+  string kind = 2;          // "movement" | "dialogue" | "story_event" | ...
+  int32 priority = 3;       // 0-10
+  int64 ts_ms = 4;
+  map<string, string> payload = 5;
+}
+
+message DecideRequest {
+  string agent_id = 1;
+  repeated Percept percepts = 2;
+  string trace_id = 3;
+  bool force_llm = 4;       // 强制 LLM 升级（用于调试）
+}
+
+message DecideResponse {
+  string action = 1;        // 行动类型
+  map<string, string> args = 2;
+  float confidence = 3;
+  string why = 4;
+  string trace_id = 5;
+  LodLevel lod_level = 6;
+}
+
+enum LodLevel {
+  LOD_UNSPECIFIED = 0;
+  L0_BACKGROUND = 1;        // 背景板
+  L1_INTERACTIVE = 2;       // 互动 NPC
+  L2_MAIN_CHARACTER = 3;    // 主角
+}
+
+message GetStateRequest {
+  string agent_id = 1;
+}
+
+message AgentState {
+  string agent_id = 1;
+  string current_state = 2;     // "idle" | "planning" | "executing" | "reflecting"
+  LodLevel lod_level = 3;
+  float distance_to_nearest_player = 4;
+  int64 last_decision_ts_ms = 5;
+  int32 total_decisions = 6;
+}
+
+message FeedbackRequest {
+  string trace_id = 1;
+  int32 rating = 2;         // 1-5
+  string comment = 3;
+}
+
+message FeedbackResponse {
+  bool accepted = 1;
+}
+
+message DialogueMessage {
+  string agent_id = 1;
+  string player_id = 2;
+  string content = 3;
+  int64 ts_ms = 4;
+  string trace_id = 5;
+  bool is_player = 6;
+}

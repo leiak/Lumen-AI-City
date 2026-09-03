@@ -1,0 +1,48 @@
+groups:
+  - name: aicity-p0
+    interval: 30s
+    rules:
+      - alert: LLM_Daily_Budget_Exceeded
+        expr: sum(llm_cost_usd_total) > 5000
+        for: 1m
+        labels:
+          severity: p0
+        annotations:
+          summary: "LLM 日预算超限"
+          description: "当日累计 Token 成本已超 $5,000，立即触发降级"
+
+      - alert: SagaCompensationRate_High
+        expr: rate(saga_compensated_total[5m]) / rate(saga_started_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: p0
+        annotations:
+          summary: "Saga 补偿率超过 10%"
+          description: "可能存在下游服务不稳定"
+
+      - alert: NPC_DecisionLoop
+        expr: count by (agent_id) (rate(agent_decisions_total[5m])) > 5
+        for: 2m
+        labels:
+          severity: p1
+        annotations:
+          summary: "NPC 决策陷入循环"
+          description: "Agent {{ $labels.agent_id }} 5min 内决策超过 5 次/s，可能死循环"
+
+      - alert: MemoryService_Latency_High
+        expr: histogram_quantile(0.99, memory_recall_duration_ms_bucket) > 200
+        for: 3m
+        labels:
+          severity: p1
+        annotations:
+          summary: "记忆检索 P99 > 200ms"
+          description: "RAG 检索慢，影响 Agent 决策速度"
+
+      - alert: FederationErrors_High
+        expr: rate(federation_errors_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: p1
+        annotations:
+          summary: "A2A 联邦错误率超 5%"
+          description: "外部 Agent 接入异常"

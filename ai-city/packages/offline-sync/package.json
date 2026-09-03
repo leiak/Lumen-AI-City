@@ -1,0 +1,10 @@
+{
+  "name": "@aicity/offline-sync",
+  "version": "0.1.0",
+  "description": "离线日志同步协议（§E.7）",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  }
+}

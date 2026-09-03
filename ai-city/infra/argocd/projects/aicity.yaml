@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: aicity
+  namespace: argocd
+spec:
+  description: AI City 项目
+  sourceRepos:
+    - https://github.com/aicity/ai-city
+  destinations:
+    - namespace: aicity
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: '*'
+    - group: 'apps'
+      kind: '*'
+    - group: 'autoscaling'
+      kind: '*'
+  orphanedResources:
+    warn: true
+  roles:
+    - name: admin
+      policies:
+        - p, proj:aicity:admin, applications, *, aicity/*, allow
+      groups:
+        - aicity:admins
