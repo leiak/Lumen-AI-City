@@ -30,7 +30,6 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/maplibre-gl": "^4.7.0",
     "typescript": "^5.5.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.0.0",
