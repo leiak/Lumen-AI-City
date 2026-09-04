@@ -17,6 +17,7 @@ import (
 	"github.com/aicity/api-gateway/internal/router"
 	"github.com/aicity/api-gateway/internal/store"
 	"github.com/aicity/api-gateway/internal/subscriber"
+	"github.com/aicity/api-gateway/internal/worldgrpc"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -76,7 +77,16 @@ func main() {
 	playerStore := store.NewPlayerStore(db)
 	subscriber.PlayerMoved(appCtx, rdb, "aicity:player:moved", playerStore, logger)
 
-	router.Register(r, cfg, db, playerStore)
+	// Sprint 3.5：连接 world-engine gRPC（高频写路径 /v1/world/move 用）
+	worldClient, err := worldgrpc.NewClient(cfg.WorldGRPCAddr)
+	if err != nil {
+		logger.Fatal("world-engine gRPC dial failed",
+			zap.String("addr", cfg.WorldGRPCAddr), zap.Error(err))
+	}
+	defer worldClient.Close()
+	logger.Info("world-engine gRPC connected", zap.String("addr", cfg.WorldGRPCAddr))
+
+	router.Register(r, cfg, db, playerStore, worldClient)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

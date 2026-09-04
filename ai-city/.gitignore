@@ -65,3 +65,6 @@ docker-compose.override.yml
 data/
 *.sqlite
 *.db
+
+# Generated proto stubs (regenerate via `protoc ... packages/proto/*.proto` or `make gen-proto`)
+packages/proto/gen/

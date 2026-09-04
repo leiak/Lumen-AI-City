@@ -8,12 +8,13 @@ import (
 	"github.com/aicity/api-gateway/internal/handlers"
 	"github.com/aicity/api-gateway/internal/middleware"
 	"github.com/aicity/api-gateway/internal/store"
+	"github.com/aicity/api-gateway/internal/worldgrpc"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *store.PlayerStore) {
+func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *store.PlayerStore, worldClient *worldgrpc.Client) {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": cfg.ServiceName})
 	})
@@ -24,6 +25,7 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 	// 初始化 handlers（playerStore 由 main 注入，避免重复创建）
 	authHandler := handlers.NewAuthHandler(playerStore, db, cfg.JWTSecret, cfg.JWTExpiry)
 	playerHandler := handlers.NewPlayerHandler(playerStore)
+	worldMoveHandler := handlers.NewWorldMoveHandler(worldClient)
 	worldProxy, err := handlers.NewWorldProxy(cfg.WorldURL)
 	if err != nil {
 		log.Fatalf("invalid WORLD_ENGINE_URL %q: %v", cfg.WorldURL, err)
@@ -52,9 +54,10 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		authed.POST("/sagas", func(c *gin.Context) { c.JSON(501, gin.H{"error": "TODO"}) })
 		authed.GET("/sagas/:id", func(c *gin.Context) { c.JSON(501, gin.H{"error": "TODO"}) })
 
-		// 世界相关：反向代理到 world-engine（Sprint 1 接入）
+		// 世界相关：读路径（tiles）继续走 REST proxy（web 用，便于缓存），
+		// 写路径（move）走 gRPC（Sprint 3.5）
 		authed.GET("/tiles", worldProxy.Proxy)
 		authed.GET("/tiles/:id", worldProxy.Proxy)
-		authed.POST("/world/move", worldProxy.Proxy)
+		authed.POST("/world/move", worldMoveHandler.Move)
 	}
 }
