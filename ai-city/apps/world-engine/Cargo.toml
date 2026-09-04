@@ -18,6 +18,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 axum = "0.7"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["trace", "cors"] }
+# Redis Pub/Sub: 用 tokio TCP 直写 RESP，避免 redis-rs 拉入大依赖链
+# 仅支持 PUBLISH；订阅由 api-gateway 用 go-redis 处理
 
 [dev-dependencies]
 tokio-test = "0.4"

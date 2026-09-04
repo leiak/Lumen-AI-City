@@ -6,14 +6,30 @@
 //! 坐标系：
 //! - Tile 大小 100m × 100m
 //! - tile_x_y 表示坐标范围 [x*100, (x+1)*100) × [y*100, (y+1)*100)
+//!
+//! Sprint 1.5 新增：
+//! - `PlayerPosition`：每个玩家的实时位置（X/Y/Tile/时间戳）
+//! - `player_enter` / `player_leave` 维护 tile.player_ids 集合
 
 use std::collections::HashMap;
 use std::sync::RwLock;
+
+use serde::{Deserialize, Serialize};
 
 use crate::tile::{Building, BuildingKind, LodLevel, Tile};
 
 const TILE_SIZE: f32 = 100.0;
 const GRID_RADIUS: i32 = 1; // 中心 ±1 → 3×3 = 9 个 Tile
+
+/// 玩家实时位置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerPosition {
+    pub player_id: String,
+    pub tile_id: String,
+    pub x: f32,
+    pub y: f32,
+    pub ts_ms: i64,
+}
 
 /// 默认世界：3×3 网格 + 3 个种子 NPC 所在的 Tile
 pub fn default_world() -> HashMap<String, Tile> {
@@ -89,15 +105,17 @@ pub fn default_world() -> HashMap<String, Tile> {
     grid
 }
 
-/// 线程安全的网格容器
+/// 线程安全的网格容器 + 玩家位置表
 pub struct WorldGrid {
     inner: RwLock<HashMap<String, Tile>>,
+    positions: RwLock<HashMap<String, PlayerPosition>>,
 }
 
 impl WorldGrid {
     pub fn new() -> Self {
         Self {
             inner: RwLock::new(default_world()),
+            positions: RwLock::new(HashMap::new()),
         }
     }
 
@@ -129,6 +147,39 @@ impl WorldGrid {
                 t.player_ids.retain(|p| p != player_id);
             }
         }
+    }
+
+    /// 更新玩家位置（覆盖式）
+    pub fn upsert_position(&self, pos: PlayerPosition) {
+        // 同步更新 Tile.player_ids
+        if let Some(prev) = self.get_position(&pos.player_id) {
+            if prev.tile_id != pos.tile_id {
+                self.player_leave(&prev.tile_id, &pos.player_id);
+                self.player_enter(&pos.tile_id, &pos.player_id);
+            }
+        } else {
+            self.player_enter(&pos.tile_id, &pos.player_id);
+        }
+        if let Ok(mut m) = self.positions.write() {
+            m.insert(pos.player_id.clone(), pos);
+        }
+    }
+
+    pub fn get_position(&self, player_id: &str) -> Option<PlayerPosition> {
+        self.positions.read().ok()?.get(player_id).cloned()
+    }
+
+    /// 当前 Tile 上所有玩家位置
+    pub fn positions_in_tile(&self, tile_id: &str) -> Vec<PlayerPosition> {
+        self.positions
+            .read()
+            .map(|m| m.values().filter(|p| p.tile_id == tile_id).cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// 当前在线玩家数（metrics 用）
+    pub fn player_count(&self) -> usize {
+        self.positions.read().map(|m| m.len()).unwrap_or(0)
     }
 }
 
@@ -168,5 +219,61 @@ mod tests {
         grid.player_leave("tile_0_0", "player_demo");
         let t = grid.get("tile_0_0").unwrap();
         assert!(!t.player_ids.contains(&"player_demo".to_string()));
+    }
+
+    #[test]
+    fn test_upsert_position_updates_tile_membership() {
+        let grid = WorldGrid::new();
+        let now = chrono_now_ms();
+
+        grid.upsert_position(PlayerPosition {
+            player_id: "p1".into(),
+            tile_id: "tile_0_0".into(),
+            x: 50.0,
+            y: 50.0,
+            ts_ms: now,
+        });
+        assert!(grid.get("tile_0_0").unwrap().player_ids.contains(&"p1".to_string()));
+
+        // 移动到 tile_1_0
+        grid.upsert_position(PlayerPosition {
+            player_id: "p1".into(),
+            tile_id: "tile_1_0".into(),
+            x: 150.0,
+            y: 50.0,
+            ts_ms: now + 100,
+        });
+        assert!(!grid.get("tile_0_0").unwrap().player_ids.contains(&"p1".to_string()));
+        assert!(grid.get("tile_1_0").unwrap().player_ids.contains(&"p1".to_string()));
+    }
+
+    #[test]
+    fn test_positions_in_tile() {
+        let grid = WorldGrid::new();
+        let now = chrono_now_ms();
+        grid.upsert_position(PlayerPosition {
+            player_id: "p1".into(),
+            tile_id: "tile_0_0".into(),
+            x: 50.0,
+            y: 50.0,
+            ts_ms: now,
+        });
+        grid.upsert_position(PlayerPosition {
+            player_id: "p2".into(),
+            tile_id: "tile_1_0".into(),
+            x: 150.0,
+            y: 50.0,
+            ts_ms: now,
+        });
+        let in_0_0 = grid.positions_in_tile("tile_0_0");
+        assert_eq!(in_0_0.len(), 1);
+        assert_eq!(in_0_0[0].player_id, "p1");
+    }
+
+    fn chrono_now_ms() -> i64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0)
     }
 }
