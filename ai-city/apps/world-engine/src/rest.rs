@@ -28,6 +28,7 @@ use tracing::{info, warn};
 
 use crate::metrics;
 use crate::redis_pub::RedisPub;
+use crate::redis_sub::RedisSub;
 use crate::tile::Tile;
 use crate::world_grid::{PlayerPosition, WorldGrid};
 
@@ -35,6 +36,7 @@ use crate::world_grid::{PlayerPosition, WorldGrid};
 pub struct AppState {
     pub grid: Arc<WorldGrid>,
     pub redis: Option<Arc<RedisPub>>,
+    pub redis_sub: Option<Arc<RedisSub>>,
     pub channel_moved: String,
     pub pg_connected: Arc<AtomicBool>,
     pub ready: Arc<AtomicBool>,
@@ -117,7 +119,11 @@ async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
 
 /// Prometheus metrics（text/plain; version=0.0.4）
 async fn prometheus_metrics(State(state): State<AppState>) -> impl IntoResponse {
-    let body = metrics::render(state.redis.as_deref(), &state.grid);
+    let body = metrics::render(
+        state.redis.as_deref(),
+        state.redis_sub.as_deref(),
+        &state.grid,
+    );
     (
         StatusCode::OK,
         [(
@@ -132,6 +138,7 @@ async fn prometheus_metrics(State(state): State<AppState>) -> impl IntoResponse 
 async fn json_metrics(State(state): State<AppState>) -> impl IntoResponse {
     Json(serde_json::json!({
         "redis": state.redis.as_ref().map(|p| p.stats()),
+        "redis_sub": state.redis_sub.as_ref().map(|s| s.stats()),
         "tiles": state.grid.list().len(),
         "players_tracked": state.grid.player_count(),
         "channel_moved": state.channel_moved,
@@ -292,6 +299,7 @@ mod tests {
         AppState {
             grid: Arc::new(WorldGrid::new()),
             redis: None,
+            redis_sub: None,
             channel_moved: "test:player:moved".into(),
             pg_connected: Arc::new(AtomicBool::new(true)),
             ready: Arc::new(AtomicBool::new(true)),
