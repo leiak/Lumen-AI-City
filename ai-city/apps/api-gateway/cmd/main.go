@@ -19,6 +19,7 @@ import (
 	"github.com/aicity/api-gateway/internal/subscriber"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
@@ -40,6 +41,12 @@ func main() {
 		logger.Fatal("pg ping failed", zap.Error(err))
 	}
 	logger.Info("pg connected")
+
+	// Sprint 2: 构造 Prometheus 默认 collectors（构造时自动注册到 default registry）
+	// 注意：NewGoCollector / NewProcessCollector 已经自带 MustRegister，
+	//       这里只是显式持有引用以便未来反注册。
+	_ = collectors.NewGoCollector()
+	_ = collectors.NewProcessCollector(collectors.ProcessCollectorOpts{})
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()

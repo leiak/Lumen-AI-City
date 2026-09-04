@@ -6,7 +6,10 @@ pub mod collision;
 pub mod multiplayer;
 pub mod world_grid;
 pub mod redis_pub;
+pub mod pg_client;
+pub mod tile_loader;
 pub mod rest;
+pub mod metrics;
 
 pub use tile::Tile;
 pub use movement::Movement;

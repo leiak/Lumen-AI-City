@@ -26,7 +26,8 @@
 |---|---|---|
 | 1 | ✅ done | — |
 | 1.5 | ✅ done | [`ai-city/docs/SPRINT-1.5.md`](ai-city/docs/SPRINT-1.5.md)（world-engine REST + Redis Pub/Sub + api-gateway 订阅者链路） |
-| 2 | ⏳ next | 见 SPRINT-1.5 §四 候选清单（`tile` PG 持久化、gRPC、Prometheus 接入） |
+| 2 | ✅ done | [`ai-city/docs/SPRINT-2.md`](ai-city/docs/SPRINT-2.md)（PG tile 表 + 手写 PG 客户端 + Prometheus + liveness/readiness 拆分） |
+| 3 | ⏳ next | gRPC (tonic) + Redis 反向通知（多实例同步） |
 
 ## 🤝 贡献
 

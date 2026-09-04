@@ -1,22 +1,24 @@
-//! REST API（Sprint 1.5）
+//! REST API（Sprint 2）
 //!
-//! 与 gateway 通过 HTTP/JSON 通信：
-//! - GET  /v1/tiles                       → 列出所有 Tile
-//! - GET  /v1/tiles/:id                   → 查询单个 Tile
-//! - POST /v1/world/move                  → 移动玩家，更新 Tile 归属 + Redis publish
-//! - GET  /v1/players/:id/position        → 查询玩家当前位置
-//! - GET  /v1/tiles/:id/players           → 查询 Tile 上的玩家位置列表
-//! - GET  /healthz                        → 健康检查
-//!
-//! 真实部署里会把 `WorldGrid` 换成 sqlx 加载的 `tile` 表 + Redis Pub/Sub 广播。
+//! 端点：
+//! - GET  /healthz               → liveness（进程在就 200）
+//! - GET  /readyz                → readiness（Redis ok + tiles > 0 才 200）
+//! - GET  /metrics               → Prometheus text format（v0.0.4）
+//! - GET  /v1/_metrics           → JSON debug（保留）
+//! - GET  /v1/tiles              → 列出所有 Tile
+//! - GET  /v1/tiles/:id          → 查询单个 Tile
+//! - GET  /v1/tiles/:id/players  → 查询 Tile 上的玩家位置列表
+//! - GET  /v1/players/:id/position → 查询玩家当前位置
+//! - POST /v1/world/move         → 移动玩家，更新 Tile 归属 + Redis publish
 
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{header, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -24,6 +26,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
+use crate::metrics;
 use crate::redis_pub::RedisPub;
 use crate::tile::Tile;
 use crate::world_grid::{PlayerPosition, WorldGrid};
@@ -33,16 +36,8 @@ pub struct AppState {
     pub grid: Arc<WorldGrid>,
     pub redis: Option<Arc<RedisPub>>,
     pub channel_moved: String,
-}
-
-#[derive(Serialize)]
-pub struct HealthBody {
-    pub status: &'static str,
-    pub redis: &'static str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub redis_stats: Option<crate::redis_pub::RedisStats>,
-    pub tiles: usize,
-    pub players_tracked: usize,
+    pub pg_connected: Arc<AtomicBool>,
+    pub ready: Arc<AtomicBool>,
 }
 
 // ─── Response / Request DTOs ────────────────────────────────────────────────
@@ -74,35 +69,67 @@ pub struct MoveResponse {
 
 // ─── Handlers ──────────────────────────────────────────────────────────────
 
-async fn healthz(State(state): State<AppState>) -> impl IntoResponse {
-    // 三态：not_configured (无 REDIS_URL) / ok (PING 回 +PONG) / unreachable
-    let (redis, stats) = match &state.redis {
-        Some(p) => {
-            let ok = p.ping().await;
-            let label = if ok { "ok" } else { "unreachable" };
-            (label, Some(p.stats()))
-        }
-        None => ("not_configured", None),
+/// Liveness：进程在就 200（不依赖任何外部）
+async fn healthz() -> impl IntoResponse {
+    (StatusCode::OK, Json(serde_json::json!({"status":"alive"})))
+}
+
+/// Readiness：Redis ping ok + tiles > 0 + pg_connected（若有 DATABASE_URL）才 200
+/// 不通过则 503 + reason，方便 K8s / 负载均衡探测
+async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
+    let mut reasons: Vec<&'static str> = Vec::new();
+
+    // tiles
+    let tile_count = state.grid.list().len();
+    if tile_count == 0 {
+        reasons.push("tiles_empty");
+    }
+
+    // redis
+    let redis_ok = match &state.redis {
+        Some(p) => p.ping().await,
+        None => true, // 没配置 REDIS_URL 不视为阻塞
     };
-    let status = if redis == "ok" || redis == "not_configured" {
-        "ok"
+    if !redis_ok {
+        reasons.push("redis_unreachable");
+    }
+
+    // pg
+    if std::env::var("DATABASE_URL").is_ok() && !state.pg_connected.load(Ordering::Relaxed) {
+        reasons.push("pg_not_connected");
+    }
+
+    let body = serde_json::json!({
+        "status": if reasons.is_empty() { "ready" } else { "not_ready" },
+        "redis": if redis_ok { "ok" } else { "unreachable" },
+        "pg_connected": state.pg_connected.load(Ordering::Relaxed),
+        "tiles": tile_count,
+        "players_tracked": state.grid.player_count(),
+        "reasons": reasons,
+    });
+    let code = if reasons.is_empty() {
+        StatusCode::OK
     } else {
-        "degraded"
+        StatusCode::SERVICE_UNAVAILABLE
     };
+    (code, Json(body))
+}
+
+/// Prometheus metrics（text/plain; version=0.0.4）
+async fn prometheus_metrics(State(state): State<AppState>) -> impl IntoResponse {
+    let body = metrics::render(state.redis.as_deref(), &state.grid);
     (
         StatusCode::OK,
-        Json(HealthBody {
-            status,
-            redis,
-            redis_stats: stats,
-            tiles: state.grid.list().len(),
-            players_tracked: state.grid.player_count(),
-        }),
+        [(
+            header::CONTENT_TYPE,
+            "text/plain; version=0.0.4; charset=utf-8",
+        )],
+        body,
     )
 }
 
-async fn metrics(State(state): State<AppState>) -> impl IntoResponse {
-    // 轻量 JSON metrics：可被 Prometheus 用 json_exporter 抓取，或仅供运维调试
+/// JSON debug metrics（保留，Sprint 1.5 行为不变）
+async fn json_metrics(State(state): State<AppState>) -> impl IntoResponse {
     Json(serde_json::json!({
         "redis": state.redis.as_ref().map(|p| p.stats()),
         "tiles": state.grid.list().len(),
@@ -167,7 +194,6 @@ async fn move_player(
     State(state): State<AppState>,
     Json(req): Json<MoveRequest>,
 ) -> Result<Json<MoveResponse>, (StatusCode, Json<ErrorBody>)> {
-    // 目标 Tile 必须存在
     if state.grid.get(&req.to_tile_id).is_none() {
         warn!(
             player_id = %req.player_id,
@@ -232,7 +258,9 @@ async fn move_player(
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
-        .route("/v1/_metrics", get(metrics))
+        .route("/readyz", get(readyz))
+        .route("/metrics", get(prometheus_metrics))
+        .route("/v1/_metrics", get(json_metrics))
         .route("/v1/tiles", get(list_tiles))
         .route("/v1/tiles/:id", get(get_tile))
         .route("/v1/tiles/:id/players", get(list_tile_players))
@@ -265,6 +293,8 @@ mod tests {
             grid: Arc::new(WorldGrid::new()),
             redis: None,
             channel_moved: "test:player:moved".into(),
+            pg_connected: Arc::new(AtomicBool::new(true)),
+            ready: Arc::new(AtomicBool::new(true)),
         }
     }
 

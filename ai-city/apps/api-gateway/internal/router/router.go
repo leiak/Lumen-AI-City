@@ -10,12 +10,16 @@ import (
 	"github.com/aicity/api-gateway/internal/store"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *store.PlayerStore) {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": cfg.ServiceName})
 	})
+
+	// Sprint 2: Prometheus metrics 端点
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// 初始化 handlers（playerStore 由 main 注入，避免重复创建）
 	authHandler := handlers.NewAuthHandler(playerStore, db, cfg.JWTSecret, cfg.JWTExpiry)

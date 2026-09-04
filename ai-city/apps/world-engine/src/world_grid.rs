@@ -119,6 +119,14 @@ impl WorldGrid {
         }
     }
 
+    /// Sprint 2: 从 PG / 配置 / 测试数据 注入预加载的 tile 集合
+    pub fn with_tiles(tiles: HashMap<String, Tile>) -> Self {
+        Self {
+            inner: RwLock::new(tiles),
+            positions: RwLock::new(HashMap::new()),
+        }
+    }
+
     pub fn get(&self, id: &str) -> Option<Tile> {
         self.inner.read().ok()?.get(id).cloned()
     }

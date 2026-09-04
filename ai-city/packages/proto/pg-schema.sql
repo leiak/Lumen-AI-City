@@ -1,5 +1,5 @@
 -- ============================================
--- AI City - PostgreSQL Schema (v2.2)
+-- AI City - PostgreSQL Schema (v2.3)
 -- 对应 docs/03-数据Schema.md §17.1
 -- ============================================
 
@@ -98,6 +98,69 @@ CREATE TABLE IF NOT EXISTS player_position (
 
 CREATE INDEX idx_position_tile ON player_position(tile_id);
 CREATE INDEX idx_position_updated ON player_position(updated_at DESC);
+
+-- ============================================
+-- Tile 表（tile）—— 世界地理 + 静态建筑物
+-- ============================================
+CREATE TABLE IF NOT EXISTS tile (
+    id              VARCHAR(64) PRIMARY KEY,           -- 如 'tile_0_0'
+    center_x        REAL NOT NULL,                     -- 中心点 x（米）
+    center_y        REAL NOT NULL,                     -- 中心点 y（米）
+    size            REAL NOT NULL DEFAULT 100.0,        -- 边长（米）
+    lod_level       SMALLINT NOT NULL DEFAULT 1        -- 0=CBD / 1=Residential / 2=Suburb
+                    CHECK (lod_level BETWEEN 0 AND 2),
+    buildings       JSONB NOT NULL DEFAULT '[]',       -- [{id, kind, polygon:[...]}, ...]
+    npc_ids         TEXT[] NOT NULL DEFAULT '{}',      -- 种子 NPC 的 agent_id
+    enabled         BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_tile_enabled ON tile(enabled) WHERE enabled = TRUE;
+CREATE INDEX idx_tile_lod ON tile(lod_level);
+
+CREATE TRIGGER tile_updated_at BEFORE UPDATE ON tile
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+COMMENT ON TABLE tile IS '世界地理 Tile + 静态建筑物（运行期 player_ids 不落库）';
+
+-- ============================================
+-- Tile 种子数据：3×3 网格（中心 0,0 + 4 邻 + 4 角）
+-- ============================================
+INSERT INTO tile (id, center_x, center_y, lod_level, buildings, npc_ids) VALUES
+  -- CBD 中心
+  ('tile_0_0',  50.0,  50.0, 0,
+   '[
+      {"id":"bldg_tavern_0_0","kind":"Tavern","polygon":[[0.0,0.0],[20.0,0.0],[20.0,15.0],[0.0,15.0]]},
+      {"id":"bldg_plaza_0_0","kind":"Plaza","polygon":[[30.0,30.0],[70.0,30.0],[70.0,70.0],[30.0,70.0]]}
+    ]'::jsonb,
+   ARRAY['npc_wang_boss_001']::text[]),
+  -- 北
+  ('tile_0_1',   50.0, 150.0, 1, '[]'::jsonb, ARRAY[]::text[]),
+  -- 南
+  ('tile_0_-1',  50.0, -50.0, 1, '[]'::jsonb, ARRAY[]::text[]),
+  -- 东
+  ('tile_1_0',  150.0,  50.0, 1,
+   '[
+      {"id":"bldg_house_1_0","kind":"House","polygon":[[10.0,10.0],[25.0,10.0],[25.0,25.0],[10.0,25.0]]},
+      {"id":"bldg_shop_1_0","kind":"Shop","polygon":[[60.0,60.0],[80.0,60.0],[80.0,80.0],[60.0,80.0]]}
+    ]'::jsonb,
+   ARRAY['npc_lihua_001']::text[]),
+  -- 西
+  ('tile_-1_0', -50.0,  50.0, 1, '[]'::jsonb, ARRAY[]::text[]),
+  -- 西北角（Suburb，含 NPC + Park）
+  ('tile_-1_1', -50.0, 150.0, 2,
+   '[
+      {"id":"bldg_park_-1_1","kind":"Park","polygon":[[0.0,0.0],[90.0,0.0],[90.0,90.0],[0.0,90.0]]}
+    ]'::jsonb,
+   ARRAY['npc_zhang_granny_001']::text[]),
+  -- 东北角
+  ('tile_1_1',  150.0, 150.0, 2, '[]'::jsonb, ARRAY[]::text[]),
+  -- 西南角
+  ('tile_-1_-1', -50.0, -50.0, 2, '[]'::jsonb, ARRAY[]::text[]),
+  -- 东南角
+  ('tile_1_-1', 150.0, -50.0, 2, '[]'::jsonb, ARRAY[]::text[])
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
 -- NPC 位置表（npc_position）
@@ -307,4 +370,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO schema_version (version) VALUES ('2.2.0') ON CONFLICT DO NOTHING;
+INSERT INTO schema_version (version) VALUES ('2.3.0') ON CONFLICT DO NOTHING;
