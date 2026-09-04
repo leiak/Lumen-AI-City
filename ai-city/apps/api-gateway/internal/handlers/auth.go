@@ -69,7 +69,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error", "detail": err.Error()})
 		return
 	}
 

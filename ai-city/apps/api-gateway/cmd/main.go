@@ -15,8 +15,11 @@ import (
 	"github.com/aicity/api-gateway/internal/config"
 	"github.com/aicity/api-gateway/internal/middleware"
 	"github.com/aicity/api-gateway/internal/router"
+	"github.com/aicity/api-gateway/internal/store"
+	"github.com/aicity/api-gateway/internal/subscriber"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -25,15 +28,15 @@ func main() {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
-	// 连接 PG
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	db, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	// 连接 PG（独立短超时 ctx，只用于启动期）
+	bootCtx, bootCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer bootCancel()
+	db, err := pgxpool.New(bootCtx, cfg.DatabaseURL)
 	if err != nil {
 		logger.Fatal("pg connect failed", zap.Error(err))
 	}
 	defer db.Close()
-	if err := db.Ping(ctx); err != nil {
+	if err := db.Ping(bootCtx); err != nil {
 		logger.Fatal("pg ping failed", zap.Error(err))
 	}
 	logger.Info("pg connected")
@@ -48,7 +51,25 @@ func main() {
 	r.Use(middleware.RateLimit(cfg.RedisURL))
 	r.Use(middleware.AntiScrap())
 
-	router.Register(r, cfg, db)
+	// Redis Pub/Sub 订阅者：消费 aicity:player:moved → 写 PG player_position
+	redisOpt, redisErr := redis.ParseURL(cfg.RedisURL)
+	if redisErr != nil {
+		logger.Fatal("redis url parse failed", zap.Error(redisErr))
+	}
+	rdb := redis.NewClient(redisOpt)
+	if err := rdb.Ping(bootCtx).Err(); err != nil {
+		logger.Fatal("redis ping failed", zap.Error(err))
+	}
+	logger.Info("redis connected", zap.String("url", cfg.RedisURL))
+
+	// 服务期 ctx：跟随 SIGINT/SIGTERM 取消，subscriber 才会干净退出
+	appCtx, appCancel := context.WithCancel(context.Background())
+	defer appCancel()
+
+	playerStore := store.NewPlayerStore(db)
+	subscriber.PlayerMoved(appCtx, rdb, "aicity:player:moved", playerStore, logger)
+
+	router.Register(r, cfg, db, playerStore)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -67,6 +88,9 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	logger.Info("shutting down...")
+
+	// 先取消 appCtx 让 subscriber 退出，再 graceful shutdown HTTP
+	appCancel()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()

@@ -12,13 +12,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool) {
+func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *store.PlayerStore) {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": cfg.ServiceName})
 	})
 
-	// 初始化 store + handlers
-	playerStore := store.NewPlayerStore(db)
+	// 初始化 handlers（playerStore 由 main 注入，避免重复创建）
 	authHandler := handlers.NewAuthHandler(playerStore, db, cfg.JWTSecret, cfg.JWTExpiry)
 	playerHandler := handlers.NewPlayerHandler(playerStore)
 	worldProxy, err := handlers.NewWorldProxy(cfg.WorldURL)
