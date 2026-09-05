@@ -1,9 +1,10 @@
-// 默认 adapter 实现（Sprint 5.5）：
-//   - EchoAdapter：aicity 内部 agent 的兜底；Sprint 5 MVP 的 echo 行为搬过来
-//   - OpenClawStub / WorkbuddyStub：占位 adapter，Sprint 6 替换为真 HTTP 转发
+// EchoAdapter（Sprint 5.5 + Sprint 6）：
+//   - EchoAdapter：aicity 内部 agent 的兜底；Sprint 5 MVP 的 echo 行为保留
+//   - OpenClawStub / WorkbuddyStub 在 Sprint 6 搬到 adapter_http.go，由真 HTTPAdapter 替代
 //
-// 三个 adapter 都把消息 swap from/to + type="event" 后回传（仅 EchoAdapter
-// 是真行为；stub 只 log + 返 nil 表示占位成功）。
+// EchoAdapter 行为与 Sprint 5 MVP 的 Stream echo 一致：
+//   swap from/to + type→event + 清空 signature；不持久化、不做 inbox。
+//   Sprint 6+ 接 PG inbox 时改写本文件即可，Dispatcher / Service 零改动。
 package a2asrv
 
 import (
@@ -14,10 +15,6 @@ import (
 )
 
 // EchoAdapter 是 aicity provider 的兜底 adapter（也兼任 fallback）。
-//
-// 行为与 Sprint 5 MVP 的 Stream echo 一致：
-//   swap from/to + type→event + 清空 signature；不持久化、不做 inbox。
-//   Sprint 6+ 接 PG inbox 时改写本文件即可，Dispatcher / Service 零改动。
 type EchoAdapter struct{}
 
 func (EchoAdapter) Supports(provider string) bool {
@@ -39,29 +36,4 @@ func (EchoAdapter) Deliver(ctx context.Context, recipient *a2av1.AgentCard, msg 
 		TraceId:        msg.GetTraceId(),
 		Signature:      "", // 清空避免误用
 	}, nil
-}
-
-// OpenClawStub 是 openclaw provider 的占位 adapter。
-// Sprint 6 替换为真 HTTP 转发（POST 到 recipient.URL）。
-type OpenClawStub struct{}
-
-func (OpenClawStub) Supports(provider string) bool { return provider == "openclaw" }
-
-func (OpenClawStub) Deliver(ctx context.Context, recipient *a2av1.AgentCard, msg *a2av1.Message) (*a2av1.Message, error) {
-	log.Printf("[a2asrv] OpenClawStub (placeholder) msg=%s to=%s url=%s",
-		msg.GetMessageId(), msg.GetToAgentId(), recipient.GetUrl())
-	// 占位实现：返 nil 表示 fire-and-forget 已"接受"。
-	// Sprint 6 替换为真 HTTP POST + 等待 ack。
-	return nil, nil
-}
-
-// WorkbuddyStub 同 OpenClawStub；拆开便于 Sprint 6 单独路由策略。
-type WorkbuddyStub struct{}
-
-func (WorkbuddyStub) Supports(provider string) bool { return provider == "workbuddy" }
-
-func (WorkbuddyStub) Deliver(ctx context.Context, recipient *a2av1.AgentCard, msg *a2av1.Message) (*a2av1.Message, error) {
-	log.Printf("[a2asrv] WorkbuddyStub (placeholder) msg=%s to=%s url=%s",
-		msg.GetMessageId(), msg.GetToAgentId(), recipient.GetUrl())
-	return nil, nil
 }

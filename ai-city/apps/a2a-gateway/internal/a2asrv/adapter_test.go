@@ -1,6 +1,6 @@
 // Dispatcher 单测：5 用例
 //   1) aicity provider → EchoAdapter（swap from/to）
-//   2) openclaw → OpenClawStub（log + nil reply）
+//   2) openclaw → HTTPAdapter（路由命中；具体行为见 adapter_http_test.go）
 //   3) 未知 provider（fallback 不接） → F_009
 //   4) 重复 Register 同 provider → 后者覆盖前者
 //   5) recipient.Provider="" + fallback=EchoAdapter → EchoAdapter 兜底
@@ -8,8 +8,11 @@ package a2asrv
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
 )
@@ -33,11 +36,17 @@ func TestDispatcher_AicityEcho(t *testing.T) {
 	}
 }
 
-func TestDispatcher_OpenClawStub(t *testing.T) {
-	d := NewDispatcher()
-	d.Register(OpenClawStub{})
+func TestDispatcher_OpenClawHTTP_Route(t *testing.T) {
+	// 假 openclaw /inbox：返 204 → adapter 返 nil,nil
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(srv.Close)
 
-	rec := &a2av1.AgentCard{AgentId: "carol", Provider: "openclaw", Url: "https://openclaw.example/agent"}
+	d := NewDispatcher()
+	d.Register(NewHTTPAdapter("openclaw", "openclaw", NewHTTPClient(2*time.Second)))
+
+	rec := &a2av1.AgentCard{AgentId: "carol", Provider: "openclaw", Url: srv.URL}
 	msg := &a2av1.Message{MessageId: "m1", FromAgentId: "alice", ToAgentId: "carol"}
 
 	reply, err := d.Deliver(context.Background(), rec, msg)
@@ -45,14 +54,14 @@ func TestDispatcher_OpenClawStub(t *testing.T) {
 		t.Fatalf("Deliver: %v", err)
 	}
 	if reply != nil {
-		t.Errorf("stub returns nil reply, got %+v", reply)
+		t.Errorf("204 reply should be nil, got %+v", reply)
 	}
 }
 
 func TestDispatcher_UnknownProvider_F009(t *testing.T) {
 	d := NewDispatcher()
 	d.Register(EchoAdapter{})
-	d.Register(OpenClawStub{})
+	d.Register(NewHTTPAdapter("openclaw", "openclaw", NewHTTPClient(2*time.Second)))
 	// 不设 fallback → 未知 provider → F_009
 	// 但 EchoAdapter.Supports("") == true，所以把 fallback 干掉
 	d.SetFallback(nil)
