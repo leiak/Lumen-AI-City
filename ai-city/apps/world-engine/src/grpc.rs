@@ -184,16 +184,37 @@ impl WorldEngine for WorldEngineService {
         request: Request<PathRequest>,
     ) -> Result<Response<PathResponse>, Status> {
         let req = request.into_inner();
-        // Sprint 3 stub：直线路径（仅 start + end 两个 waypoint）
-        // 真正的 A* / navmesh 留给 Sprint 4+
         let start = req.start.unwrap_or(ProtoVec2 { x: 0.0, y: 0.0 });
         let end = req.end.unwrap_or(ProtoVec2 { x: 0.0, y: 0.0 });
-        let dx = end.x - start.x;
-        let dy = end.y - start.y;
-        let distance = (dx * dx + dy * dy).sqrt();
+
+        // Sprint 4: 真路径（A* over tile 网格 + building detour）
+        let path_pts = crate::pathfinding::find_path(
+            &self.grid,
+            (start.x, start.y),
+            (end.x, end.y),
+        );
+        let waypoints: Vec<ProtoVec2> = path_pts
+            .iter()
+            .map(|&(x, y)| ProtoVec2 { x, y })
+            .collect();
+
+        // distance_m = 折线总长（与 waypoint 序列一致）
+        let mut distance = 0.0_f32;
+        for w in waypoints.windows(2) {
+            let dx = w[1].x - w[0].x;
+            let dy = w[1].y - w[0].y;
+            distance += (dx * dx + dy * dy).sqrt();
+        }
+
+        info!(
+            entity_id = %req.entity_id,
+            waypoints = waypoints.len(),
+            distance_m = distance,
+            "gRPC compute_path"
+        );
 
         Ok(Response::new(PathResponse {
-            waypoints: vec![start, end],
+            waypoints,
             distance_m: distance,
         }))
     }
@@ -293,8 +314,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compute_path_stub_returns_two_waypoints() {
-        // 通过构造 service 直接调用 compute_path 校验逻辑
+    async fn test_compute_path_uses_tile_grid() {
+        // Sprint 4：compute_path 走真路径（A* over tile centers + building detour）
+        // 选 (45,45)→(155,55)：明确 tile_0_0 → tile_1_0，无 building 阻挡
         let svc = WorldEngineService {
             grid: Arc::new(WorldGrid::new()),
             redis_pub: None,
@@ -303,12 +325,20 @@ mod tests {
         };
         let req = PathRequest {
             entity_id: "p1".into(),
-            start: Some(ProtoVec2 { x: 0.0, y: 0.0 }),
-            end: Some(ProtoVec2 { x: 30.0, y: 40.0 }),
+            start: Some(ProtoVec2 { x: 45.0, y: 45.0 }),
+            end: Some(ProtoVec2 { x: 155.0, y: 55.0 }),
         };
         let resp = svc.compute_path(Request::new(req)).await.unwrap();
         let inner = resp.into_inner();
-        assert_eq!(inner.waypoints.len(), 2);
-        assert!((inner.distance_m - 50.0).abs() < 0.001);
+        // 至少 3 个 waypoint：start + tile_0_0 center + tile_1_0 center + end
+        assert!(inner.waypoints.len() >= 3, "got {} waypoints", inner.waypoints.len());
+        // 首末必须为 start / end
+        assert_eq!(inner.waypoints[0].x, 45.0);
+        assert_eq!(inner.waypoints[0].y, 45.0);
+        assert_eq!(inner.waypoints.last().unwrap().x, 155.0);
+        assert_eq!(inner.waypoints.last().unwrap().y, 55.0);
+        // 距离应 ≈ 折线总长（> 直线距离 113）
+        assert!(inner.distance_m > 110.0 && inner.distance_m < 130.0,
+                "distance_m out of range: {}", inner.distance_m);
     }
 }

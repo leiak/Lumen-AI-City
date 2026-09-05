@@ -112,18 +112,21 @@ async fn test_grpc_compute_path() {
     let endpoint = spawn_server().await;
     let mut client = WorldEngineClient::connect(endpoint).await.expect("connect");
 
+    // (45,45) tile_0_0 → (155,55) tile_1_0，无阻挡 → 至少 3 waypoint
     let resp = client
         .compute_path(PathRequest {
             entity_id: "player_smoke".into(),
-            start: Some(ProtoVec2 { x: 0.0, y: 0.0 }),
-            end: Some(ProtoVec2 { x: 30.0, y: 40.0 }),
+            start: Some(ProtoVec2 { x: 45.0, y: 45.0 }),
+            end: Some(ProtoVec2 { x: 155.0, y: 55.0 }),
         })
         .await
         .expect("compute_path")
         .into_inner();
 
-    assert_eq!(resp.waypoints.len(), 2);
-    assert!((resp.distance_m - 50.0).abs() < 0.001);
+    assert!(resp.waypoints.len() >= 3, "got {} waypoints", resp.waypoints.len());
+    assert_eq!(resp.waypoints[0].x, 45.0);
+    assert_eq!(resp.waypoints[0].y, 45.0);
+    assert!(resp.distance_m > 110.0);
 }
 
 #[tokio::test]

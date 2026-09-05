@@ -12,6 +12,7 @@ pub mod tile_loader;
 pub mod rest;
 pub mod metrics;
 pub mod grpc;
+pub mod pathfinding;
 
 pub use tile::Tile;
 pub use movement::Movement;
