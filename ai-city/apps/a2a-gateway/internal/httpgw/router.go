@@ -39,11 +39,12 @@ func New(svc *a2asrv.Service, apiKey string) *Server {
 		engine.Use(s.authMiddleware())
 	}
 
-	// 路由（4 个）
+	// 路由（5 个：Sprint 6 4 + Sprint 7 FetchInbox）
 	engine.GET("/v1/healthz", s.Healthz)
 	engine.POST("/v1/cards", s.RegisterCard)
 	engine.GET("/v1/discover", s.Discover)
 	engine.POST("/v1/messages", s.SendMessage)
+	engine.GET("/v1/inbox/:agent_id", s.FetchInbox)
 
 	return s
 }

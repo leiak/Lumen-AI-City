@@ -23,6 +23,7 @@ const (
 	A2AGateway_Discover_FullMethodName     = "/aicity.a2a.v1.A2AGateway/Discover"
 	A2AGateway_SendMessage_FullMethodName  = "/aicity.a2a.v1.A2AGateway/SendMessage"
 	A2AGateway_Stream_FullMethodName       = "/aicity.a2a.v1.A2AGateway/Stream"
+	A2AGateway_FetchInbox_FullMethodName   = "/aicity.a2a.v1.A2AGateway/FetchInbox"
 )
 
 // A2AGatewayClient is the client API for A2AGateway service.
@@ -39,6 +40,8 @@ type A2AGatewayClient interface {
 	SendMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*MessageResponse, error)
 	// 双向流（用于对话）
 	Stream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Message, Message], error)
+	// Sprint 7：拉取 a2a_inbox（store-and-forward）
+	FetchInbox(ctx context.Context, in *FetchInboxRequest, opts ...grpc.CallOption) (*FetchInboxResponse, error)
 }
 
 type a2AGatewayClient struct {
@@ -92,6 +95,16 @@ func (c *a2AGatewayClient) Stream(ctx context.Context, opts ...grpc.CallOption) 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type A2AGateway_StreamClient = grpc.BidiStreamingClient[Message, Message]
 
+func (c *a2AGatewayClient) FetchInbox(ctx context.Context, in *FetchInboxRequest, opts ...grpc.CallOption) (*FetchInboxResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FetchInboxResponse)
+	err := c.cc.Invoke(ctx, A2AGateway_FetchInbox_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // A2AGatewayServer is the server API for A2AGateway service.
 // All implementations must embed UnimplementedA2AGatewayServer
 // for forward compatibility.
@@ -106,6 +119,8 @@ type A2AGatewayServer interface {
 	SendMessage(context.Context, *Message) (*MessageResponse, error)
 	// 双向流（用于对话）
 	Stream(grpc.BidiStreamingServer[Message, Message]) error
+	// Sprint 7：拉取 a2a_inbox（store-and-forward）
+	FetchInbox(context.Context, *FetchInboxRequest) (*FetchInboxResponse, error)
 	mustEmbedUnimplementedA2AGatewayServer()
 }
 
@@ -127,6 +142,9 @@ func (UnimplementedA2AGatewayServer) SendMessage(context.Context, *Message) (*Me
 }
 func (UnimplementedA2AGatewayServer) Stream(grpc.BidiStreamingServer[Message, Message]) error {
 	return status.Error(codes.Unimplemented, "method Stream not implemented")
+}
+func (UnimplementedA2AGatewayServer) FetchInbox(context.Context, *FetchInboxRequest) (*FetchInboxResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method FetchInbox not implemented")
 }
 func (UnimplementedA2AGatewayServer) mustEmbedUnimplementedA2AGatewayServer() {}
 func (UnimplementedA2AGatewayServer) testEmbeddedByValue()                    {}
@@ -210,6 +228,24 @@ func _A2AGateway_Stream_Handler(srv interface{}, stream grpc.ServerStream) error
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type A2AGateway_StreamServer = grpc.BidiStreamingServer[Message, Message]
 
+func _A2AGateway_FetchInbox_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FetchInboxRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(A2AGatewayServer).FetchInbox(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: A2AGateway_FetchInbox_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(A2AGatewayServer).FetchInbox(ctx, req.(*FetchInboxRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // A2AGateway_ServiceDesc is the grpc.ServiceDesc for A2AGateway service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -228,6 +264,10 @@ var A2AGateway_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendMessage",
 			Handler:    _A2AGateway_SendMessage_Handler,
+		},
+		{
+			MethodName: "FetchInbox",
+			Handler:    _A2AGateway_FetchInbox_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

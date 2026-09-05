@@ -1,4 +1,4 @@
-// Service 实现 A2AGateway 4 个 RPC（docs/06-A2A协议.md §20）。
+// Service 实现 A2AGateway 5 个 RPC（docs/06-A2A协议.md §20）。
 //
 // Sprint 5.5 行为：
 //   - RegisterCard: 调 Registry.Register；
@@ -11,6 +11,10 @@
 //                   dispatcher.Deliver 路由（F_009 走 MessageResponse.Error）。
 //   - Stream:      每条进来的消息同样走 verifier + dispatcher；
 //                  任何验签 / 时间窗 / 路由失败 → gRPC Unauthenticated + 关流。
+//
+// Sprint 7 新增：
+//   - FetchInbox:  从 a2a_inbox 拉取 store-and-forward 消息；agent_id 未注册 → F_013；
+//                  limit 越界 → F_014；读失败 → F_012。
 package a2asrv
 
 import (
@@ -24,25 +28,27 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Service 持有 Registry + Verifier + Dispatcher，对外提供 A2AGatewayServer。
+// Service 持有 Registry + Verifier + Dispatcher + InboxStore，对外提供 A2AGatewayServer。
 type Service struct {
 	a2av1.UnimplementedA2AGatewayServer
 	reg        *Registry
 	verifier   *Verifier
 	dispatcher *Dispatcher
+	inbox      *InboxStore // nil = 禁用 inbox（向后兼容）
 }
 
 // NewService 构造 service。
 //   - verifier nil → NewVerifier(0)（5min 默认窗口）
 //   - dispatcher nil → NewDispatcher()（无 adapter，路由必返 F_009；调用方应 Register）
-func NewService(reg *Registry, verifier *Verifier, dispatcher *Dispatcher) *Service {
+//   - inbox nil → FetchInbox 不可用（向后兼容 Sprint 6）
+func NewService(reg *Registry, verifier *Verifier, dispatcher *Dispatcher, inbox *InboxStore) *Service {
 	if verifier == nil {
 		verifier = NewVerifier(0)
 	}
 	if dispatcher == nil {
 		dispatcher = NewDispatcher()
 	}
-	return &Service{reg: reg, verifier: verifier, dispatcher: dispatcher}
+	return &Service{reg: reg, verifier: verifier, dispatcher: dispatcher, inbox: inbox}
 }
 
 // RegisterCard 注册 / 覆盖 AgentCard。
@@ -140,7 +146,7 @@ func (s *Service) Stream(stream a2av1.A2AGateway_StreamServer) error {
 		if err != nil {
 			return status.Error(codes.Unauthenticated, err.Error()) // F_009
 		}
-		// EchoAdapter 返非 nil reply；stub 返 nil → 跳过回传（fire-and-forget）
+		// InboxAdapter / HTTPAdapter 204 返 nil reply；非 nil reply → swap 回传
 		if reply == nil {
 			continue
 		}
@@ -148,4 +154,35 @@ func (s *Service) Stream(stream a2av1.A2AGateway_StreamServer) error {
 			return err
 		}
 	}
+}
+
+// FetchInbox 从 a2a_inbox 拉取 store-and-forward 消息（Sprint 7）。
+//
+// 错误码（gRPC status）：
+//   F_001 agent_id 空 → InvalidArgument
+//   F_013 agent 未注册 → NotFound
+//   F_014 limit 越界 [1,500] → InvalidArgument
+//   F_012 inbox 读失败 → Internal
+//
+// markRead=true 时拉取即标已读（同事务）。
+func (s *Service) FetchInbox(ctx context.Context, req *a2av1.FetchInboxRequest) (*a2av1.FetchInboxResponse, error) {
+	if req == nil || req.GetAgentId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "F_001:agent_id required")
+	}
+	limit := int(req.GetLimit())
+	if limit < 1 || limit > 500 {
+		return nil, status.Error(codes.InvalidArgument, "F_014:limit out of range [1, 500]")
+	}
+	if s.inbox == nil {
+		// inbox 未启用 → 当作"无 inbox"（HTTP 404 同语义）
+		return nil, status.Error(codes.Unavailable, "F_012:inbox not configured")
+	}
+	if _, ok := s.reg.Get(req.GetAgentId()); !ok {
+		return nil, status.Error(codes.NotFound, "F_013:agent not registered")
+	}
+	msgs, next, err := s.inbox.Fetch(ctx, req.GetAgentId(), limit, req.GetCursor(), req.GetMarkRead())
+	if err != nil {
+		return nil, status.Error(codes.Internal, "F_012:"+err.Error())
+	}
+	return &a2av1.FetchInboxResponse{Messages: msgs, NextCursor: next}, nil
 }

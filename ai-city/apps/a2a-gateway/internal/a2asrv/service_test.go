@@ -9,6 +9,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
+	"io"
 	"net"
 	"strings"
 	"testing"
@@ -21,6 +22,9 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
+
+// EOFStr is the string representation of io.EOF in gRPC stream responses.
+const EOFStr = "EOF"
 
 // newBufconnClient 启动 bufconn server + 返回客户端 stub。
 func newBufconnClient(t *testing.T, svc *Service) (a2av1.A2AGatewayClient, *Registry) {
@@ -47,12 +51,17 @@ func newBufconnClient(t *testing.T, svc *Service) (a2av1.A2AGatewayClient, *Regi
 	return a2av1.NewA2AGatewayClient(conn), svc.reg
 }
 
-// newSignedService 构造一个带 EchoAdapter fallback 的 Service（opt-in 兼容旧测试）。
+// newSignedService 构造一个带 InboxAdapter fallback 的 Service（opt-in 兼容旧测试）。
+//
+// Sprint 7 改动：
+//   - EchoAdapter → InboxAdapter（nil store 静默返 success）
+//   - NewService 新增 inbox 参数；旧测试用 nil
 func newSignedService() (*Service, *Dispatcher) {
 	d := NewDispatcher()
-	d.Register(EchoAdapter{})
-	d.SetFallback(EchoAdapter{})
-	return NewService(NewRegistry(), NewVerifier(5*time.Minute), d), d
+	inboxAdapter := NewInboxAdapter(nil)
+	d.Register(inboxAdapter)
+	d.SetFallback(inboxAdapter)
+	return NewService(NewRegistry(), NewVerifier(5*time.Minute), d, nil), d
 }
 
 // signFor 用 priv 对 m 做签，返 base64 字符串。
@@ -432,7 +441,8 @@ func TestService_RegisterCard_InvalidPubkey_F006(t *testing.T) {
 // ---------- Stream（旧 + Sprint 5.5 增量） ----------
 
 func TestService_Stream_Echo(t *testing.T) {
-	// 旧 opt-in：alice / bob 都不带 key
+	// Sprint 7：InboxAdapter 是 queue-only（返 nil reply），Stream 无 swap 回传。
+	// 验证：3 条消息 send 成功 + CloseSend 后 Recv 直接 EOF。
 	svc, _ := newSignedService()
 	c, _ := newBufconnClient(t, svc)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -464,30 +474,21 @@ func TestService_Stream_Echo(t *testing.T) {
 		t.Fatalf("CloseSend: %v", err)
 	}
 
-	for i, want := range msgs {
-		got, err := stream.Recv()
-		if err != nil {
-			t.Fatalf("Recv[%d]: %v", i, err)
-		}
-		if got.GetFromAgentId() != want.GetToAgentId() {
-			t.Errorf("msg %d: from want %q got %q (swap failed)", i, want.GetToAgentId(), got.GetFromAgentId())
-		}
-		if got.GetToAgentId() != want.GetFromAgentId() {
-			t.Errorf("msg %d: to want %q got %q (swap failed)", i, want.GetFromAgentId(), got.GetToAgentId())
-		}
-		if got.GetType() != "event" {
-			t.Errorf("msg %d: type want event got %q", i, got.GetType())
-		}
-		if string(got.GetPayload()) != string(want.GetPayload()) {
-			t.Errorf("msg %d: payload want %q got %q", i, want.GetPayload(), got.GetPayload())
-		}
-		if got.GetSignature() != "" {
-			t.Errorf("msg %d: signature should be cleared, got %q", i, got.GetSignature())
+	// InboxAdapter 返 nil reply → Stream 无回传 → Recv 直接 EOF
+	_, err = stream.Recv()
+	if err == nil {
+		t.Fatal("want EOF after queue-only Stream")
+	}
+	if !strings.Contains(err.Error(), "EOF") && err != io.EOF {
+		// gRPC stream EOF 可能用 io.EOF 或 "EOF" 字符串
+		if err.Error() != EOFStr {
+			t.Errorf("want EOF, got %v", err)
 		}
 	}
 }
 
 func TestService_Stream_ValidSignature_3Messages(t *testing.T) {
+	// Sprint 7：3 条签名消息 + CloseSend → EOF（queue-only，无 echo 回传）
 	svc, _ := newSignedService()
 	c, _ := newBufconnClient(t, svc)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -511,7 +512,7 @@ func TestService_Stream_ValidSignature_3Messages(t *testing.T) {
 	now := time.Now()
 	for i := 1; i <= 3; i++ {
 		m := &a2av1.Message{
-			MessageId: "sm" + string(rune('0'+i)),
+			MessageId:   "sm" + string(rune('0'+i)),
 			FromAgentId: "alice", ToAgentId: "bob",
 			Type: "request", Payload: []byte("p" + string(rune('0'+i))),
 			TsMs: now.UnixMilli(),
@@ -524,18 +525,19 @@ func TestService_Stream_ValidSignature_3Messages(t *testing.T) {
 	if err := stream.CloseSend(); err != nil {
 		t.Fatalf("CloseSend: %v", err)
 	}
-	for i := 1; i <= 3; i++ {
-		got, err := stream.Recv()
-		if err != nil {
-			t.Fatalf("Recv[%d]: %v", i, err)
-		}
-		if got.GetType() != "event" {
-			t.Errorf("msg %d: type want event got %q", i, got.GetType())
-		}
+	// 3 条均被 InboxAdapter 接受 → Recv 返 EOF
+	_, err = stream.Recv()
+	if err == nil {
+		t.Fatal("want EOF after queue-only Stream")
+	}
+	if err != io.EOF && err.Error() != EOFStr {
+		t.Errorf("want EOF, got %v", err)
 	}
 }
 
 func TestService_Stream_BadSignature_StreamCloses(t *testing.T) {
+	// Sprint 7：第 1 条签名消息 → InboxAdapter 接受但返 nil reply（queue-only）。
+	// 第 2 条翻 signature → Recv 返 Unauthenticated F_007（验签在 stream handler）。
 	svc, _ := newSignedService()
 	c, _ := newBufconnClient(t, svc)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -554,18 +556,15 @@ func TestService_Stream_BadSignature_StreamCloses(t *testing.T) {
 	}
 	now := time.Now()
 
-	// 第 1 条：签过 → ok
+	// 第 1 条：签过 → InboxAdapter 接受（nil reply），不报错
 	m1 := &a2av1.Message{MessageId: "ok1", FromAgentId: "alice", ToAgentId: "bob",
 		Type: "request", Payload: []byte("ok"), TsMs: now.UnixMilli()}
 	m1.Signature = signFor(t, priv, m1)
 	if err := stream.Send(m1); err != nil {
 		t.Fatalf("Send m1: %v", err)
 	}
-	if _, err := stream.Recv(); err != nil {
-		t.Fatalf("Recv m1: %v", err)
-	}
 
-	// 第 2 条：翻 signature 一字节
+	// 第 2 条：翻 signature 一字节 → 验签失败 → server 关闭流
 	m2 := &a2av1.Message{MessageId: "bad2", FromAgentId: "alice", ToAgentId: "bob",
 		Type: "request", Payload: []byte("bad"), TsMs: now.UnixMilli()}
 	sigBytes, _ := base64.StdEncoding.DecodeString(signFor(t, priv, m2))
@@ -574,15 +573,21 @@ func TestService_Stream_BadSignature_StreamCloses(t *testing.T) {
 	if err := stream.Send(m2); err != nil {
 		t.Fatalf("Send m2: %v", err)
 	}
-	_, err = stream.Recv()
-	if err == nil {
-		t.Fatal("Recv after bad sig want error, got nil")
-	}
-	if status.Code(err) != codes.Unauthenticated {
-		t.Errorf("want codes.Unauthenticated got %s", status.Code(err))
-	}
-	if !strings.HasPrefix(status.Convert(err).Message(), "F_007:") {
-		t.Errorf("msg want F_007: prefix got %q", status.Convert(err).Message())
+	// 第 2 条 send 后 server 端验签失败 → 关流；下次 Recv 返 error
+	// 注：InboxAdapter nil reply 也算 stream "end" for client side，
+	//     但 Send 本身不会失败（消息进了 server 才知道验签失败）。
+	//     需要 drain 一下才看到 error。
+	for {
+		_, recvErr := stream.Recv()
+		if recvErr != nil {
+			if status.Code(recvErr) != codes.Unauthenticated {
+				t.Errorf("want codes.Unauthenticated got %s", status.Code(recvErr))
+			}
+			if !strings.HasPrefix(status.Convert(recvErr).Message(), "F_007:") {
+				t.Errorf("msg want F_007: prefix got %q", status.Convert(recvErr).Message())
+			}
+			break
+		}
 	}
 }
 

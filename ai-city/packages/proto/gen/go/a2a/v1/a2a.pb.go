@@ -438,6 +438,127 @@ func (x *MessageResponse) GetError() string {
 	return ""
 }
 
+// Sprint 7：收件方拉取 store-and-forward inbox。
+type FetchInboxRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`     // 收件方（= 注册到 a2a_agent_card 的 agent_id）
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`                       // 默认 50，最大 500
+	Cursor        string                 `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`                      // 增量：上一批返回的 next_cursor（= queued_at RFC3339Nano）
+	MarkRead      bool                   `protobuf:"varint,4,opt,name=mark_read,json=markRead,proto3" json:"mark_read,omitempty"` // true = 拉取即标已读
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FetchInboxRequest) Reset() {
+	*x = FetchInboxRequest{}
+	mi := &file_a2a_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FetchInboxRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FetchInboxRequest) ProtoMessage() {}
+
+func (x *FetchInboxRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_a2a_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FetchInboxRequest.ProtoReflect.Descriptor instead.
+func (*FetchInboxRequest) Descriptor() ([]byte, []int) {
+	return file_a2a_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *FetchInboxRequest) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *FetchInboxRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *FetchInboxRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+func (x *FetchInboxRequest) GetMarkRead() bool {
+	if x != nil {
+		return x.MarkRead
+	}
+	return false
+}
+
+type FetchInboxResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Messages      []*Message             `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`                       // 与 a2av1.Message 同构（8 字段 + signature）
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"` // 空 = 拉完；非空 = 还有
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FetchInboxResponse) Reset() {
+	*x = FetchInboxResponse{}
+	mi := &file_a2a_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FetchInboxResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FetchInboxResponse) ProtoMessage() {}
+
+func (x *FetchInboxResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_a2a_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FetchInboxResponse.ProtoReflect.Descriptor instead.
+func (*FetchInboxResponse) Descriptor() ([]byte, []int) {
+	return file_a2a_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *FetchInboxResponse) GetMessages() []*Message {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+func (x *FetchInboxResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
+}
+
 var File_a2a_proto protoreflect.FileDescriptor
 
 const file_a2a_proto_rawDesc = "" +
@@ -480,13 +601,24 @@ const file_a2a_proto_rawDesc = "" +
 	"\tsignature\x18\t \x01(\tR\tsignature\"E\n" +
 	"\x0fMessageResponse\x12\x1c\n" +
 	"\tdelivered\x18\x01 \x01(\bR\tdelivered\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error2\xa9\x02\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"y\n" +
+	"\x11FetchInboxRequest\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06cursor\x18\x03 \x01(\tR\x06cursor\x12\x1b\n" +
+	"\tmark_read\x18\x04 \x01(\bR\bmarkRead\"i\n" +
+	"\x12FetchInboxResponse\x122\n" +
+	"\bmessages\x18\x01 \x03(\v2\x16.aicity.a2a.v1.MessageR\bmessages\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor2\xfc\x02\n" +
 	"\n" +
 	"A2AGateway\x12I\n" +
 	"\fRegisterCard\x12\x18.aicity.a2a.v1.AgentCard\x1a\x1f.aicity.a2a.v1.RegisterResponse\x12K\n" +
 	"\bDiscover\x12\x1e.aicity.a2a.v1.DiscoverRequest\x1a\x1f.aicity.a2a.v1.DiscoverResponse\x12E\n" +
 	"\vSendMessage\x12\x16.aicity.a2a.v1.Message\x1a\x1e.aicity.a2a.v1.MessageResponse\x12<\n" +
-	"\x06Stream\x12\x16.aicity.a2a.v1.Message\x1a\x16.aicity.a2a.v1.Message(\x010\x01B-Z+github.com/aicity/proto/gen/go/a2a/v1;a2av1b\x06proto3"
+	"\x06Stream\x12\x16.aicity.a2a.v1.Message\x1a\x16.aicity.a2a.v1.Message(\x010\x01\x12Q\n" +
+	"\n" +
+	"FetchInbox\x12 .aicity.a2a.v1.FetchInboxRequest\x1a!.aicity.a2a.v1.FetchInboxResponseB-Z+github.com/aicity/proto/gen/go/a2a/v1;a2av1b\x06proto3"
 
 var (
 	file_a2a_proto_rawDescOnce sync.Once
@@ -500,32 +632,37 @@ func file_a2a_proto_rawDescGZIP() []byte {
 	return file_a2a_proto_rawDescData
 }
 
-var file_a2a_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_a2a_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_a2a_proto_goTypes = []any{
-	(*AgentCard)(nil),        // 0: aicity.a2a.v1.AgentCard
-	(*RegisterResponse)(nil), // 1: aicity.a2a.v1.RegisterResponse
-	(*DiscoverRequest)(nil),  // 2: aicity.a2a.v1.DiscoverRequest
-	(*DiscoverResponse)(nil), // 3: aicity.a2a.v1.DiscoverResponse
-	(*Message)(nil),          // 4: aicity.a2a.v1.Message
-	(*MessageResponse)(nil),  // 5: aicity.a2a.v1.MessageResponse
-	nil,                      // 6: aicity.a2a.v1.AgentCard.AuthEntry
+	(*AgentCard)(nil),          // 0: aicity.a2a.v1.AgentCard
+	(*RegisterResponse)(nil),   // 1: aicity.a2a.v1.RegisterResponse
+	(*DiscoverRequest)(nil),    // 2: aicity.a2a.v1.DiscoverRequest
+	(*DiscoverResponse)(nil),   // 3: aicity.a2a.v1.DiscoverResponse
+	(*Message)(nil),            // 4: aicity.a2a.v1.Message
+	(*MessageResponse)(nil),    // 5: aicity.a2a.v1.MessageResponse
+	(*FetchInboxRequest)(nil),  // 6: aicity.a2a.v1.FetchInboxRequest
+	(*FetchInboxResponse)(nil), // 7: aicity.a2a.v1.FetchInboxResponse
+	nil,                        // 8: aicity.a2a.v1.AgentCard.AuthEntry
 }
 var file_a2a_proto_depIdxs = []int32{
-	6, // 0: aicity.a2a.v1.AgentCard.auth:type_name -> aicity.a2a.v1.AgentCard.AuthEntry
+	8, // 0: aicity.a2a.v1.AgentCard.auth:type_name -> aicity.a2a.v1.AgentCard.AuthEntry
 	0, // 1: aicity.a2a.v1.DiscoverResponse.cards:type_name -> aicity.a2a.v1.AgentCard
-	0, // 2: aicity.a2a.v1.A2AGateway.RegisterCard:input_type -> aicity.a2a.v1.AgentCard
-	2, // 3: aicity.a2a.v1.A2AGateway.Discover:input_type -> aicity.a2a.v1.DiscoverRequest
-	4, // 4: aicity.a2a.v1.A2AGateway.SendMessage:input_type -> aicity.a2a.v1.Message
-	4, // 5: aicity.a2a.v1.A2AGateway.Stream:input_type -> aicity.a2a.v1.Message
-	1, // 6: aicity.a2a.v1.A2AGateway.RegisterCard:output_type -> aicity.a2a.v1.RegisterResponse
-	3, // 7: aicity.a2a.v1.A2AGateway.Discover:output_type -> aicity.a2a.v1.DiscoverResponse
-	5, // 8: aicity.a2a.v1.A2AGateway.SendMessage:output_type -> aicity.a2a.v1.MessageResponse
-	4, // 9: aicity.a2a.v1.A2AGateway.Stream:output_type -> aicity.a2a.v1.Message
-	6, // [6:10] is the sub-list for method output_type
-	2, // [2:6] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	4, // 2: aicity.a2a.v1.FetchInboxResponse.messages:type_name -> aicity.a2a.v1.Message
+	0, // 3: aicity.a2a.v1.A2AGateway.RegisterCard:input_type -> aicity.a2a.v1.AgentCard
+	2, // 4: aicity.a2a.v1.A2AGateway.Discover:input_type -> aicity.a2a.v1.DiscoverRequest
+	4, // 5: aicity.a2a.v1.A2AGateway.SendMessage:input_type -> aicity.a2a.v1.Message
+	4, // 6: aicity.a2a.v1.A2AGateway.Stream:input_type -> aicity.a2a.v1.Message
+	6, // 7: aicity.a2a.v1.A2AGateway.FetchInbox:input_type -> aicity.a2a.v1.FetchInboxRequest
+	1, // 8: aicity.a2a.v1.A2AGateway.RegisterCard:output_type -> aicity.a2a.v1.RegisterResponse
+	3, // 9: aicity.a2a.v1.A2AGateway.Discover:output_type -> aicity.a2a.v1.DiscoverResponse
+	5, // 10: aicity.a2a.v1.A2AGateway.SendMessage:output_type -> aicity.a2a.v1.MessageResponse
+	4, // 11: aicity.a2a.v1.A2AGateway.Stream:output_type -> aicity.a2a.v1.Message
+	7, // 12: aicity.a2a.v1.A2AGateway.FetchInbox:output_type -> aicity.a2a.v1.FetchInboxResponse
+	8, // [8:13] is the sub-list for method output_type
+	3, // [3:8] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_a2a_proto_init() }
@@ -539,7 +676,7 @@ func file_a2a_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_a2a_proto_rawDesc), len(file_a2a_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

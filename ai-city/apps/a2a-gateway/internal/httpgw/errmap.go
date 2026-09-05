@@ -1,16 +1,17 @@
-// Package httpgw 提供 a2a-gateway 的 HTTP/JSON 网关（Sprint 6）。
+// Package httpgw 提供 a2a-gateway 的 HTTP/JSON 网关（Sprint 6 + 7）。
 //
 // 路由（详见 router.go）：
-//   POST /v1/cards       → RegisterCard
-//   GET  /v1/discover    → Discover
-//   POST /v1/messages    → SendMessage
-//   GET  /v1/healthz     → Healthz
+//   POST /v1/cards            → RegisterCard
+//   GET  /v1/discover         → Discover
+//   POST /v1/messages         → SendMessage
+//   GET  /v1/inbox/:agent_id  → FetchInbox（Sprint 7）
+//   GET  /v1/healthz          → Healthz
 //
 // 设计：
 //   - in-process 调 *a2asrv.Service（与 gRPC 共享 Service 单例，零序列化）
 //   - JSON DTO 走 mirror struct（避免 protojson payload 序列化为 base64 padding
 //     与 canonical RawStdEncoding 不一致）
-//   - 错误码 F_001-F_010 → HTTP status 映射见 errmap.go
+//   - 错误码 F_001-F_014 → HTTP status 映射见 errmap.go
 package httpgw
 
 import (
@@ -23,26 +24,32 @@ import (
 // 不识别的前缀 → 500。
 //
 // 映射规则（与 docs/06-A2A协议.md §20.10 对齐）：
-//   F_001 缺字段            → 400 Bad Request
-//   F_003 capability 空     → 400 Bad Request
-//   F_004 收件方未注册       → 404 Not Found
-//   F_005 发件方未注册       → 401 Unauthorized
-//   F_006 pubkey 解析失败    → 400 Bad Request
-//   F_007 signature 失败     → 401 Unauthorized
-//   F_008 ts_ms 出窗        → 401 Unauthorized
-//   F_009 provider 路由失败  → 400 Bad Request
-//   F_010 upstream 不可达    → 502 Bad Gateway
+//   F_001 缺字段              → 400 Bad Request
+//   F_003 capability 空       → 400 Bad Request
+//   F_004 收件方未注册         → 404 Not Found
+//   F_005 发件方未注册         → 401 Unauthorized
+//   F_006 pubkey 解析失败      → 400 Bad Request
+//   F_007 signature 失败       → 401 Unauthorized
+//   F_008 ts_ms 出窗          → 401 Unauthorized
+//   F_009 provider 路由失败    → 400 Bad Request
+//   F_010 upstream 不可达      → 502 Bad Gateway
+//   F_011 inbox 写失败         → 500 Internal（Sprint 7）
+//   F_012 inbox 读失败         → 500 Internal（Sprint 7）
+//   F_013 agent_id 未注册       → 404 Not Found（Sprint 7）
+//   F_014 FetchInbox limit 非法 → 400 Bad Request（Sprint 7）
 func fCodeToHTTP(errMsg string) int {
 	code := extractFCode(errMsg)
 	switch code {
-	case "F_001", "F_003", "F_006", "F_009":
+	case "F_001", "F_003", "F_006", "F_009", "F_014":
 		return 400
-	case "F_004":
+	case "F_004", "F_013":
 		return 404
 	case "F_005", "F_007", "F_008":
 		return 401
 	case "F_010":
 		return 502
+	case "F_011", "F_012":
+		return 500
 	default:
 		return 500
 	}

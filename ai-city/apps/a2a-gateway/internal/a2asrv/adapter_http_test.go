@@ -57,7 +57,7 @@ func TestHTTPAdapter_Deliver_OK_WithReply(t *testing.T) {
 		}`))
 	}, bodyCh)
 
-	a := NewHTTPAdapter("openclaw", "openclaw", NewHTTPClient(2*time.Second))
+	a := NewHTTPAdapter("openclaw", "openclaw", NewHTTPClient(2*time.Second), nil)
 	rec := &a2av1.AgentCard{AgentId: "bob", Provider: "openclaw", Url: srv.URL}
 	msg := &a2av1.Message{
 		MessageId:   "m1",
@@ -106,7 +106,7 @@ func TestHTTPAdapter_Deliver_204_ReturnsNilReply(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}, nil)
 
-	a := NewHTTPAdapter("openclaw", "openclaw", NewHTTPClient(2*time.Second))
+	a := NewHTTPAdapter("openclaw", "openclaw", NewHTTPClient(2*time.Second), nil)
 	rec := &a2av1.AgentCard{AgentId: "bob", Provider: "openclaw", Url: srv.URL}
 	msg := &a2av1.Message{MessageId: "m1", FromAgentId: "alice", ToAgentId: "bob"}
 
@@ -127,7 +127,7 @@ func TestHTTPAdapter_Deliver_500_F010(t *testing.T) {
 		_, _ = w.Write([]byte("oops"))
 	}, nil)
 
-	a := NewHTTPAdapter("workbuddy", "workbuddy", NewHTTPClient(2*time.Second))
+	a := NewHTTPAdapter("workbuddy", "workbuddy", NewHTTPClient(2*time.Second), nil)
 	rec := &a2av1.AgentCard{AgentId: "bob", Provider: "workbuddy", Url: srv.URL}
 	msg := &a2av1.Message{MessageId: "m1", FromAgentId: "alice", ToAgentId: "bob"}
 
@@ -154,7 +154,7 @@ func TestHTTPAdapter_Deliver_ClosedServer_F010(t *testing.T) {
 	url := srv.URL
 	srv.Close() // 立即关
 
-	a := NewHTTPAdapter("openclaw", "openclaw", NewHTTPClient(2*time.Second))
+	a := NewHTTPAdapter("openclaw", "openclaw", NewHTTPClient(2*time.Second), nil)
 	rec := &a2av1.AgentCard{AgentId: "bob", Provider: "openclaw", Url: url}
 	msg := &a2av1.Message{MessageId: "m1", FromAgentId: "alice", ToAgentId: "bob"}
 
@@ -194,7 +194,7 @@ func TestHTTPAdapter_Deliver_Timeout_F010(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	a := NewHTTPAdapter("openclaw", "openclaw", NewHTTPClient(500*time.Millisecond))
+	a := NewHTTPAdapter("openclaw", "openclaw", NewHTTPClient(500*time.Millisecond), nil)
 	rec := &a2av1.AgentCard{AgentId: "bob", Provider: "openclaw", Url: srv.URL}
 	msg := &a2av1.Message{MessageId: "m1", FromAgentId: "alice", ToAgentId: "bob"}
 
@@ -220,7 +220,7 @@ func TestHTTPAdapter_Deliver_Timeout_F010(t *testing.T) {
 // ---------- Supports ----------
 
 func TestHTTPAdapter_Supports(t *testing.T) {
-	a := NewHTTPAdapter("openclaw", "openclaw", nil)
+	a := NewHTTPAdapter("openclaw", "openclaw", nil, nil)
 	if !a.Supports("openclaw") {
 		t.Error("openclaw should support openclaw")
 	}
@@ -235,7 +235,7 @@ func TestHTTPAdapter_Supports(t *testing.T) {
 // ---------- URL empty → F_010 ----------
 
 func TestHTTPAdapter_Deliver_EmptyURL_F010(t *testing.T) {
-	a := NewHTTPAdapter("openclaw", "openclaw", nil)
+	a := NewHTTPAdapter("openclaw", "openclaw", nil, nil)
 	rec := &a2av1.AgentCard{AgentId: "bob", Provider: "openclaw"} // 无 URL
 	msg := &a2av1.Message{MessageId: "m1", FromAgentId: "alice", ToAgentId: "bob"}
 
@@ -249,5 +249,30 @@ func TestHTTPAdapter_Deliver_EmptyURL_F010(t *testing.T) {
 	}
 	if !strings.Contains(ae.Reason, "URL") {
 		t.Errorf("reason should mention URL, got %q", ae.Reason)
+	}
+}
+
+// ---------- Sprint 7: POST 失败 + inbox fallback → 静默 success ----------
+//
+// 用 nil InboxStore 模拟"inbox 未配置"路径，验证返 F_010。
+// 真实 inbox 写入走 PG 集成测（env-gated）。
+
+func TestHTTPAdapter_Deliver_500_NilInbox_F010(t *testing.T) {
+	srv := startFakeInbox(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}, nil)
+
+	// inbox nil → POST 失败无 fallback → 返 F_010
+	a := NewHTTPAdapter("openclaw", "openclaw", NewHTTPClient(2*time.Second), nil)
+	rec := &a2av1.AgentCard{AgentId: "bob", Provider: "openclaw", Url: srv.URL}
+	msg := &a2av1.Message{MessageId: "m1", FromAgentId: "alice", ToAgentId: "bob"}
+
+	_, err := a.Deliver(context.Background(), rec, msg)
+	if err == nil {
+		t.Fatal("want error")
+	}
+	ae, ok := err.(*AdapterError)
+	if !ok || ae.Code != "F_010" {
+		t.Errorf("nil inbox + 500 should return F_010, got %T: %v", err, err)
 	}
 }

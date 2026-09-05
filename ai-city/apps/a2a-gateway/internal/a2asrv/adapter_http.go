@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -63,19 +64,26 @@ func NewHTTPClient(timeout time.Duration) *HTTPClient {
 // 选路规则（与 Dispatcher 接口一致）：
 //   - Supports(provider) 仅当 provider == a.provider 时返回 true
 //   - Deliver: POST {recipient.URL}/inbox
+//
+// Sprint 7 新增 inbox fallback：
+//   - 当 inbox != nil 时，POST 失败 / 4xx-5xx → 写 inbox 后返 success（store-and-forward）
+//   - 当 inbox == nil 时（向后兼容旧测试 / 简化部署），返 F_010
+//   - inbox 写失败 → 仍返 F_010（不"假装 queued"，调用方应感知）
 type HTTPAdapter struct {
-	name     string        // log 用（"openclaw" / "workbuddy"）
-	provider string        // aicity 默认 "" → 不被本 adapter 接管
-	client   *HTTPClient   // 共享 client（连接池复用）
+	name     string      // log 用（"openclaw" / "workbuddy"）
+	provider string      // aicity 默认 "" → 不被本 adapter 接管
+	client   *HTTPClient // 共享 client（连接池复用）
+	inbox    *InboxStore // 可选：失败时 fallback 写入 inbox
 }
 
 // NewHTTPAdapter 构造 HTTPAdapter。
-//   - provider 空 → 仅作 fallback；不建议（用 EchoAdapter 兜底更便宜）
-func NewHTTPAdapter(name, provider string, c *HTTPClient) *HTTPAdapter {
+//   - provider 空 → 仅作 fallback；不建议（用 InboxAdapter 兜底更便宜）
+//   - inbox 可选：传 nil = 不写 inbox（向后兼容 Sprint 6 行为）
+func NewHTTPAdapter(name, provider string, c *HTTPClient, inbox *InboxStore) *HTTPAdapter {
 	if c == nil {
 		c = NewHTTPClient(5 * time.Second)
 	}
-	return &HTTPAdapter{name: name, provider: provider, client: c}
+	return &HTTPAdapter{name: name, provider: provider, client: c, inbox: inbox}
 }
 
 // Supports 声明 provider 名（与 Sprint 5.5 providerNames 对齐）。
@@ -88,7 +96,8 @@ func (a *HTTPAdapter) Supports(provider string) bool {
 // 返回：
 //   - (nil, nil)           204 / 空 body → fire-and-forget 接受
 //   - (*Message, nil)      200 + JSON reply
-//   - (nil, *AdapterError) 任何失败 → F_010 + reason
+//   - (nil, nil)           POST 失败 + inbox fallback 成功（store-and-forward 接受）
+//   - (nil, *AdapterError) 任何失败且 inbox 不可用 / inbox 写失败 → F_010 + reason
 func (a *HTTPAdapter) Deliver(ctx context.Context, recipient *a2av1.AgentCard, msg *a2av1.Message) (*a2av1.Message, error) {
 	if recipient == nil || recipient.GetUrl() == "" {
 		return nil, &AdapterError{Code: "F_010", Reason: "recipient URL empty"}
@@ -103,19 +112,19 @@ func (a *HTTPAdapter) Deliver(ctx context.Context, recipient *a2av1.AgentCard, m
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, &AdapterError{Code: "F_010", Reason: "build request: " + err.Error()}
+		return nil, a.fallbackInbox(ctx, msg, "build request: "+err.Error())
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-A2A-Provider", a.provider)
 
 	resp, err := a.client.Do(req)
 	if err != nil {
-		return nil, &AdapterError{Code: "F_010", Reason: "upstream " + err.Error()}
+		return nil, a.fallbackInbox(ctx, msg, "upstream "+err.Error())
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return nil, &AdapterError{Code: "F_010", Reason: "upstream status " + strconv.Itoa(resp.StatusCode)}
+		return nil, a.fallbackInbox(ctx, msg, "upstream status "+strconv.Itoa(resp.StatusCode))
 	}
 
 	// 204 或 ContentLength=0 → fire-and-forget
@@ -136,6 +145,30 @@ func (a *HTTPAdapter) Deliver(ctx context.Context, recipient *a2av1.AgentCard, m
 		return nil, &AdapterError{Code: "F_010", Reason: "reply decode: " + err.Error()}
 	}
 	return reply.toProto(), nil
+}
+
+// fallbackInbox 把 msg 写入 inbox（Sprint 7 store-and-forward 兜底）。
+//   - inbox nil → 返 F_010（无 fallback）
+//   - inbox 写成功 → 返 (nil, nil)（queued）
+//   - inbox 写失败 → 返 F_010（不"假装 queued"）
+//   - reason 写入 inbox.fail_reason 便于排障（格式 "F_010:<原因>"）
+func (a *HTTPAdapter) fallbackInbox(ctx context.Context, msg *a2av1.Message, reason string) error {
+	if a.inbox == nil {
+		return &AdapterError{Code: "F_010", Reason: reason}
+	}
+	if msg == nil {
+		return &AdapterError{Code: "F_010", Reason: reason + " (nil msg)"}
+	}
+	entry := inboxEntryFromMessage(msg, "F_010:"+reason)
+	if err := a.inbox.Append(ctx, entry, "F_010:"+reason); err != nil {
+		// inbox 写失败：消息完全丢失语义，返 F_010 让调用方感知
+		return &AdapterError{Code: "F_010", Reason: reason + " (inbox append failed: " + err.Error() + ")"}
+	}
+	log.Printf("[a2asrv] HTTPAdapter[%s] %s → %s (msg=%s) fallback → inbox (reason=%s)",
+		a.provider, msg.GetFromAgentId(), msg.GetToAgentId(), msg.GetMessageId(), reason)
+	// 返 nil err 表示成功（queued）；adapter 返 (nil, nil)
+	// 这里返 nil 让上层 Dispatcher 看到 success
+	return nil
 }
 
 // ---------- DTO（与 httpgw.messageDTO 镜像，但只用于 outbound 序列化） ----------

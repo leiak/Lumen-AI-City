@@ -1,7 +1,9 @@
-// Package main A2A Gateway 双协议入口（Sprint 5 + 5.5 + 6）。
+// Package main A2A Gateway 双协议入口（Sprint 5 + 5.5 + 6 + 7）。
 //
 // 启动：监听 gRPC (A2A_GRPC_ADDR) + HTTP (A2A_HTTP_ADDR) 两个端口，
 // 共用 *a2asrv.Service 单例。
+//
+// Sprint 7：注入 PG-backed CardStore + InboxStore；EchoAdapter 替换为 InboxAdapter。
 //
 // 设计：docs/06-A2A协议.md §20；06-A2A-canonical.md（签名规范）。
 //
@@ -10,6 +12,7 @@
 //   A2A_HTTP_ADDR           默认 127.0.0.1:8083（HTTP gateway）
 //   A2A_HTTP_API_KEY        非空 = 启用 Bearer 鉴权（dev 留空）
 //   A2A_REPLAY_WINDOW_SEC   ed25519 重放窗口秒数，默认 300
+//   DATABASE_URL            PG 连接串（默认 postgresql://aicity:aicity_dev@localhost:5432/aicity）
 package main
 
 import (
@@ -26,6 +29,7 @@ import (
 
 	"github.com/aicity/a2a-gateway/internal/a2asrv"
 	"github.com/aicity/a2a-gateway/internal/httpgw"
+	"github.com/jackc/pgx/v5/pgxpool"
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
 	"google.golang.org/grpc"
 )
@@ -35,23 +39,42 @@ func main() {
 	httpAddr := getEnv("A2A_HTTP_ADDR", "127.0.0.1:8083")
 	apiKey := os.Getenv("A2A_HTTP_API_KEY")
 	replaySec := parseReplayWindow()
+	dbURL := getEnv("DATABASE_URL", "postgresql://aicity:aicity_dev@localhost:5432/aicity")
 
-	log.Printf("a2a-gateway starting: grpc=%s http=%s (replay_window=%ds api_key=%s)",
-		grpcAddr, httpAddr, int(replaySec.Seconds()), redactKey(apiKey))
+	log.Printf("a2a-gateway starting: grpc=%s http=%s (replay_window=%ds api_key=%s db=%s)",
+		grpcAddr, httpAddr, int(replaySec.Seconds()), redactKey(apiKey), redactDSN(dbURL))
+
+	// PG 连接（启动期 10s ctx；仿 api-gateway cmd/main.go:34）
+	bootCtx, bootCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer bootCancel()
+	pool, err := pgxpool.New(bootCtx, dbURL)
+	if err != nil {
+		log.Fatalf("pg connect: %v", err)
+	}
+	defer pool.Close()
+	if err := pool.Ping(bootCtx); err != nil {
+		log.Fatalf("pg ping: %v", err)
+	}
+	cardStore := a2asrv.NewCardStore(pool)
+	inboxStore := a2asrv.NewInboxStore(pool)
+	log.Printf("a2a-gateway: PG ready (card_store + inbox_store wired)")
 
 	// 共享 Service
-	reg := a2asrv.NewRegistry()
+	reg := a2asrv.NewRegistryFromCardStore(cardStore)
 	verifier := a2asrv.NewVerifier(replaySec)
 	dispatcher := a2asrv.NewDispatcher()
 
-	// Outbound HTTP adapter：openclaw / workbuddy（共享 5s timeout client）
-	httpClient := a2asrv.NewHTTPClient(5 * time.Second)
-	dispatcher.Register(a2asrv.NewHTTPAdapter("openclaw", "openclaw", httpClient))
-	dispatcher.Register(a2asrv.NewHTTPAdapter("workbuddy", "workbuddy", httpClient))
-	dispatcher.Register(a2asrv.EchoAdapter{})
-	dispatcher.SetFallback(a2asrv.EchoAdapter{})
+	// InboxAdapter：aicity provider 的兜底；也作为 Dispatcher fallback
+	inboxAdapter := a2asrv.NewInboxAdapter(inboxStore)
 
-	svc := a2asrv.NewService(reg, verifier, dispatcher)
+	// Outbound HTTP adapter：openclaw / workbuddy（共享 5s timeout client + inbox fallback）
+	httpClient := a2asrv.NewHTTPClient(5 * time.Second)
+	dispatcher.Register(a2asrv.NewHTTPAdapter("openclaw", "openclaw", httpClient, inboxStore))
+	dispatcher.Register(a2asrv.NewHTTPAdapter("workbuddy", "workbuddy", httpClient, inboxStore))
+	dispatcher.Register(inboxAdapter)
+	dispatcher.SetFallback(inboxAdapter)
+
+	svc := a2asrv.NewService(reg, verifier, dispatcher, inboxStore)
 
 	// gRPC server
 	grpcLis, err := net.Listen("tcp", grpcAddr)
@@ -164,4 +187,32 @@ func redactKey(k string) string {
 		return "unset"
 	}
 	return "set"
+}
+
+// redactDSN 把 PG 连接串的密码部分打码（保留 user@host:port/db）。
+func redactDSN(dsn string) string {
+	// 简化：仅保留 scheme://user:***@host:port/db 形式
+	// 完整 DSN 解析交给 pgx；这里只脱敏
+	if i := indexOf(dsn, "://"); i >= 0 {
+		rest := dsn[i+3:]
+		if at := indexOf(rest, "@"); at >= 0 {
+			userHost := rest[:at]
+			hostPart := rest[at+1:]
+			// user:pass → user:***
+			if colon := indexOf(userHost, ":"); colon >= 0 {
+				return dsn[:i+3] + userHost[:colon+1] + "***@" + hostPart
+			}
+		}
+	}
+	return dsn
+}
+
+// indexOf 简化版 strings.Index（避免引入 strings import 噪声）。
+func indexOf(s, sub string) int {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
 }

@@ -17,6 +17,9 @@ service A2AGateway {
 
   // 双向流（用于对话）
   rpc Stream(stream Message) returns (stream Message);
+
+  // Sprint 7：拉取 a2a_inbox（store-and-forward）
+  rpc FetchInbox(FetchInboxRequest) returns (FetchInboxResponse);
 }
 
 message AgentCard {
@@ -61,4 +64,17 @@ message Message {
 message MessageResponse {
   bool delivered = 1;
   string error = 2;
+}
+
+// Sprint 7：收件方拉取 store-and-forward inbox。
+message FetchInboxRequest {
+  string agent_id = 1;          // 收件方（= 注册到 a2a_agent_card 的 agent_id）
+  int32  limit = 2;             // 默认 50，最大 500
+  string cursor = 3;            // 增量：上一批返回的 next_cursor（= queued_at RFC3339Nano）
+  bool   mark_read = 4;         // true = 拉取即标已读
+}
+
+message FetchInboxResponse {
+  repeated Message messages = 1;   // 与 a2av1.Message 同构（8 字段 + signature）
+  string next_cursor = 2;          // 空 = 拉完；非空 = 还有
 }

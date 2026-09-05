@@ -1,5 +1,5 @@
 -- ============================================
--- AI City - PostgreSQL Schema (v2.3)
+-- AI City - PostgreSQL Schema (v2.4)
 -- 对应 docs/03-数据Schema.md §17.1
 -- ============================================
 
@@ -332,6 +332,52 @@ CREATE TRIGGER saga_instance_updated_at BEFORE UPDATE ON saga_instance
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ============================================
+-- A2A Agent Card 表（a2a_agent_card）—— Sprint 7
+-- 镜像 a2av1.AgentCard；持久化联邦 agent 注册信息
+-- ============================================
+CREATE TABLE IF NOT EXISTS a2a_agent_card (
+    agent_id      VARCHAR(128) PRIMARY KEY,
+    name          VARCHAR(128) NOT NULL,
+    description   TEXT NOT NULL DEFAULT '',
+    url           TEXT NOT NULL DEFAULT '',
+    provider      VARCHAR(64) NOT NULL DEFAULT 'aicity',
+    version       VARCHAR(32) NOT NULL DEFAULT '',
+    capabilities  TEXT[] NOT NULL DEFAULT '{}',
+    auth          JSONB NOT NULL DEFAULT '{}'::jsonb,  -- {"ed25519": "<base64>"}
+    registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_a2a_card_provider ON a2a_agent_card(provider) WHERE provider != 'aicity';
+CREATE INDEX idx_a2a_card_caps ON a2a_agent_card USING GIN(capabilities);
+CREATE TRIGGER a2a_agent_card_updated_at BEFORE UPDATE ON a2a_agent_card
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+COMMENT ON TABLE a2a_agent_card IS 'A2A 联邦 Agent 注册卡（替换 Sprint 5 内存 Registry）';
+
+-- ============================================
+-- A2A Inbox 表（a2a_inbox）—— Sprint 7
+-- store-and-forward：收件方离线 / 联邦外不可达时暂存
+-- ============================================
+CREATE TABLE IF NOT EXISTS a2a_inbox (
+    message_id      VARCHAR(128) PRIMARY KEY,         -- 防重投递
+    conversation_id VARCHAR(128) NOT NULL DEFAULT '',
+    from_agent_id   VARCHAR(128) NOT NULL,
+    to_agent_id     VARCHAR(128) NOT NULL,           -- 收件方 agent_id（partition key）
+    type            VARCHAR(32) NOT NULL,             -- request / response / event
+    payload         BYTEA NOT NULL,                   -- 原始业务字节
+    ts_ms           BIGINT NOT NULL,
+    trace_id        VARCHAR(128) NOT NULL DEFAULT '',
+    signature       TEXT NOT NULL DEFAULT '',
+    read_at         TIMESTAMPTZ,                      -- NULL = 未读
+    queued_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    fail_reason     TEXT                              -- 若来自 HTTPAdapter F_010 fallback
+);
+CREATE INDEX idx_a2a_inbox_to_unread ON a2a_inbox(to_agent_id, queued_at DESC) WHERE read_at IS NULL;
+CREATE INDEX idx_a2a_inbox_conv ON a2a_inbox(conversation_id);
+
+COMMENT ON TABLE a2a_inbox IS 'A2A store-and-forward 收件箱（HTTPAdapter F_010 fallback 写入）';
+
+-- ============================================
 -- 种子数据：开发用玩家
 -- ============================================
 INSERT INTO player (username, email, password_hash, display_name)
@@ -371,3 +417,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 
 INSERT INTO schema_version (version) VALUES ('2.3.0') ON CONFLICT DO NOTHING;
+INSERT INTO schema_version (version) VALUES ('2.4.0') ON CONFLICT DO NOTHING;

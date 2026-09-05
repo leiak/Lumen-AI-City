@@ -127,3 +127,13 @@ type sendMessageRespDTO struct {
 	Error     string      `json:"error,omitempty"`
 	Reply     *messageDTO `json:"reply,omitempty"`
 }
+
+// fetchInboxRespDTO 是 GET /v1/inbox/:agent_id 响应（Sprint 7）。
+//   - Messages: 与 a2av1.Message 同构
+//   - NextCursor: 空 = 拉完；非空 = 还有
+//   - TraceID: 透传
+type fetchInboxRespDTO struct {
+	Messages   []messageDTO `json:"messages"`
+	NextCursor string       `json:"next_cursor,omitempty"`
+	TraceID    string       `json:"trace_id,omitempty"`
+}
