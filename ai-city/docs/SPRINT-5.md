@@ -106,6 +106,10 @@ $ go run ./cmd/a2a_smoke
 ## 六、不在本次范围
 
 按依赖顺序留待后续 Sprint：
-1. **Sprint 5.5**：ed25519 signature 校验（`AgentCard.auth["ed25519:..."]` 验签 Message.signature）+ openClaw/workbuddy adapter 框架
+1. **Sprint 5.5**：ed25519 signature 校验（`AgentCard.auth["ed25519:..."]` 验签 Message.signature）+ openClaw/workbuddy adapter 框架 — 见 [Sprint 5.5 复盘](./SPRINT-5.5.md)
 2. **Sprint 6**：a2a-restart HTTP gateway（gin adapter → gRPC client），让外部联邦通过 HTTP 接入
 3. **Sprint 6+**：PG 持久化 agent_card + inbox（重启保留 + 跨实例联邦发现）
+
+## 七、配套规范
+
+- **Canonical 签名形式**：[docs/06-A2A-canonical.md](./06-A2A-canonical.md) — 8 字段固定 JSON、payload 用 base64.RawStdEncoding、signature 字段在 canonical 里缺席

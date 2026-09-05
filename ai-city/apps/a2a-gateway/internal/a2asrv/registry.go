@@ -11,13 +11,16 @@
 //   F_003 capability 为空
 //   F_004 收件方未注册（service 层用）
 //   F_005 发件方未注册（service 层用）
+//   F_006 auth["ed25519"] 非空但公钥解析失败（Sprint 5.5）
 package a2asrv
 
 import (
+	"encoding/base64"
 	"log"
 	"sync"
 
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
+	"crypto/ed25519"
 )
 
 // Registry 内存 AgentCard 注册表。线程安全。
@@ -34,11 +37,15 @@ func NewRegistry() *Registry {
 // Register 注册 / 覆盖 AgentCard。
 // 返回 (accepted, errCode)：
 //   - 缺失字段 → accepted=false, errCode=F_001
+//   - auth["ed25519"] 非空但公钥解析失败 → accepted=false, errCode=F_006
 //   - 重复 agent_id → accepted=true, errCode=F_002（幂等覆盖）
 //   - 首次注册 → accepted=true, errCode=""
 func (r *Registry) Register(card *a2av1.AgentCard) (bool, string) {
 	if card == nil || card.GetAgentId() == "" || card.GetName() == "" {
 		return false, "F_001"
+	}
+	if code := validateEd25519(card); code != "" {
+		return false, code
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -48,6 +55,24 @@ func (r *Registry) Register(card *a2av1.AgentCard) (bool, string) {
 	}
 	r.cards[card.GetAgentId()] = card
 	return true, ""
+}
+
+// validateEd25519 检查 auth["ed25519"] 若非空必须能解为 32 字节公钥。
+// 不在 Register 里验签 —— Register 只校验格式；签名验证在 service.SendMessage。
+func validateEd25519(card *a2av1.AgentCard) string {
+	auth := card.GetAuth()
+	if len(auth) == 0 {
+		return ""
+	}
+	b64, ok := auth["ed25519"]
+	if !ok || b64 == "" {
+		return ""
+	}
+	raw, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil || len(raw) != ed25519.PublicKeySize {
+		return "F_006"
+	}
+	return ""
 }
 
 // Discover 按 capability 过滤返回 AgentCard 列表。

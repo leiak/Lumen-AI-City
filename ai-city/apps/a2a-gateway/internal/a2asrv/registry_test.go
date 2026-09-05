@@ -4,6 +4,9 @@
 package a2asrv
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
 	"strings"
 	"sync"
 	"testing"
@@ -164,5 +167,47 @@ func TestRegistry_ConcurrentRegister_NoRace(t *testing.T) {
 	wg.Wait()
 	if got := r.Size(); got <= 0 {
 		t.Errorf("size want >0 got %d", got)
+	}
+}
+
+func TestRegistry_Register_InvalidEd25519Pubkey_ReturnsF006(t *testing.T) {
+	r := NewRegistry()
+	cases := []struct {
+		name string
+		card *a2av1.AgentCard
+	}{
+		{"not base64", &a2av1.AgentCard{AgentId: "alice", Name: "Alice",
+			Auth: map[string]string{"ed25519": "!!notbase64!!"}}},
+		{"wrong length", &a2av1.AgentCard{AgentId: "bob", Name: "Bob",
+			Auth: map[string]string{"ed25519": "AAAA"}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ok, errCode := r.Register(tc.card)
+			if ok {
+				t.Errorf("want accepted=false")
+			}
+			if errCode != "F_006" {
+				t.Errorf("want F_006 got %q", errCode)
+			}
+			if r.Size() != 0 {
+				t.Errorf("registry should remain empty after F_006, got size=%d", r.Size())
+			}
+		})
+	}
+}
+
+func TestRegistry_Register_ValidEd25519Pubkey_Accepted(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	r := NewRegistry()
+	ok, errCode := r.Register(&a2av1.AgentCard{
+		AgentId: "alice", Name: "Alice",
+		Auth: map[string]string{"ed25519": base64.StdEncoding.EncodeToString(pub)},
+	})
+	if !ok || errCode != "" {
+		t.Errorf("want accepted=true errCode=\"\", got %v / %q", ok, errCode)
 	}
 }
