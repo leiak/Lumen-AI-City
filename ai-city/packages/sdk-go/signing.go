@@ -12,7 +12,6 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 )
 
 // Signable 是 Message 的本地 mirror struct（SDK 不依赖 a2a proto）。
@@ -52,14 +51,12 @@ type signErr struct{ msg string }
 func (e *signErr) Error() string { return e.msg }
 
 // SignMessage 用 priv 对 s 做 ed25519 签名，返 base64(stdEncoding) 字符串。
-//   - payload 用 base64.RawStdEncoding（无 padding）→ 与 server canonical 一致
-//   - Signature 字段不参与 hash（envelope 里就没有它）
+//
+// Canonical 字节生成走 CanonicalBytes(s) —— 与 server 端 verifier.go 共享唯一实现。
+// Signable 字段顺序 / JSON tag / payload 编码全部由 CanonicalBytes 钉死，
+// 任何字段变动见 docs/06-A2A-canonical.md §五。
 func SignMessage(priv ed25519.PrivateKey, s Signable) (string, error) {
-	b, err := json.Marshal(s)
-	if err != nil {
-		return "", err
-	}
-	sig := ed25519.Sign(priv, b)
+	sig := ed25519.Sign(priv, CanonicalBytes(s))
 	return base64.StdEncoding.EncodeToString(sig), nil
 }
 

@@ -15,6 +15,9 @@
 //   10   SendMessage alice2→bob2 ts_ms=now-1h → F_008
 //   11   RegisterCard auth["ed25519"]="!!notbase64" → gRPC InvalidArgument F_006
 //   12   Stream alice2→bob2 2 条签过 + 1 条翻 sig → 第 3 条 Unauthenticated
+//
+// Sprint 7+：签名走 aicity.SignMessage（与 server canonicalBytes 共享唯一实现）；
+// 任何字段顺序改动只需改 sdk-go 一处，drift 风险消除。
 package main
 
 import (
@@ -22,12 +25,12 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"time"
 
+	aicity "github.com/aicity/sdk-go"
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -35,19 +38,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// signCanonical 直接镜像 server a2asrv.canonicalEnvelope 字段顺序。
-// 任何字段顺序改动必须双签 server + smoke —— 见 docs/06-A2A-canonical.md。
+// signCanonical 通过 aicity.SignMessage 走 SDK 唯一 canonical 实现
+// （packages/sdk-go/canonical.go::CanonicalBytes）。
 func signCanonical(priv ed25519.PrivateKey, m *a2av1.Message) string {
-	env := struct {
-		MessageID      string `json:"message_id"`
-		FromAgentID    string `json:"from_agent_id"`
-		ToAgentID      string `json:"to_agent_id"`
-		ConversationID string `json:"conversation_id"`
-		Type           string `json:"type"`
-		PayloadB64     string `json:"payload_b64"`
-		TsMs           int64  `json:"ts_ms"`
-		TraceID        string `json:"trace_id"`
-	}{
+	sig, err := aicity.SignMessage(priv, aicity.Signable{
 		MessageID:      m.GetMessageId(),
 		FromAgentID:    m.GetFromAgentId(),
 		ToAgentID:      m.GetToAgentId(),
@@ -56,9 +50,11 @@ func signCanonical(priv ed25519.PrivateKey, m *a2av1.Message) string {
 		PayloadB64:     base64.RawStdEncoding.EncodeToString(m.GetPayload()),
 		TsMs:           m.GetTsMs(),
 		TraceID:        m.GetTraceId(),
+	})
+	if err != nil {
+		panic(fmt.Sprintf("SignMessage failed: %v", err))
 	}
-	body, _ := json.Marshal(env)
-	return base64.StdEncoding.EncodeToString(ed25519.Sign(priv, body))
+	return sig
 }
 
 func main() {

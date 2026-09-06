@@ -1,9 +1,10 @@
-// Verifier 单元测试（Sprint 5.5）—— 13 用例：
+// Verifier 单元测试（Sprint 5.5）—— 14 用例：
 //   公钥解析 OK / 坏 base64 / 错长度
 //   round-trip / 单字节翻转 / 错 key
 //   缺签强制 / opt-in 缺签放行
 //   ts_ms future / stale / within
 //   canonical deterministic / canonical 零化 signature
+//   跨实现：server canonicalBytes byte-equal SDK CanonicalBytes + 真实验签回路
 package a2asrv
 
 import (
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	aicity "github.com/aicity/sdk-go"
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
 )
 
@@ -288,5 +290,73 @@ func TestVerifier_CanonicalBytes_ZeroesSignature(t *testing.T) {
 	}
 	if strings.Contains(string(b), "this-should-be-ignored") {
 		t.Errorf("canonical must not contain signature value, got %s", b)
+	}
+}
+
+// ---------- cross-impl 护栏（Sprint 7+）----------
+
+// TestVerifier_CanonicalBytes_MatchesSDK 双向护栏：
+//   1) server canonicalBytes 输出 byte-equal SDK CanonicalBytes 输出
+//   2) 用 SDK SignMessage 签的 m，server Verify 必须通过（真实验签回路）
+//
+// 任何一边漂移（字段顺序 / tag / payload 编码）→ 立刻 fail，
+// 同时 docs/06-A2A-canonical.md §五 必须双签 + 走 BREAKING 协议。
+func TestVerifier_CanonicalBytes_MatchesSDK(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+
+	s := aicity.Signable{
+		MessageID:      "m-cross-1",
+		FromAgentID:    "alice",
+		ToAgentID:      "bob",
+		ConversationID: "conv-cross",
+		Type:           "request",
+		PayloadB64:     base64.RawStdEncoding.EncodeToString([]byte("cross-impl payload")),
+		TsMs:           1736112000000,
+		TraceID:        "trace-cross",
+	}
+
+	// 把 Signable 翻成 proto Message（用于 server 端 canonicalBytes）
+	m := msgFromSignable(s)
+
+	// 1) byte-equal 断言
+	serverBytes := canonicalBytes(m)
+	sdkBytes := aicity.CanonicalBytes(s)
+	if string(serverBytes) != string(sdkBytes) {
+		t.Fatalf("server/sdk canonical bytes differ:\nserver=%s\nsdk   =%s", serverBytes, sdkBytes)
+	}
+
+	// 2) 真实验签回路：SDK SignMessage → server Verify
+	sigStr, err := aicity.SignMessage(priv, s)
+	if err != nil {
+		t.Fatalf("SignMessage: %v", err)
+	}
+	m.Signature = sigStr
+
+	sender := &a2av1.AgentCard{
+		AgentId: "alice",
+		Name:    "alice",
+		Auth:    map[string]string{"ed25519": base64.StdEncoding.EncodeToString(pub)},
+	}
+	v := NewVerifier(5 * time.Minute)
+	if err := v.Verify(sender, m, time.UnixMilli(s.TsMs)); err != nil {
+		t.Fatalf("cross-impl verify failed: %v", err)
+	}
+}
+
+// msgFromSignable 把 aicity.Signable 翻成 a2av1.Message（测试用辅助）。
+func msgFromSignable(s aicity.Signable) *a2av1.Message {
+	payload, _ := base64.RawStdEncoding.DecodeString(s.PayloadB64)
+	return &a2av1.Message{
+		MessageId:      s.MessageID,
+		FromAgentId:    s.FromAgentID,
+		ToAgentId:      s.ToAgentID,
+		ConversationId: s.ConversationID,
+		Type:           s.Type,
+		Payload:        payload,
+		TsMs:           s.TsMs,
+		TraceId:        s.TraceID,
 	}
 }

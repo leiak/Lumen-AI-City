@@ -5,6 +5,7 @@
 //   - Fetch：按 to_agent_id + cursor 分页拉取（降序）
 //   - MarkRead：可选，拉取即标已读
 //   - Count：metrics / 调试用
+//   - Cleanup（Sprint 7+）：删除 expires_at < NOW() 的行（cron 周期调用）
 //
 // 错误码（返回 error，由调用方映射）：
 //   F_011 inbox 写失败
@@ -35,23 +36,44 @@ type InboxEntry struct {
 	TsMs           int64
 	TraceID        string
 	Signature      string
+	// ExpiresAt（Sprint 7+）：零值 → 用 store.defaultTTL 计算；
+	// 非零 → 直接使用（用于测试 / 注入已过期行）
+	ExpiresAt time.Time
 	// 注：ReadAt / QueuedAt 由 PG 默认值生成；FailReason 由调用方传入
 }
 
 // InboxStore 是 a2a_inbox 表的 PG 封装。
 type InboxStore struct {
-	pool *pgxpool.Pool
+	pool       *pgxpool.Pool
+	defaultTTL time.Duration // Sprint 7+：新行默认 expires_at = queued_at + defaultTTL
 }
 
-// NewInboxStore 构造 InboxStore。
+// NewInboxStore 构造 InboxStore（alias：与 Sprint 7 测试兼容 → TTL=0 表示不设 expires_at）
+//
+//   - ttl == 0 → 不在 SQL 里写 expires_at，让 PG DEFAULT (NOW() + '7d') 兜底
+//     （保留 Sprint 7 行为，便于旧测试不感知 Sprint 7+ 列）
+//   - ttl  > 0 → 显式写 expires_at = NOW() + ttl
+//
+// 推荐生产用 NewInboxStoreWithTTL；本函数保留作 alias 不破现有 5 个 PG 测试 + adapter 引用。
 func NewInboxStore(pool *pgxpool.Pool) *InboxStore {
-	return &InboxStore{pool: pool}
+	return NewInboxStoreWithTTL(pool, 0)
+}
+
+// NewInboxStoreWithTTL 构造 InboxStore with explicit TTL（Sprint 7+）。
+//
+//   - ttl == 0 → 同 NewInboxStore：依赖 PG DEFAULT（'7d'）
+//   - ttl  > 0 → SQL 里写 expires_at = NOW() + ttl
+func NewInboxStoreWithTTL(pool *pgxpool.Pool, ttl time.Duration) *InboxStore {
+	return &InboxStore{pool: pool, defaultTTL: ttl}
 }
 
 // Append 写入一条 inbox 记录。
 //
 //   - 重复 message_id → 静默忽略（ON CONFLICT DO NOTHING）；视为幂等（防重投递）
 //   - failReason：HTTPAdapter fallback 写入时填（如 "F_010:upstream 503"）；InboxAdapter 写入时填 ""
+//   - ExpiresAt 零值 + defaultTTL > 0 → 写 expires_at = NOW() + defaultTTL
+//   - ExpiresAt 零值 + defaultTTL == 0 → 跳过 expires_at（PG DEFAULT 兜底）
+//   - ExpiresAt 非零 → 直接使用（测试 / 注入已过期行用）
 //
 // 失败 → 返 error；service 层映射 F_011。
 func (s *InboxStore) Append(ctx context.Context, e *InboxEntry, failReason string) error {
@@ -69,9 +91,21 @@ func (s *InboxStore) Append(ctx context.Context, e *InboxEntry, failReason strin
 	trace := e.TraceID
 	sig := e.Signature
 
+	// Sprint 7+：决定 expires_at 写入策略
+	//   - explicit != zero → 用 explicit
+	//   - explicit == zero 且 defaultTTL > 0 → NOW() + defaultTTL
+	//   - explicit == zero 且 defaultTTL == 0 → 不写（让 PG DEFAULT 兜底）
+	var expiresAt *time.Time
+	if !e.ExpiresAt.IsZero() {
+		expiresAt = &e.ExpiresAt
+	} else if s.defaultTTL > 0 {
+		t := time.Now().Add(s.defaultTTL)
+		expiresAt = &t
+	}
+
 	const q = `
-INSERT INTO a2a_inbox (message_id, conversation_id, from_agent_id, to_agent_id, type, payload, ts_ms, trace_id, signature, fail_reason)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF($10, ''))
+INSERT INTO a2a_inbox (message_id, conversation_id, from_agent_id, to_agent_id, type, payload, ts_ms, trace_id, signature, fail_reason, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF($10, ''), $11)
 ON CONFLICT (message_id) DO NOTHING
 `
 	_, err := s.pool.Exec(ctx, q,
@@ -85,6 +119,7 @@ ON CONFLICT (message_id) DO NOTHING
 		trace,
 		sig,
 		failReason,
+		expiresAt, // nil → PG DEFAULT
 	)
 	if err != nil {
 		log.Printf("[a2asrv] InboxStore.Append(%s → %s) pg error: %v",
@@ -238,6 +273,21 @@ func (s *InboxStore) Count(ctx context.Context, agentID string, unreadOnly bool)
 		return 0
 	}
 	return n
+}
+
+// Cleanup 删除 expires_at < NOW() 的行（Sprint 7+ cron 调用）。
+//
+// 返回：
+//   - int64：本次删除的行数
+//   - error：PG 执行错
+//
+// 调用方负责 ctx timeout（cron 用独立 30s ctx，不复用调用方 ctx）。
+func (s *InboxStore) Cleanup(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM a2a_inbox WHERE expires_at < NOW()`)
+	if err != nil {
+		return 0, fmt.Errorf("inbox cleanup: %w", err)
+	}
+	return tag.RowsAffected(), nil
 }
 
 // inboxEntryFromMessage 把 a2av1.Message 转 InboxEntry（append 辅助）。

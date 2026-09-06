@@ -4,7 +4,7 @@
 >
 > **关键文档**：[docs/06-A2A协议.md](../../docs/06-A2A协议.md) 全文
 >
-> **复盘**：[docs/SPRINT-5.md](../../docs/SPRINT-5.md) · [docs/SPRINT-6.md](../../docs/SPRINT-6.md) · [docs/SPRINT-7.md](../../docs/SPRINT-7.md)
+> **复盘**：[docs/SPRINT-5.md](../../docs/SPRINT-5.md) · [docs/SPRINT-6.md](../../docs/SPRINT-6.md) · [docs/SPRINT-7.md](../../docs/SPRINT-7.md) · [docs/SPRINT-7+.md](../../docs/SPRINT-7+.md)
 
 ## 端口
 
@@ -148,11 +148,61 @@ A2A_TEST_DATABASE_URL=postgresql://aicity:aicity_dev@127.0.0.1:5432/aicity_test 
 | `A2A_REPLAY_WINDOW_SEC` | `300` | ed25519 重放窗口秒数 |
 | `DATABASE_URL` | `postgresql://aicity:aicity_dev@localhost:5432/aicity` | PG 连接串（Sprint 7） |
 | `A2A_TEST_DATABASE_URL` | 空（跳过 PG 测） | PG 集成测 env-gate；本地 dev 设上 |
+| `A2A_INBOX_TTL_HOURS` | `168` | a2a_inbox 行 TTL 小时数；0 = 用 PG DEFAULT 兜底（Sprint 7+） |
+| `A2A_INBOX_CLEANUP_INTERVAL_SEC` | `300` | cleanup cron 间隔秒数；0 = 禁用（Sprint 7+） |
 
 ## 不在 Sprint 7 范围
 
 - ACL + 跨城邦路由 → Sprint 7+
 - AgentCard 自签 / CA → Sprint 8+
 - HTTP 流式镜像（SSE / WebSocket）→ Sprint 8+（确认需求后）
-- a2a-inbox TTL + cron 清理 → Sprint 7+
 - canonical form 单点化到 `packages/sdk-go`（Python/TS SDK 对齐）→ Sprint 7+
+
+## Sprint 7+ "硬化"
+
+两块累积技术债的扫尾：
+
+### A. Canonical SDK 单点化
+
+消除 server / SDK / smoke 三份 canonical 实现漂移风险：
+
+- **唯一实现**：[`packages/sdk-go/canonical.go`](../../packages/sdk-go/canonical.go)::`CanonicalBytes(s Signable)`
+- **server 端薄适配器**：`apps/a2a-gateway/internal/a2asrv/verifier.go::canonicalBytes(m)` → proto → `aicity.Signable` → `aicity.CanonicalBytes`
+- **跨实现护栏**：`verifier_test.go::TestVerifier_CanonicalBytes_MatchesSDK` byte-equal 比对 + 真实验签回路；任何漂移立刻 fail
+- **smoke 同源**：`cmd/a2a_smoke/main.go::signCanonical` 改用 `aicity.SignMessage`，消除第三份
+
+### B. `a2a_inbox` TTL + cron 清理
+
+防止生产跑 1 个月 inbox 表堆积：
+
+- **新列 `expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + '7 days')`**
+  （`pg-schema.sql` ALTER ADD COLUMN IF NOT EXISTS；旧行 metadata-only 默认 7d）
+- **B-tree 索引 `idx_a2a_inbox_expires`**（无 partial predicate，避免 volatile 函数被 PG 拒绝）
+- **`InboxStore.Cleanup(ctx)`** 删除 `expires_at < NOW()` 的行
+- **后台 cron `StartInboxCleanup(ctx, store, interval)`**：
+  - 独立 long-lived ctx 模式（与 api-gateway subscriber 同坑）
+  - Cleanup SQL 用 30s 独立 timeout，让最后一次能跑完
+  - interval=0 禁用；store=nil 跳过；仅 log 失败（fire-and-forget）
+- **`A2A_INBOX_TTL_HOURS`**（默认 168 = 7d，0 = 用 PG DEFAULT 兜底）
+- **`A2A_INBOX_CLEANUP_INTERVAL_SEC`**（默认 300 = 5min，0 = 禁用）
+
+### Schema 迁移（幂等）
+
+```bash
+docker exec -i aicity-pg psql -U aicity -d aicity < packages/proto/pg-schema.sql
+docker exec -i aicity-pg psql -U aicity -d aicity -c '\d a2a_inbox' | grep expires_at
+docker exec -i aicity-pg psql -U aicity -d aicity -c 'SELECT version FROM schema_version ORDER BY version;'
+# 期望：2.3.0 / 2.4.0 / 2.5.0
+```
+
+`ALTER TABLE ADD COLUMN ... DEFAULT (expr)` 在 PG 11+ 是 metadata-only，
+不重写表；旧行自动回落到默认 7d。
+
+### 测试覆盖
+
+| 模块 | 用例 |
+|---|---|
+| `packages/sdk-go/canonical_test.go` | 7 用例（EmptyAllBlank / Deterministic / FieldOrder / PayloadRawStd / PaddingBoundary / StableAcrossReorder / SignMessage_Roundtrip）|
+| `verifier_test.go` | +1 用例 `TestVerifier_CanonicalBytes_MatchesSDK`（server byte-equal SDK + 真实验签回路）|
+| `inboxstore_pg_test.go` | +2 用例 `TestInboxStore_PG_TTL_Expires` + `TestInboxStore_PG_DefaultTTL`（env-gated）|
+| 现有 74 测 | 全部继续 PASS（签名 byte-equal + Append/Fetch 行为不变）|

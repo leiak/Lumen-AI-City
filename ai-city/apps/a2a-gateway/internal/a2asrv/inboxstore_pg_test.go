@@ -177,3 +177,82 @@ func TestInboxStore_PG_Fetch_NoMessages(t *testing.T) {
 		t.Errorf("next_cursor should be empty, got %q", next)
 	}
 }
+
+// ---------- 6) TTL expires（Sprint 7+）----------
+
+// TestInboxStore_PG_TTL_Expires 验证 expires_at < NOW() 的行被 Cleanup 删除。
+//
+// 流程：
+//   1) 注入 expires_at = NOW() - 1h 的旧行
+//   2) 注入 expires_at = NOW() + 1h 的新行
+//   3) 调 Cleanup → 应删除 1 行
+//   4) Count(bob, true) 应为 1（新行还在）
+func TestInboxStore_PG_TTL_Expires(t *testing.T) {
+	store, pool := newTestInboxStore(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	// 旧行：explicit expires_at = 1h ago → 应被删
+	oldEntry := makeEntry("expired-1", "alice", "bob")
+	oldEntry.ExpiresAt = time.Now().Add(-1 * time.Hour)
+	if err := store.Append(ctx, oldEntry, ""); err != nil {
+		t.Fatalf("Append expired: %v", err)
+	}
+
+	// 新行：explicit expires_at = 1h later → 保留
+	newEntry := makeEntry("fresh-1", "alice", "bob")
+	newEntry.ExpiresAt = time.Now().Add(1 * time.Hour)
+	if err := store.Append(ctx, newEntry, ""); err != nil {
+		t.Fatalf("Append fresh: %v", err)
+	}
+
+	// 调 Cleanup → 删 1 行（旧的）
+	deleted, err := store.Cleanup(ctx)
+	if err != nil {
+		t.Fatalf("Cleanup: %v", err)
+	}
+	if deleted != 1 {
+		t.Errorf("Cleanup deleted = %d, want 1", deleted)
+	}
+
+	// Count unread → 应剩 1（新行）
+	if n := store.Count(ctx, "bob", true); n != 1 {
+		t.Errorf("after cleanup unread count = %d, want 1", n)
+	}
+
+	// 第二次 Cleanup → 没东西可删
+	deleted2, err := store.Cleanup(ctx)
+	if err != nil {
+		t.Fatalf("Cleanup 2nd: %v", err)
+	}
+	if deleted2 != 0 {
+		t.Errorf("second Cleanup deleted = %d, want 0", deleted2)
+	}
+}
+
+// ---------- 7) DefaultTTL（Sprint 7+）----------
+
+// TestInboxStore_PG_DefaultTTL 验证 NewInboxStoreWithTTL 会把 defaultTTL 注入新行。
+func TestInboxStore_PG_DefaultTTL(t *testing.T) {
+	store, pool := newTestInboxStore(t)
+	defer pool.Close()
+
+	// 关闭旧 store，构造一个 100ms TTL 的 store（覆盖默认）
+	store = NewInboxStoreWithTTL(pool, 100*time.Millisecond)
+	ctx := context.Background()
+
+	if err := store.Append(ctx, makeEntry("ttl-1", "alice", "bob"), ""); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	// 立即查 expires_at 应在未来 100ms 左右
+	var expiresAt time.Time
+	err := pool.QueryRow(ctx, `SELECT expires_at FROM a2a_inbox WHERE message_id=$1`, "ttl-1").Scan(&expiresAt)
+	if err != nil {
+		t.Fatalf("select expires_at: %v", err)
+	}
+	delta := time.Until(expiresAt)
+	if delta < 50*time.Millisecond || delta > 200*time.Millisecond {
+		t.Errorf("expires_at delta = %v, want ~100ms", delta)
+	}
+}

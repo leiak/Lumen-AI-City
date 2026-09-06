@@ -1,5 +1,5 @@
 -- ============================================
--- AI City - PostgreSQL Schema (v2.4)
+-- AI City - PostgreSQL Schema (v2.5)
 -- 对应 docs/03-数据Schema.md §17.1
 -- ============================================
 
@@ -378,6 +378,19 @@ CREATE INDEX idx_a2a_inbox_conv ON a2a_inbox(conversation_id);
 COMMENT ON TABLE a2a_inbox IS 'A2A store-and-forward 收件箱（HTTPAdapter F_010 fallback 写入）';
 
 -- ============================================
+-- Sprint 7+：a2a_inbox TTL + cleanup
+-- expires_at 上界；cron 周期 DELETE WHERE expires_at < NOW()
+-- ============================================
+ALTER TABLE a2a_inbox
+    ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ NOT NULL
+    DEFAULT (NOW() + INTERVAL '7 days');
+
+CREATE INDEX IF NOT EXISTS idx_a2a_inbox_expires
+    ON a2a_inbox(expires_at);
+
+COMMENT ON COLUMN a2a_inbox.expires_at IS 'TTL 上界；cron cleanup 删除 expires_at < NOW() 的行';
+
+-- ============================================
 -- 种子数据：开发用玩家
 -- ============================================
 INSERT INTO player (username, email, password_hash, display_name)
@@ -418,3 +431,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 INSERT INTO schema_version (version) VALUES ('2.3.0') ON CONFLICT DO NOTHING;
 INSERT INTO schema_version (version) VALUES ('2.4.0') ON CONFLICT DO NOTHING;
+INSERT INTO schema_version (version) VALUES ('2.5.0') ON CONFLICT DO NOTHING;

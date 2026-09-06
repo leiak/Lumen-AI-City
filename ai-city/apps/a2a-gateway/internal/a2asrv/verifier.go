@@ -10,6 +10,10 @@
 // 注：proto Message 没有 provider 字段，故 canonical 不含 provider；
 // provider 路由只用于 Dispatcher 选择 adapter，与签名无关。
 //
+// Sprint 7+：canonical 字节生成统一走 packages/sdk-go.CanonicalBytes（唯一实现）。
+// 本文件 canonicalBytes 是薄适配器：proto → aicity.Signable → CanonicalBytes。
+// 跨实现护栏见 verifier_test.go::TestVerifier_CanonicalBytes_MatchesSDK。
+//
 // 错误码（与 Service 共用前缀）：
 //   F_005 sender 未注册
 //   F_007 signature required / decode / mismatch
@@ -19,9 +23,9 @@ package a2asrv
 import (
 	"crypto/ed25519"
 	"encoding/base64"
-	"encoding/json"
 	"time"
 
+	aicity "github.com/aicity/sdk-go"
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
 )
 
@@ -40,29 +44,17 @@ func (e *SigError) Error() string {
 	return e.Code + ":" + e.Reason
 }
 
-// canonicalEnvelope 是参与签名的 8 字段固定 struct。
-// 字段顺序固定 → json.Marshal 输出稳定；新增字段必须改 version 并双签。
-type canonicalEnvelope struct {
-	MessageID      string `json:"message_id"`
-	FromAgentID    string `json:"from_agent_id"`
-	ToAgentID      string `json:"to_agent_id"`
-	ConversationID string `json:"conversation_id"`
-	Type           string `json:"type"`
-	PayloadB64     string `json:"payload_b64"`
-	TsMs           int64  `json:"ts_ms"`
-	TraceID        string `json:"trace_id"`
-	// signature 故意缺席；签名前已置空，参与 hash 时也为空字符串。
-}
-
-// canonicalBytes 把 Message 转成 canonical 字节。
+// canonicalBytes 把 Message 转成 canonical 字节（薄适配器 → aicity.CanonicalBytes）。
+//
 //   - payload 用 RawStdEncoding（无 padding）→ 与 Sprint 6+ 跨语言对齐
-//   - signature 字段在 envelope 里缺席，所以恒定不参与 hash
+//   - signature 字段在 Signable 里缺席，所以恒定不参与 hash
+//   - Signable 字段顺序 / JSON tag 由 packages/sdk-go/canonical.go 钉死
 func canonicalBytes(m *a2av1.Message) []byte {
 	if m == nil {
 		// 极端防御：nil 输入返空字节；调用方应先判 m==nil
 		return nil
 	}
-	env := canonicalEnvelope{
+	return aicity.CanonicalBytes(aicity.Signable{
 		MessageID:      m.GetMessageId(),
 		FromAgentID:    m.GetFromAgentId(),
 		ToAgentID:      m.GetToAgentId(),
@@ -71,9 +63,7 @@ func canonicalBytes(m *a2av1.Message) []byte {
 		PayloadB64:     base64.RawStdEncoding.EncodeToString(m.GetPayload()),
 		TsMs:           m.GetTsMs(),
 		TraceID:        m.GetTraceId(),
-	}
-	b, _ := json.Marshal(env) // struct → 不会失败；error 忽略
-	return b
+	})
 }
 
 // Verifier 持有重放窗口 + ed25519 公钥解析能力。
