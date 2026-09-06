@@ -1,7 +1,11 @@
-# 06-A2A Canonical 签名形式（Sprint 5.5）
+# 06-A2A Canonical 签名形式（Sprint 5.5 + Sprint 7+）
 
 > 本文件钉死 `Message.signature` 字段的**生成**与**验证**两端必须共享的
 > 字节序列。任何一端偏离 → 验签必失败；变更需双签 server + SDK 并升级 version。
+>
+> **Sprint 7+ 唯一实现**：[`packages/sdk-go/canonical.go`](../packages/sdk-go/canonical.go)::`CanonicalBytes(s Signable)`
+> 是整个 aicity 联邦中**唯一**的 canonical 字节生成器。所有 server / SDK / smoke
+> / 第三方 client 必须走它生成签名原文，否则会与 server 端 verifier 失同步。
 
 ## 一、不变量（4 条）
 
@@ -103,16 +107,19 @@ sig base64: (每次运行不同 —— 因 priv/pub 现场生成)
 canonical 任何字段的增删改 = **破坏性变更**。流程：
 
 1. PR title: `BREAKING:canonical:v2 <one-line summary>`
-2. 双仓同时改：
-   - `apps/a2a-gateway/internal/a2asrv/verifier.go` (`canonicalEnvelope`)
-   - `packages/sdk-go/signing.go` (`Signable`)
-   - `apps/a2a-gateway/cmd/a2a_smoke/main.go` (`signCanonical`)
+2. **唯一改动点**：[`packages/sdk-go/canonical.go`](../packages/sdk-go/canonical.go)::`Signable`
+   - server 端 `apps/a2a-gateway/internal/a2asrv/verifier.go` 是薄适配器，自动跟随
+   - smoke `apps/a2a-gateway/cmd/a2a_smoke/main.go` 用 `aicity.SignMessage`，自动跟随
 3. 更新本文件 §四 的黄金向量（固定 priv/pub 让 sig 可复现）
-4. `TestVerifier_CanonicalBytes_Deterministic` 必须更新断言
+4. 跑 `verifier_test.go::TestVerifier_CanonicalBytes_MatchesSDK` —— byte-equal
+   + 真实验签回路，任何漂移立刻 fail
+5. 跑 `a2a_smoke 12/12` + `http_smoke 8/8` + `inbox_smoke 6/6` 端到端验证
 
 ## 六、参考
 
 - Sprint 5.5 设计：repo 当前 Sprint plan
-- 实现位置：`apps/a2a-gateway/internal/a2asrv/verifier.go`
-- SDK mirror：`packages/sdk-go/signing.go`
+- **唯一实现**：[`packages/sdk-go/canonical.go`](../packages/sdk-go/canonical.go)
+- server 薄适配器：`apps/a2a-gateway/internal/a2asrv/verifier.go::canonicalBytes`
+- SDK 签名：`packages/sdk-go/signing.go::SignMessage`
+- 跨实现护栏：`verifier_test.go::TestVerifier_CanonicalBytes_MatchesSDK`
 - 错误码：F_006 (RegisterCard pubkey 解析失败) / F_007 (signature) / F_008 (ts_ms)

@@ -13,7 +13,7 @@
 //   A2A_HTTP_ADDR                    默认 127.0.0.1:8083（HTTP gateway）
 //   A2A_HTTP_API_KEY                 非空 = 启用 Bearer 鉴权（dev 留空）
 //   A2A_REPLAY_WINDOW_SEC            ed25519 重放窗口秒数，默认 300
-//   A2A_INBOX_TTL_HOURS              inbox 行 TTL 小时数，默认 168（7 天）；0 = 拒绝接受
+//   A2A_INBOX_TTL_HOURS              inbox 行 TTL 小时数，默认 168（7 天）；0 = 用 PG DEFAULT 兜底
 //   A2A_INBOX_CLEANUP_INTERVAL_SEC   cleanup cron 间隔秒数，默认 300；0 = 禁用
 //   DATABASE_URL                     PG 连接串（默认 postgresql://aicity:aicity_dev@localhost:5432/aicity）
 package main
