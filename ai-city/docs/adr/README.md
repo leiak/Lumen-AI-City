@@ -13,6 +13,7 @@
 | [ADR-0003](0003-use-monorepo.md) | 采用 Monorepo + Microdeploy | Accepted | 2026-09-03 |
 | [ADR-0004](0004-use-kafka-for-saga.md) | Saga 采用 Kafka + Orchestrator/Worker | Accepted | 2026-09-03 |
 | [ADR-0005](0005-use-claude-sonnet-as-primary-llm.md) | 主 LLM 选 Claude Sonnet 4.6 | Accepted | 2026-09-03 |
+| [ADR-0006](0006-1.0-scope-mvp-demo-slice.md) | 1.0 范围切到 M3 MVP Demo 闭环 | Accepted | 2026-09-07 |
 
 ## 待决策（候选）
 
