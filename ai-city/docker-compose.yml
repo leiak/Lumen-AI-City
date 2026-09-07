@@ -3,7 +3,8 @@
 # ============================================
 # 用法: docker compose up -d --build
 #
-# 六个容器：postgres + redis + world-engine + api-gateway + a2a-gateway + web
+# 七个容器：postgres + redis + world-engine + api-gateway + a2a-gateway
+#           + ws-gateway + web
 # schema 由 postgres 的 /docker-entrypoint-initdb.d 自动初始化（仅数据卷为空时）。
 # 原生 .exe 跑法已废弃，容器是唯一入口。
 
@@ -129,6 +130,36 @@ services:
     healthcheck:
       # /v1/healthz 已 auth-bypass（internal/httpgw/router.go:105）
       test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8083/v1/healthz']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  ws-gateway:
+    build:
+      context: .
+      dockerfile: apps/ws-gateway/Dockerfile
+    ports:
+      - '8082:8082'
+    environment:
+      WS_GATEWAY_PORT: '8082'
+      REDIS_URL: redis://redis:6379/0
+      # 必须与 world-engine 的 REDIS_CHANNEL_MOVED 一致，否则订阅不到事件
+      REDIS_CHANNEL_MOVED: aicity:player:moved
+      # 必须与 api-gateway 的 JWT_SECRET 一致，否则登录签发的 token 在这里验不过
+      JWT_SECRET: dev-secret-change-me
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      LOG_LEVEL: info
+    depends_on:
+      # Redis ping 失败即 logger.Fatal，必须等 healthy
+      redis:
+        condition: service_healthy
+      # 只为让 JWT_SECRET 生效顺序直观；不卡 healthy，避免启动链过长
+      api-gateway:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8082/readyz']
       interval: 10s
       timeout: 5s
       retries: 5

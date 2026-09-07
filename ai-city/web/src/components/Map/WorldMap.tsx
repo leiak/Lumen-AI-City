@@ -1,11 +1,13 @@
 'use client';
 
 /**
- * SVG 世界地图（Sprint 8）
+ * SVG 世界地图（Sprint 8 → Sprint 9 改推送）
  *
  * - viewBox 直接用世界坐标 [-100, -100  300 300]，与 /v1/tiles 返回的 center_x/center_y 一致
  * - y 轴翻转：world 坐标 y 向上，SVG y 向下 → 整张 <g transform="scale(1,-1)"> 一次搞定
- * - 数据：3s 轮询 GET /v1/tiles；move 成功后立即再拉一次
+ * - 数据（Sprint 9）：mount 时拉一次 GET /v1/tiles，之后由 ws-gateway 的 player_moved
+ *   推送触发重拉（debounce 200ms）。原 3s 轮询已删 —— 那会让 move 最多滞后 3s 才可见。
+ *   桥在 city/page.tsx 的 startWsBridge()，事件名见 lib/ws-events.ts
  * - 点击：<svg> onClick 判 e.target.tagName，避开 polygon/circle 才视为"点空地"发 move
  * - 坐标系反推：getScreenCTM().inverse() → client (x,y) → world (x, -y)
  * - 乐观更新 + 失败回滚：move 成功才把 position 落 store
@@ -15,8 +17,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type Tile } from '@/lib/api';
 import { useGameStore } from '@/store/game';
 import { TILE_SIZE, tileIdAt } from '@/lib/world-coords';
+import { PLAYER_MOVED_EVENT } from '@/lib/ws-events';
 
-const POLL_MS = 3000;
+/** 推送合并窗口：多人同时移动时把多条 player_moved 折成一次 /v1/tiles */
+const REFETCH_DEBOUNCE_MS = 200;
 const HALF = 50; // tile 边长 100 的半值；tile 中心 = (50, 50) 之类的奇数倍
 
 type LodColor = Record<Tile['lod_level'], string>;
@@ -100,12 +104,36 @@ export function WorldMap() {
     }
   }, [myPos, playerId, setPosition]);
 
-  // 启动 3s 轮询
+  // fetchTiles 的 deps 含 myPos，身份每次移动都变。用 ref 保存最新实现，
+  // 让下面的 WS 监听只挂一次（否则每次移动都拆装一遍 listener）。
+  const fetchTilesRef = useRef(fetchTiles);
+  fetchTilesRef.current = fetchTiles;
+
+  // mount 时拉一次；playerId 到位后再拉一次。
+  // 后者是必需的：login 跳 city 时 playerId 可能还没注入，首拉找不到"我"所在
+  // 的 tile，myPos 会一直是 null（Sprint 8 靠 3s 轮询兜底，现在轮询没了）。
   useEffect(() => {
-    fetchTiles();
-    const t = setInterval(fetchTiles, POLL_MS);
-    return () => clearInterval(t);
-  }, [fetchTiles]);
+    fetchTilesRef.current();
+  }, [playerId]);
+
+  // WS 推送（ws-events.ts 的 CustomEvent）→ debounce 重拉 tiles。
+  // 取代 Sprint 8 的 3s 轮询：任何玩家移动都会让 tile.player_ids 变化，
+  // 但信封里只有一个玩家的坐标，所以仍需重拉 /v1/tiles 拿归属。
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onMoved = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        fetchTilesRef.current();
+      }, REFETCH_DEBOUNCE_MS);
+    };
+    window.addEventListener(PLAYER_MOVED_EVENT, onMoved);
+    return () => {
+      window.removeEventListener(PLAYER_MOVED_EVENT, onMoved);
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
 
   // 兜底：本地没 playerId 时每 200ms 试一次（处理 login 后跳 city 的极小窗口）
   useEffect(() => {

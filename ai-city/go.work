@@ -1,10 +1,10 @@
 go 1.23
 
 use (
-	./apps/api-gateway
-	./apps/ws-gateway
 	./apps/a2a-gateway
+	./apps/api-gateway
 	./apps/observability-agent
+	./apps/ws-gateway
 	./packages/proto
 	./packages/sdk-go
 )
