@@ -56,6 +56,9 @@ func main() {
 	r.Use(middleware.Recovery(logger))
 	r.Use(middleware.TraceID())
 	r.Use(middleware.Logging(logger))
+	// CORS 必须在 RateLimit / AntiScrap 之前：预检 OPTIONS 不带 Authorization，
+	// 让它先短路成 204，避免被限流或反爬拦掉。
+	r.Use(middleware.CORS(cfg.CORSAllowedOrigins))
 	r.Use(middleware.RateLimit(cfg.RedisURL))
 	r.Use(middleware.AntiScrap())
 
