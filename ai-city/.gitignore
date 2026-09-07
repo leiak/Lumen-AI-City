@@ -68,3 +68,8 @@ data/
 
 # Generated proto stubs (regenerate via `protoc ... packages/proto/*.proto` or `make gen-proto`)
 packages/proto/gen/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/

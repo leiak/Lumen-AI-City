@@ -183,7 +183,7 @@ export function WorldMap() {
         onClick={onSvgClick}
         style={{ cursor: moving ? 'wait' : 'crosshair' }}
       >
-        {/* y 翻转：world y 向上 → SVG y 向下 */}
+        {/* y 翻转：world y 向上 → SVG y 向下；text 单独放外面避免被翻倒 */}
         <g transform="scale(1,-1)">
           {state.tiles.map((t) => (
             <TileGroup key={t.id} tile={t} />
@@ -253,6 +253,23 @@ export function WorldMap() {
             </g>
           )}
         </g>
+
+        {/* tile id 标签（SVG 正常坐标，避免被 y-flip 翻倒）
+            y = -(center_y - HALF + 4)：world 中"tile 顶部"对应 SVG 顶部 */}
+        {state.tiles.map((t) => (
+          <text
+            key={`label-${t.id}`}
+            x={t.center_x}
+            y={-(t.center_y - HALF + 4)}
+            textAnchor="middle"
+            fontSize={5}
+            fill="#e5e7eb"
+            opacity={0.8}
+            data-tile-label={t.id}
+          >
+            {t.id}
+          </text>
+        ))}
       </svg>
 
       {/* HUD overlay */}
@@ -291,19 +308,6 @@ function TileGroup({ tile }: { tile: Tile }) {
         stroke={LOD_STROKE[tile.lod_level]}
         strokeWidth={0.5}
       />
-      {/* tile id 标签（镜像后要再翻一次） */}
-      <g transform={`translate(${tile.center_x} ${-tile.center_y}) scale(1,-1)`}>
-        <text
-          x={0}
-          y={-HALF + 6}
-          textAnchor="middle"
-          fontSize={5}
-          fill="#e5e7eb"
-          opacity={0.7}
-        >
-          {tile.id}
-        </text>
-      </g>
       {tile.buildings.map((b) => {
         const points = b.polygon
           .map(([px, py]) => `${x + px},${y + py}`)
