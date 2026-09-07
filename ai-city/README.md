@@ -1,9 +1,24 @@
 # AI城邦 (AI City)
 
+> **🎯 AI 城邦 1.0 — MVP Demo 闭环**
+>
+> 玩家进 3×3 城市 → 看到 1 个 NPC（王老板）走动 → 走近 → **NPC 主动打招呼** → 玩家点选项回复 → **NPC 接着聊** → 多 tab 实时同步 → 5 步自动化验收。
+>
+> **在 1.0 范围（MUST）**：8 容器（postgres / redis / world-engine / api-gateway / ws-gateway / web / a2a-gateway / agent-os）/ agent-os 行为引擎 / 1 NPC 模板（wang_boss.yaml）/ 点 NPC 弹气泡（NPCDialog）/ 1 条 welcome 剧本 / 多 tab 实时同步 / acceptance_1_0 binary 5/5。
+>
+> **不在 1.0 范围**（明确切割）：LLM / 记忆 / 联邦 / BT 编辑器 / Saga DSL / Saga 引擎 / Push / 离线 / 客户端预测 / 经济 / 合规 / 灾备 / 压测 / K8s。
+>
+> 完整 1.0 范围：[`docs/1.0-ROADMAP.md`](docs/1.0-ROADMAP.md) ·
+> Stakeholder demo 包：[`docs/1.0-demo-package/`](docs/1.0-demo-package/) ·
+> 演示流程：[`docs/1.0-demo-script.md`](docs/1.0-demo-script.md) ·
+> Release notes：[`docs/1.0-demo-package/CHANGELOG-1.0.md`](docs/1.0-demo-package/CHANGELOG-1.0.md)
+
+---
+
 > **基于真实或半虚构地图的 2.5D/3D AI 城邦平台**
 > 地图 + 协议 + Agent 三位一体，让数万含人类数字分身与第三方联邦 Agent 在持续运行的世界中自治交互。
 
-## 🚀 5 分钟上手
+## 🚀 5 分钟上手（1.0 闭环）
 
 ```bash
 # 1. 克隆
@@ -13,20 +28,33 @@ cd ai-city
 # 2. 安装工具链（Node 22 / pnpm / uv / Rust / Go / Docker）
 ./scripts/bootstrap.sh
 
-# 3. 启动全栈 Compose 工程 aitown（6 个容器）
-#    postgres / redis / world-engine / api-gateway / a2a-gateway / web
+# 3. 启动全栈 Compose 工程 aitown（8 个容器，1.0 含 agent-os）
+#    postgres / redis / world-engine / api-gateway / ws-gateway /
+#    web / a2a-gateway / agent-os
 #    schema 与种子数据由 postgres initdb 自动应用
 docker compose up -d --build
 
-# 4. 查看状态（五个带 healthcheck 的服务应为 healthy）
+# 4. 查看状态（健康服务应为 Up (healthy)）
 docker compose ps
 
-# 5. 访问
-open http://localhost:3000            # Web 玩家端（demo / demo123）
-open http://localhost:8080/health     # API Gateway
-open http://localhost:50052/readyz    # World Engine（pg_connected 必须 true）
-open http://localhost:8083/v1/healthz # A2A Gateway
+# 5. 重启 agent-os（清 welcome set + 加载最新 wang_boss.yaml）
+docker compose restart agent-os
+sleep 3
+
+# 6. 验证 demo 玩家存在（pgcrypto bcrypt 种子）
+docker compose exec -T postgres psql -U aicity -d aicity -tAc \
+  "select username from player where username='demo';"
+
+# 7. 跑 1.0 自动化验收（5 步端到端，预期 5/5 PASS, exit 0）
+docker compose exec -T a2a-gateway /app/acceptance_1_0
+
+# 8. 浏览器访问 → http://localhost:3000/login
+#    登录 demo / demo123 → /city 看到 9 tile + 王老板
+#    走开再走回 tile_0_0 → 王老板主动 say 弹气泡
 ```
+
+更多命令：[`docs/1.0-demo-package/quickstart.md`](docs/1.0-demo-package/quickstart.md) ·
+acceptance_1_0 命令参考：[`docs/1.0-demo-package/acceptance-cheatsheet.md`](docs/1.0-demo-package/acceptance-cheatsheet.md)
 
 ## 📁 仓库结构
 
