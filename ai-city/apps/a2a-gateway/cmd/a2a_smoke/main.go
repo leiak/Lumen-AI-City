@@ -143,7 +143,10 @@ func main() {
 	}
 	fmt.Printf("[OK]   SendMessage alice → ghost delivered=false error=F_004\n")
 
-	// 5) Stream echo 3 messages
+	// 5) Stream queue 3 messages
+	// Sprint 7 起 Stream 是 "queue-only" 语义：InboxAdapter 把消息写进 inbox 并
+	// 返回 nil reply，服务端不再回 echo。故 CloseSend 后应直接拿到 io.EOF。
+	// （消息真的落进 inbox 由 inbox_smoke 验证。）
 	stream, err := c.Stream(ctx)
 	if err != nil {
 		fmt.Printf("[FAIL] Stream open: %v\n", err)
@@ -164,26 +167,11 @@ func main() {
 		fmt.Printf("[FAIL] Stream CloseSend: %v\n", err)
 		os.Exit(13)
 	}
-	for i, want := range msgs {
-		got, err := stream.Recv()
-		if err != nil {
-			fmt.Printf("[FAIL] Stream Recv[%d]: %v\n", i, err)
-			os.Exit(14)
-		}
-		if got.GetType() != "event" {
-			fmt.Printf("[FAIL] Stream echo[%d] type want event got %q\n", i, got.GetType())
-			os.Exit(15)
-		}
-		if string(got.GetPayload()) != string(want.GetPayload()) {
-			fmt.Printf("[FAIL] Stream echo[%d] payload mismatch\n", i)
-			os.Exit(16)
-		}
+	if _, err := stream.Recv(); err != io.EOF {
+		fmt.Printf("[FAIL] Stream want io.EOF (queue-only), got %v\n", err)
+		os.Exit(14)
 	}
-	if _, err := stream.Recv(); err != nil && err != io.EOF {
-		fmt.Printf("[FAIL] Stream EOF: %v\n", err)
-		os.Exit(17)
-	}
-	fmt.Printf("[OK]   Stream echo 3 messages\n")
+	fmt.Printf("[OK]   Stream queued 3 messages (queue-only → EOF)\n")
 
 	// === Sprint 5.5 新增 7 项 ===
 
@@ -320,12 +308,8 @@ func main() {
 			os.Exit(23)
 		}
 	}
-	for i := 1; i <= 2; i++ {
-		if _, err := stream2.Recv(); err != nil {
-			fmt.Printf("[FAIL] Stream2 recv ok%d: %v\n", i, err)
-			os.Exit(23)
-		}
-	}
+	// queue-only 语义：签名通过的消息只入 inbox、不回 reply，故这里不 Recv；
+	// 断言点是第 3 条坏签名让流以 Unauthenticated F_007 关闭。
 	mBad := &a2av1.Message{
 		MessageId: "sm_bad_3", FromAgentId: "alice2", ToAgentId: "bob2",
 		Type: "request", Payload: []byte("bad"), TsMs: now2.UnixMilli(),

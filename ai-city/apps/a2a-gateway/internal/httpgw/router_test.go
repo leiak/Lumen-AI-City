@@ -28,6 +28,8 @@ import (
 )
 
 // newTestServer 构造最小可用 *a2asrv.Service（InboxAdapter fallback，nil store 静默 success）。
+//
+// Sprint 8：acl 传 nil → 默认 allow，HTTP 层用例行为不变。
 func newTestServer() *a2asrv.Service {
 	reg := a2asrv.NewRegistry()
 	verifier := a2asrv.NewVerifier(5 * time.Minute)
@@ -35,7 +37,7 @@ func newTestServer() *a2asrv.Service {
 	inboxAdapter := a2asrv.NewInboxAdapter(nil)
 	d.Register(inboxAdapter)
 	d.SetFallback(inboxAdapter)
-	return a2asrv.NewService(reg, verifier, d, nil)
+	return a2asrv.NewService(reg, verifier, d, nil, nil)
 }
 
 // doRequest 发送一个 JSON 请求并解析响应。

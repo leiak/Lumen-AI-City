@@ -1,0 +1,153 @@
+# ============================================
+# AI City - 全栈 Compose 工程 aitown
+# ============================================
+# 用法: docker compose up -d --build
+#
+# 六个容器：postgres + redis + world-engine + api-gateway + a2a-gateway + web
+# schema 由 postgres 的 /docker-entrypoint-initdb.d 自动初始化（仅数据卷为空时）。
+# 原生 .exe 跑法已废弃，容器是唯一入口。
+
+name: aitown
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aicity
+      POSTGRES_PASSWORD: aicity_dev
+      POSTGRES_DB: aicity
+      # dev-only：world-engine 的手写 PG wire 客户端（src/pg_client.rs:107）
+      # 只支持 trust，收到任何非 0 的 AuthenticationRequest 就 bail。
+      # 5432 只发布到 127.0.0.1，不暴露到局域网。
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      # 按文件名字母序执行：02 依赖 01 建的 npc / tile 表
+      - ./packages/proto/pg-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./scripts/seed-npcs.sql:/docker-entrypoint-initdb.d/02-seed-npcs.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U aicity']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '127.0.0.1:6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  world-engine:
+    build:
+      context: .
+      dockerfile: apps/world-engine/Dockerfile
+    ports:
+      - '50051:50051'   # gRPC
+      - '50052:50052'   # REST
+    environment:
+      DATABASE_URL: postgresql://aicity:aicity_dev@postgres:5432/aicity
+      REDIS_URL: redis://redis:6379/0
+      REDIS_CHANNEL_MOVED: aicity:player:moved
+      RUST_LOG: info
+      # WORLD_GRPC_ADDR / WORLD_BIND_ADDR 默认已是 0.0.0.0，不覆盖
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # 故意用 /readyz 而非 /healthz：它校验 pg_connected（src/rest.rs:100），
+      # 能在 up 阶段就把 trust 认证是否生效暴露成 unhealthy。
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:50052/readyz']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    ports:
+      - '8080:8080'
+    environment:
+      API_GATEWAY_PORT: '8080'
+      DATABASE_URL: postgresql://aicity:aicity_dev@postgres:5432/aicity
+      REDIS_URL: redis://redis:6379/0
+      WORLD_ENGINE_URL: http://world-engine:50052
+      WORLD_ENGINE_GRPC_ADDR: world-engine:50051
+      JWT_SECRET: dev-secret-change-me
+      LOG_LEVEL: info
+    depends_on:
+      # 启动期硬依赖：worldgrpc.NewClient 用 grpc.WithBlock() + 5s 超时，
+      # 失败即 logger.Fatal（cmd/main.go:81）。PG / Redis ping 同样 fatal。
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      world-engine:
+        condition: service_healthy
+    healthcheck:
+      # 注意：不在 /v1 下，且没有 /readyz
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8080/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  a2a-gateway:
+    build:
+      context: .
+      dockerfile: apps/a2a-gateway/Dockerfile
+    ports:
+      - '50061:50061'   # gRPC
+      - '8083:8083'     # HTTP
+    environment:
+      # 必须覆盖：cmd/main.go:42 默认绑 127.0.0.1，容器里端口映射打不通
+      A2A_GRPC_ADDR: 0.0.0.0:50061
+      A2A_HTTP_ADDR: 0.0.0.0:8083
+      DATABASE_URL: postgresql://aicity:aicity_dev@postgres:5432/aicity
+      A2A_REPLAY_WINDOW_SEC: '300'
+      A2A_INBOX_TTL_HOURS: '168'
+      A2A_INBOX_CLEANUP_INTERVAL_SEC: '300'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # /v1/healthz 已 auth-bypass（internal/httpgw/router.go:105）
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8083/v1/healthz']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        # NEXT_PUBLIC_* 是 build-time inline（web/next.config.js 的 env: 块），
+        # 且由浏览器端代码消费 → 必须是 host 可达 URL，不能用 compose 服务名。
+        NEXT_PUBLIC_API_GATEWAY: http://localhost:8080
+        NEXT_PUBLIC_WS_GATEWAY: ws://localhost:8082/ws
+    ports:
+      - '3000:3000'
+    depends_on:
+      # web 全是客户端渲染，无 SSR 取数，不需要 gate 在 healthy 上
+      api-gateway:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pg_data:

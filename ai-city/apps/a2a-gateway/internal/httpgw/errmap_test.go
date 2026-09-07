@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// 表驱动：F_001-F_014 → HTTP status（错误码契约）
+// 表驱动：F_001-F_016 → HTTP status（错误码契约）
 func TestFCodeToHTTP_TableDriven(t *testing.T) {
 	cases := []struct {
 		code string
@@ -23,6 +23,8 @@ func TestFCodeToHTTP_TableDriven(t *testing.T) {
 		{"F_012", 500}, // Sprint 7：inbox 读失败
 		{"F_013", 404}, // Sprint 7：agent 未注册（FetchInbox）
 		{"F_014", 400}, // Sprint 7：FetchInbox limit 非法
+		{"F_015", 403}, // Sprint 8：Discover 被 ACL 拒（占位，本 sprint 不触发）
+		{"F_016", 403}, // Sprint 8：投递被 ACL 拒
 		{"F_999", 500}, // 未知 → 500
 		{"", 500},
 	}

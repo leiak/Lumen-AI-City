@@ -32,8 +32,11 @@ type AgentCard struct {
 	Capabilities   []string               `protobuf:"bytes,7,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
 	Auth           map[string]string      `protobuf:"bytes,8,rep,name=auth,proto3" json:"auth,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // "ed25519:..." | "mtls:..."
 	RegisteredAtMs int64                  `protobuf:"varint,9,opt,name=registered_at_ms,json=registeredAtMs,proto3" json:"registered_at_ms,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Sprint 8：所属城邦 ID。空 = 不限（旧 card 默认值）。
+	// Discover 的 city_filter 按本字段过滤；ACL deny 按 peer 的 city_id 判定。
+	CityId        string `protobuf:"bytes,10,opt,name=city_id,json=cityId,proto3" json:"city_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AgentCard) Reset() {
@@ -127,6 +130,13 @@ func (x *AgentCard) GetRegisteredAtMs() int64 {
 		return x.RegisteredAtMs
 	}
 	return 0
+}
+
+func (x *AgentCard) GetCityId() string {
+	if x != nil {
+		return x.CityId
+	}
+	return ""
 }
 
 type RegisterResponse struct {
@@ -563,7 +573,7 @@ var File_a2a_proto protoreflect.FileDescriptor
 
 const file_a2a_proto_rawDesc = "" +
 	"\n" +
-	"\ta2a.proto\x12\raicity.a2a.v1\"\xe3\x02\n" +
+	"\ta2a.proto\x12\raicity.a2a.v1\"\xfc\x02\n" +
 	"\tAgentCard\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -573,7 +583,9 @@ const file_a2a_proto_rawDesc = "" +
 	"\aversion\x18\x06 \x01(\tR\aversion\x12\"\n" +
 	"\fcapabilities\x18\a \x03(\tR\fcapabilities\x126\n" +
 	"\x04auth\x18\b \x03(\v2\".aicity.a2a.v1.AgentCard.AuthEntryR\x04auth\x12(\n" +
-	"\x10registered_at_ms\x18\t \x01(\x03R\x0eregisteredAtMs\x1a7\n" +
+	"\x10registered_at_ms\x18\t \x01(\x03R\x0eregisteredAtMs\x12\x17\n" +
+	"\acity_id\x18\n" +
+	" \x01(\tR\x06cityId\x1a7\n" +
 	"\tAuthEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"G\n" +

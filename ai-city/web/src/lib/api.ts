@@ -23,8 +23,15 @@ class ApiClient {
     return resp.json();
   }
 
+  // 字段与 apps/api-gateway/internal/handlers/auth.go 的 loginResponse 一致
   login = (username: string, password: string) =>
-    this.request<{ token: string }>('/v1/auth/login', {
+    this.request<{
+      token: string;
+      player_id: string;
+      username: string;
+      display_name: string;
+      expires_at: string;
+    }>('/v1/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     });

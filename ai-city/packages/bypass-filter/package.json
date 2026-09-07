@@ -2,6 +2,6 @@
   "name": "@aicity/bypass-filter",
   "version": "0.1.0",
   "description": "旁路流过滤 - 隐私保护（§E.4）",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts"
+  "main": "src/index.ts",
+  "types": "src/index.ts"
 }

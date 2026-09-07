@@ -23,6 +23,9 @@ type cardDTO struct {
 	Version      string            `json:"version,omitempty"`
 	Capabilities []string          `json:"capabilities,omitempty"`
 	Auth         map[string]string `json:"auth,omitempty"`
+	// CityID（Sprint 8）：所属城邦。omitempty → 旧 client 的 JSON 不含该键时
+	// 解出 ""，与 PG 列默认值一致；序列化时空值也不写，不破旧 client 解析。
+	CityID string `json:"city_id,omitempty"`
 }
 
 func (c *cardDTO) toProto() *a2av1.AgentCard {
@@ -38,6 +41,7 @@ func (c *cardDTO) toProto() *a2av1.AgentCard {
 		Version:      c.Version,
 		Capabilities: c.Capabilities,
 		Auth:         c.Auth,
+		CityId:       c.CityID,
 	}
 }
 
@@ -55,6 +59,7 @@ func cardFromProto(p *a2av1.AgentCard) cardDTO {
 		Version:      p.GetVersion(),
 		Capabilities: p.GetCapabilities(),
 		Auth:         p.GetAuth(),
+		CityID:       p.GetCityId(),
 	}
 }
 

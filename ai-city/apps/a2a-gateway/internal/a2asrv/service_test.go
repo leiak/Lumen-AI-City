@@ -1,6 +1,7 @@
-// Service 集成测试：用 bufconn 在进程内起 fake gRPC server 测 4 RPC。
+// Service 集成测试：用 bufconn 在进程内起 fake gRPC server 测 5 RPC。
 //
-// Sprint 5 旧测试（向后兼容）+ Sprint 5.5 新增 8 个签名/路由集成测。
+// Sprint 5 旧测试（向后兼容）+ Sprint 5.5 签名/路由集成测
+// + Sprint 8 ACL 投递门 / Discover cityFilter。
 // 模式参考 apps/api-gateway/internal/worldgrpc/client_test.go（Sprint 3.5）。
 package a2asrv
 
@@ -9,6 +10,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"io"
 	"net"
 	"strings"
@@ -56,12 +58,20 @@ func newBufconnClient(t *testing.T, svc *Service) (a2av1.A2AGatewayClient, *Regi
 // Sprint 7 改动：
 //   - EchoAdapter → InboxAdapter（nil store 静默返 success）
 //   - NewService 新增 inbox 参数；旧测试用 nil
+//
+// Sprint 8 改动：
+//   - NewService 新增 acl 参数；旧测试用 nil → 默认 allow，行为不变
 func newSignedService() (*Service, *Dispatcher) {
+	return newSignedServiceWithACL(nil)
+}
+
+// newSignedServiceWithACL 同上，但可注入 ACL（Sprint 8 ACL 用例用）。
+func newSignedServiceWithACL(acl *ACL) (*Service, *Dispatcher) {
 	d := NewDispatcher()
 	inboxAdapter := NewInboxAdapter(nil)
 	d.Register(inboxAdapter)
 	d.SetFallback(inboxAdapter)
-	return NewService(NewRegistry(), NewVerifier(5*time.Minute), d, nil), d
+	return NewService(NewRegistry(), NewVerifier(5*time.Minute), d, nil, acl), d
 }
 
 // signFor 用 priv 对 m 做签，返 base64 字符串。
@@ -624,5 +634,210 @@ func TestService_Stream_StaleTs_StreamCloses(t *testing.T) {
 	}
 	if !strings.HasPrefix(status.Convert(err).Message(), "F_008:") {
 		t.Errorf("msg want F_008: prefix got %q", status.Convert(err).Message())
+	}
+}
+
+// ---------- Sprint 8：ACL 投递门 ----------
+
+// registerSignedPair 注册 alice（带 key，city=beijing）+ bob（无 key，city=shanghai），
+// 返回 alice 的私钥用于签名。
+func registerSignedPair(t *testing.T, c a2av1.A2AGatewayClient) ed25519.PrivateKey {
+	t.Helper()
+	ctx := context.Background()
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	if _, err := c.RegisterCard(ctx, &a2av1.AgentCard{
+		AgentId: "alice", Name: "Alice", CityId: "beijing",
+		Auth: map[string]string{"ed25519": base64.StdEncoding.EncodeToString(pub)},
+	}); err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+	if _, err := c.RegisterCard(ctx, &a2av1.AgentCard{
+		AgentId: "bob", Name: "Bob", CityId: "shanghai",
+	}); err != nil {
+		t.Fatalf("register bob: %v", err)
+	}
+	return priv
+}
+
+// signedMsg 造一条 alice→bob 的已签名消息。
+func signedMsg(t *testing.T, priv ed25519.PrivateKey, id string) *a2av1.Message {
+	t.Helper()
+	m := &a2av1.Message{
+		MessageId: id, FromAgentId: "alice", ToAgentId: "bob",
+		Type: "request", Payload: []byte("hi"),
+		TsMs: time.Now().UnixMilli(),
+	}
+	m.Signature = signFor(t, priv, m)
+	return m
+}
+
+// deny 命中 → delivered:false + F_016（走 MessageResponse.Error，不是 gRPC error）
+func TestService_SendMessage_ACL_Deny(t *testing.T) {
+	m := &mockDenyChecker{denied: true}
+	svc, _ := newSignedServiceWithACL(&ACL{store: m})
+	c, _ := newBufconnClient(t, svc)
+
+	priv := registerSignedPair(t, c)
+	resp, err := c.SendMessage(context.Background(), signedMsg(t, priv, "m_acl_deny"))
+	if err != nil {
+		t.Fatalf("SendMessage transport error: %v", err)
+	}
+	if resp.GetDelivered() {
+		t.Error("delivered = true, want false (ACL deny)")
+	}
+	if !strings.HasPrefix(resp.GetError(), "F_016:") {
+		t.Errorf("error = %q, want F_016: prefix", resp.GetError())
+	}
+	// ACL 查的是 sender.agent_id × recipient.city_id
+	if m.gotAgentID != "alice" || m.gotPeerCity != "shanghai" {
+		t.Errorf("acl queried (%q, %q), want (alice, shanghai)", m.gotAgentID, m.gotPeerCity)
+	}
+}
+
+// 无 deny 策略 → 正常投递（默认 allow 不改变既有行为）
+func TestService_SendMessage_ACL_DefaultAllow(t *testing.T) {
+	m := &mockDenyChecker{denied: false}
+	svc, _ := newSignedServiceWithACL(&ACL{store: m})
+	c, _ := newBufconnClient(t, svc)
+
+	priv := registerSignedPair(t, c)
+	resp, err := c.SendMessage(context.Background(), signedMsg(t, priv, "m_acl_allow"))
+	if err != nil {
+		t.Fatalf("SendMessage: %v", err)
+	}
+	if !resp.GetDelivered() || resp.GetError() != "" {
+		t.Errorf("want delivered=true err=\"\", got %v / %q", resp.GetDelivered(), resp.GetError())
+	}
+	if m.calls != 1 {
+		t.Errorf("acl calls = %d, want 1", m.calls)
+	}
+}
+
+// ACL 后端故障 → fail-closed，拒投而非放行
+func TestService_SendMessage_ACL_StoreError_FailsClosed(t *testing.T) {
+	m := &mockDenyChecker{err: errors.New("pg down")}
+	svc, _ := newSignedServiceWithACL(&ACL{store: m})
+	c, _ := newBufconnClient(t, svc)
+
+	priv := registerSignedPair(t, c)
+	resp, err := c.SendMessage(context.Background(), signedMsg(t, priv, "m_acl_err"))
+	if err != nil {
+		t.Fatalf("SendMessage transport error: %v", err)
+	}
+	if resp.GetDelivered() {
+		t.Error("delivered = true on ACL backend failure, want false (fail-closed)")
+	}
+	if !strings.HasPrefix(resp.GetError(), "F_016:") {
+		t.Errorf("error = %q, want F_016: prefix", resp.GetError())
+	}
+}
+
+// 验签失败时不应该走到 ACL —— 先认证再授权
+func TestService_SendMessage_ACL_NotConsultedOnBadSignature(t *testing.T) {
+	m := &mockDenyChecker{denied: true}
+	svc, _ := newSignedServiceWithACL(&ACL{store: m})
+	c, _ := newBufconnClient(t, svc)
+
+	priv := registerSignedPair(t, c)
+	msg := signedMsg(t, priv, "m_bad_sig")
+	msg.Payload = []byte("tampered") // 签名对不上了
+
+	resp, err := c.SendMessage(context.Background(), msg)
+	if err != nil {
+		t.Fatalf("SendMessage: %v", err)
+	}
+	if !strings.HasPrefix(resp.GetError(), "F_007:") {
+		t.Errorf("error = %q, want F_007: (signature checked before ACL)", resp.GetError())
+	}
+	if m.calls != 0 {
+		t.Errorf("acl consulted %d times on bad signature, want 0", m.calls)
+	}
+}
+
+// Stream 路径：ACL 拒绝 → PermissionDenied + 关流
+func TestService_Stream_ACL_Deny_PermissionDenied(t *testing.T) {
+	m := &mockDenyChecker{denied: true}
+	svc, _ := newSignedServiceWithACL(&ACL{store: m})
+	c, _ := newBufconnClient(t, svc)
+	ctx := context.Background()
+
+	priv := registerSignedPair(t, c)
+	stream, err := c.Stream(ctx)
+	if err != nil {
+		t.Fatalf("Stream open: %v", err)
+	}
+	if err := stream.Send(signedMsg(t, priv, "m_stream_acl")); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	_, err = stream.Recv()
+	if err == nil {
+		t.Fatal("Recv after ACL deny want error, got nil")
+	}
+	// 身份已验过，是授权失败 → PermissionDenied（区别于 F_007/F_008 的 Unauthenticated）
+	if status.Code(err) != codes.PermissionDenied {
+		t.Errorf("want codes.PermissionDenied got %s", status.Code(err))
+	}
+	if !strings.HasPrefix(status.Convert(err).Message(), "F_016:") {
+		t.Errorf("msg want F_016: prefix got %q", status.Convert(err).Message())
+	}
+}
+
+// nil ACL（既有构造路径）→ 投递不受影响
+func TestService_SendMessage_NilACL_Delivers(t *testing.T) {
+	svc, _ := newSignedService() // acl = nil
+	c, _ := newBufconnClient(t, svc)
+
+	priv := registerSignedPair(t, c)
+	resp, err := c.SendMessage(context.Background(), signedMsg(t, priv, "m_nil_acl"))
+	if err != nil {
+		t.Fatalf("SendMessage: %v", err)
+	}
+	if !resp.GetDelivered() || resp.GetError() != "" {
+		t.Errorf("want delivered=true err=\"\", got %v / %q", resp.GetDelivered(), resp.GetError())
+	}
+}
+
+// Discover 的 city_filter 经 Service 透传到 Registry（Sprint 8 端到端）
+func TestService_Discover_CityFilter(t *testing.T) {
+	svc, _ := newSignedService()
+	c, _ := newBufconnClient(t, svc)
+	ctx := context.Background()
+
+	registerSignedPair(t, c) // alice@beijing, bob@shanghai —— 但都没 capabilities
+	if _, err := c.RegisterCard(ctx, &a2av1.AgentCard{
+		AgentId: "alice", Name: "Alice", CityId: "beijing", Capabilities: []string{"chat"},
+	}); err != nil {
+		t.Fatalf("register alice: %v", err)
+	}
+	if _, err := c.RegisterCard(ctx, &a2av1.AgentCard{
+		AgentId: "bob", Name: "Bob", CityId: "shanghai", Capabilities: []string{"chat"},
+	}); err != nil {
+		t.Fatalf("register bob: %v", err)
+	}
+
+	all, err := c.Discover(ctx, &a2av1.DiscoverRequest{Capability: "chat"})
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(all.GetCards()) != 2 {
+		t.Errorf("no filter: want 2 cards got %d", len(all.GetCards()))
+	}
+
+	bj, err := c.Discover(ctx, &a2av1.DiscoverRequest{Capability: "chat", CityFilter: "beijing"})
+	if err != nil {
+		t.Fatalf("Discover(beijing): %v", err)
+	}
+	if len(bj.GetCards()) != 1 {
+		t.Fatalf("city=beijing: want 1 card got %d", len(bj.GetCards()))
+	}
+	if bj.GetCards()[0].GetAgentId() != "alice" {
+		t.Errorf("got %q, want alice", bj.GetCards()[0].GetAgentId())
+	}
+	// city_id 经 proto 往返
+	if bj.GetCards()[0].GetCityId() != "beijing" {
+		t.Errorf("city_id = %q, want beijing", bj.GetCards()[0].GetCityId())
 	}
 }

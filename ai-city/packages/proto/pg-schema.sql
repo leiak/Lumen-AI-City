@@ -119,8 +119,8 @@ CREATE TABLE IF NOT EXISTS tile (
 CREATE INDEX idx_tile_enabled ON tile(enabled) WHERE enabled = TRUE;
 CREATE INDEX idx_tile_lod ON tile(lod_level);
 
-CREATE TRIGGER tile_updated_at BEFORE UPDATE ON tile
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+-- tile_updated_at 触发器定义在 update_updated_at() 之后（见文件下方“触发器”一节）；
+-- 在此处定义会报 "function update_updated_at() does not exist" 并中断 initdb。
 
 COMMENT ON TABLE tile IS '世界地理 Tile + 静态建筑物（运行期 player_ids 不落库）';
 
@@ -322,6 +322,9 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER player_updated_at BEFORE UPDATE ON player
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+CREATE TRIGGER tile_updated_at BEFORE UPDATE ON tile
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 CREATE TRIGGER npc_updated_at BEFORE UPDATE ON npc
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
@@ -391,6 +394,38 @@ CREATE INDEX IF NOT EXISTS idx_a2a_inbox_expires
 COMMENT ON COLUMN a2a_inbox.expires_at IS 'TTL 上界；cron cleanup 删除 expires_at < NOW() 的行';
 
 -- ============================================
+-- Sprint 8：AgentCard 城邦归属（cityFilter 落地）
+-- 旧行回落 ''（PG 11+ metadata-only ADD COLUMN）
+-- Discover SQL：WHERE ($2 = '' OR city_id = $2) → 不传 filter 时退化为旧行为
+-- ============================================
+ALTER TABLE a2a_agent_card
+    ADD COLUMN IF NOT EXISTS city_id VARCHAR(64) NOT NULL DEFAULT '';
+
+CREATE INDEX IF NOT EXISTS idx_a2a_card_city
+    ON a2a_agent_card(city_id);
+
+COMMENT ON COLUMN a2a_agent_card.city_id IS '城邦 ID（Sprint 8）；空 = 不限 / 默认 allow 范畴';
+
+-- ============================================
+-- Sprint 8：A2A ACL 策略表（a2a_acl_policy）
+-- 默认 allow —— 仅当存在 (agent_id, peer_city, 'deny') 行才阻断投递。
+-- peer_city = '' 语义 = 全局 deny（该 agent 不可发往任何城邦，含未设 city 的 card）。
+-- 本 sprint 无写 API，运维直接 INSERT/DELETE 维护。
+-- ============================================
+CREATE TABLE IF NOT EXISTS a2a_acl_policy (
+    agent_id   VARCHAR(128) NOT NULL,       -- 策略拥有者（发件方）
+    peer_city  VARCHAR(64)  NOT NULL,       -- 目标城邦（'' = 任何城邦 = 全局 deny）
+    action     VARCHAR(16)  NOT NULL,       -- 'deny'（'allow' 预留白名单模式）
+    reason     TEXT NOT NULL DEFAULT '',    -- 运维备注
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (agent_id, peer_city, action)
+);
+
+CREATE INDEX IF NOT EXISTS idx_a2a_acl_agent ON a2a_acl_policy(agent_id);
+
+COMMENT ON TABLE a2a_acl_policy IS 'Sprint 8 ACL deny list；默认 allow；非空 deny 行阻断对应 (agent, peer_city) 投递';
+
+-- ============================================
 -- 种子数据：开发用玩家
 -- ============================================
 INSERT INTO player (username, email, password_hash, display_name)
@@ -432,3 +467,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
 INSERT INTO schema_version (version) VALUES ('2.3.0') ON CONFLICT DO NOTHING;
 INSERT INTO schema_version (version) VALUES ('2.4.0') ON CONFLICT DO NOTHING;
 INSERT INTO schema_version (version) VALUES ('2.5.0') ON CONFLICT DO NOTHING;
+INSERT INTO schema_version (version) VALUES ('2.6.0') ON CONFLICT DO NOTHING;

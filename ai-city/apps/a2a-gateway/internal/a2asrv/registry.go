@@ -79,15 +79,16 @@ func (r *Registry) Register(card *a2av1.AgentCard) (bool, string) {
 	return true, ""
 }
 
-// Discover 按 capability 过滤返回 AgentCard 列表。
-// cityFilter 在 Sprint 7 仍忽略（warn log；ACL 留给 Sprint 7+）。
+// Discover 按 capability + cityFilter 过滤返回 AgentCard 列表。
+//
+// cityFilter（Sprint 8）：""  → 不过滤（保持 Sprint 5-7 行为）；
+//                        非空 → 仅返回 city_id 精确匹配的 card。
+// in-memory 路径与 PG 路径（CardStore.Discover 的 SQL 谓词）行为一致。
+//
 // 返回 (cards, errCode)：capability 为空时 errCode=F_003。
 func (r *Registry) Discover(capability, cityFilter string) ([]*a2av1.AgentCard, string) {
 	if capability == "" {
 		return nil, "F_003"
-	}
-	if cityFilter != "" {
-		log.Printf("[a2asrv] Registry.Discover cityFilter=%q 暂忽略（ACL 留给 Sprint 7+）", cityFilter)
 	}
 	if r.store != nil {
 		return r.store.Discover(context.Background(), capability, cityFilter)
@@ -96,6 +97,9 @@ func (r *Registry) Discover(capability, cityFilter string) ([]*a2av1.AgentCard, 
 	defer r.mu.RUnlock()
 	out := make([]*a2av1.AgentCard, 0)
 	for _, c := range r.mem {
+		if cityFilter != "" && c.GetCityId() != cityFilter {
+			continue
+		}
 		for _, cap := range c.GetCapabilities() {
 			if cap == capability {
 				out = append(out, c)

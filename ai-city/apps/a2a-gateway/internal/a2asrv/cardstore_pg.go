@@ -6,7 +6,7 @@
 //   - 用 pgxpool.Pool（与 api-gateway 共享 pgx/v5 v5.6.0）
 //   - Register 幂等覆盖（ON CONFLICT DO UPDATE）；重复返 (true, "F_002")
 //   - Discover 按 capability 数组 contains 查询（GIN 索引支撑）
-//   - cityFilter 暂忽略（warn log，与 Sprint 5 MVP 一致；ACL 留给 Sprint 7+）
+//   - cityFilter（Sprint 8）真过滤：SQL WHERE ($2 = '' OR city_id = $2)
 //
 // 错误码：
 //   F_001 agent_id/name 缺失
@@ -63,8 +63,8 @@ func (s *CardStore) Register(ctx context.Context, card *a2av1.AgentCard) (bool, 
 	// upsert：同 agent_id 覆盖；判断是否曾存在靠 RETURNING (xmax = 0)
 	// xmax=0 → INSERT；xmax!=0 → UPDATE
 	const q = `
-INSERT INTO a2a_agent_card (agent_id, name, description, url, provider, version, capabilities, auth)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+INSERT INTO a2a_agent_card (agent_id, name, description, url, provider, version, capabilities, auth, city_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
 ON CONFLICT (agent_id) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
@@ -72,7 +72,8 @@ ON CONFLICT (agent_id) DO UPDATE SET
     provider = EXCLUDED.provider,
     version = EXCLUDED.version,
     capabilities = EXCLUDED.capabilities,
-    auth = EXCLUDED.auth
+    auth = EXCLUDED.auth,
+    city_id = EXCLUDED.city_id
 RETURNING (xmax = 0) AS inserted
 `
 	var inserted bool
@@ -85,6 +86,7 @@ RETURNING (xmax = 0) AS inserted
 		card.GetVersion(),
 		caps,
 		authJSON,
+		card.GetCityId(),
 	).Scan(&inserted)
 	if err != nil {
 		log.Printf("[a2asrv] CardStore.Register(%s) pg error: %v", card.GetAgentId(), err)
@@ -103,7 +105,8 @@ func (s *CardStore) Get(ctx context.Context, agentID string) (*a2av1.AgentCard, 
 		return nil, false
 	}
 	const q = `
-SELECT name, description, url, provider, version, capabilities, auth, registered_at_ms
+SELECT name, description, url, provider, version, capabilities, auth, city_id,
+       (EXTRACT(EPOCH FROM registered_at) * 1000)::BIGINT AS registered_at_ms
 FROM a2a_agent_card
 WHERE agent_id = $1
 `
@@ -111,10 +114,11 @@ WHERE agent_id = $1
 		name, desc, url, provider, version string
 		caps                               []string
 		authJSON                           string
+		cityID                             string
 		registeredAtMs                     int64
 	)
 	err := s.pool.QueryRow(ctx, q, agentID).Scan(
-		&name, &desc, &url, &provider, &version, &caps, &authJSON, &registeredAtMs,
+		&name, &desc, &url, &provider, &version, &caps, &authJSON, &cityID, &registeredAtMs,
 	)
 	if err != nil {
 		if err != pgx.ErrNoRows {
@@ -131,27 +135,31 @@ WHERE agent_id = $1
 		Version:        version,
 		Capabilities:   caps,
 		Auth:           decodeAuthJSON(authJSON),
+		CityId:         cityID,
 		RegisteredAtMs: registeredAtMs,
 	}, true
 }
 
-// Discover 按 capability 过滤返回 AgentCard 列表。
-// cityFilter 在 Sprint 7 仍忽略（warn log；ACL 留给 Sprint 7+）。
+// Discover 按 capability + cityFilter 过滤返回 AgentCard 列表。
+//
+// cityFilter（Sprint 8）：
+//   - "" → 不过滤（SQL 谓词退化为真）→ 保持 Sprint 5-7 行为
+//   - 非空 → 仅返回 city_id 精确匹配的 card
+//
 // 返回 (cards, errCode)：capability 为空时 errCode=F_003。
 func (s *CardStore) Discover(ctx context.Context, capability, cityFilter string) ([]*a2av1.AgentCard, string) {
 	if capability == "" {
 		return nil, "F_003"
 	}
-	if cityFilter != "" {
-		log.Printf("[a2asrv] CardStore.Discover cityFilter=%q 暂忽略（ACL 留给 Sprint 7+）", cityFilter)
-	}
 	const q = `
-SELECT agent_id, name, description, url, provider, version, capabilities, auth, registered_at_ms
+SELECT agent_id, name, description, url, provider, version, capabilities, auth, city_id,
+       (EXTRACT(EPOCH FROM registered_at) * 1000)::BIGINT AS registered_at_ms
 FROM a2a_agent_card
 WHERE $1 = ANY(capabilities)
+  AND ($2 = '' OR city_id = $2)
 ORDER BY registered_at ASC
 `
-	rows, err := s.pool.Query(ctx, q, capability)
+	rows, err := s.pool.Query(ctx, q, capability, cityFilter)
 	if err != nil {
 		log.Printf("[a2asrv] CardStore.Discover pg error: %v", err)
 		return nil, ""
@@ -164,9 +172,10 @@ ORDER BY registered_at ASC
 			id, name, desc, url, provider, version string
 			caps                                   []string
 			authJSON                               string
+			cityID                                 string
 			registeredAtMs                         int64
 		)
-		if err := rows.Scan(&id, &name, &desc, &url, &provider, &version, &caps, &authJSON, &registeredAtMs); err != nil {
+		if err := rows.Scan(&id, &name, &desc, &url, &provider, &version, &caps, &authJSON, &cityID, &registeredAtMs); err != nil {
 			log.Printf("[a2asrv] CardStore.Discover scan: %v", err)
 			continue
 		}
@@ -179,6 +188,7 @@ ORDER BY registered_at ASC
 			Version:        version,
 			Capabilities:   caps,
 			Auth:           decodeAuthJSON(authJSON),
+			CityId:         cityID,
 			RegisteredAtMs: registeredAtMs,
 		})
 	}

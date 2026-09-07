@@ -32,6 +32,9 @@ message AgentCard {
   repeated string capabilities = 7;
   map<string, string> auth = 8; // "ed25519:..." | "mtls:..."
   int64 registered_at_ms = 9;
+  // Sprint 8：所属城邦 ID。空 = 不限（旧 card 默认值）。
+  // Discover 的 city_filter 按本字段过滤；ACL deny 按 peer 的 city_id 判定。
+  string city_id = 10;
 }
 
 message RegisterResponse {

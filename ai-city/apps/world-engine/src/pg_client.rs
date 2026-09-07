@@ -91,9 +91,12 @@ pub async fn connect(params: &PgConnectParams) -> Result<PgConn> {
     body.extend_from_slice(&PROTOCOL_VERSION_3_0.to_be_bytes());
     write_kv(&mut body, "user", &params.user);
     write_kv(&mut body, "database", &params.database);
-    if !params.password.is_empty() {
-        write_kv(&mut body, "password", &params.password);
-    }
+    // 刻意不发 password：StartupMessage 的参数是 GUC（除 user/database/replication/
+    // options 外），"password" 不是合法项，PG 会直接回
+    // ERROR 42704 unrecognized configuration parameter "password" 并断开。
+    // 密码认证需要在收到 AuthenticationCleartextPassword/MD5 后回 PasswordMessage('p')，
+    // 本客户端未实现 —— 故只支持 trust（见下方 b'R' 分支）。
+    // compose 里由 POSTGRES_HOST_AUTH_METHOD=trust 保证。
     body.push(0); // 终止
     let len = (body.len() + 4) as i32;
     writer.write_all(&len.to_be_bytes()).await?;

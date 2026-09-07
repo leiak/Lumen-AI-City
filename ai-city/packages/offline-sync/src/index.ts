@@ -27,7 +27,7 @@ export class OfflineQueue {
   ) {
     this.loadFromStorage();
     if (typeof window !== 'undefined') {
-      window.addEventListener('online', () => this.flush());
+      window.addEventListener('online', () => this.setOnline(true));
     }
   }
 

@@ -37,6 +37,12 @@ import (
 //   F_012 inbox 读失败         → 500 Internal（Sprint 7）
 //   F_013 agent_id 未注册       → 404 Not Found（Sprint 7）
 //   F_014 FetchInbox limit 非法 → 400 Bad Request（Sprint 7）
+//   F_015 Discover 被 ACL 拒绝  → 403 Forbidden（Sprint 8；本 sprint 不触发，
+//                                 Discover 尚无 caller 身份，留作 Sprint 9+ 扩展位）
+//   F_016 投递被 ACL 拒绝       → 403 Forbidden（Sprint 8）
+//
+// 401 vs 403 的分界：401 = 身份没通过（F_005/F_007/F_008），
+// 403 = 身份通过但没权限（F_015/F_016）。
 func fCodeToHTTP(errMsg string) int {
 	code := extractFCode(errMsg)
 	switch code {
@@ -46,6 +52,8 @@ func fCodeToHTTP(errMsg string) int {
 		return 404
 	case "F_005", "F_007", "F_008":
 		return 401
+	case "F_015", "F_016":
+		return 403
 	case "F_010":
 		return 502
 	case "F_011", "F_012":

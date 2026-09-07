@@ -15,6 +15,12 @@
 // Sprint 7 新增：
 //   - FetchInbox:  从 a2a_inbox 拉取 store-and-forward 消息；agent_id 未注册 → F_013；
 //                  limit 越界 → F_014；读失败 → F_012。
+//
+// Sprint 8 新增：
+//   - Discover:    city_filter 真过滤（下沉到 Registry / CardStore SQL）。
+//   - SendMessage: verifier 之后插 ACL 门 —— 被拒 → "F_016:..." 走 MessageResponse.Error。
+//   - Stream:      同一 ACL 门；被拒 → gRPC PermissionDenied + 关流
+//                  （流内无法塞 MessageResponse.Error，与 F_007/F_008 同处理）。
 package a2asrv
 
 import (
@@ -28,27 +34,30 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Service 持有 Registry + Verifier + Dispatcher + InboxStore，对外提供 A2AGatewayServer。
+// Service 持有 Registry + Verifier + Dispatcher + InboxStore + ACL，
+// 对外提供 A2AGatewayServer。
 type Service struct {
 	a2av1.UnimplementedA2AGatewayServer
 	reg        *Registry
 	verifier   *Verifier
 	dispatcher *Dispatcher
 	inbox      *InboxStore // nil = 禁用 inbox（向后兼容）
+	acl        *ACL        // nil = 默认 allow（向后兼容 Sprint 7）
 }
 
 // NewService 构造 service。
 //   - verifier nil → NewVerifier(0)（5min 默认窗口）
 //   - dispatcher nil → NewDispatcher()（无 adapter，路由必返 F_009；调用方应 Register）
 //   - inbox nil → FetchInbox 不可用（向后兼容 Sprint 6）
-func NewService(reg *Registry, verifier *Verifier, dispatcher *Dispatcher, inbox *InboxStore) *Service {
+//   - acl nil → 所有投递放行（向后兼容 Sprint 7；ACL.CheckDeliver 本身也 nil-safe）
+func NewService(reg *Registry, verifier *Verifier, dispatcher *Dispatcher, inbox *InboxStore, acl *ACL) *Service {
 	if verifier == nil {
 		verifier = NewVerifier(0)
 	}
 	if dispatcher == nil {
 		dispatcher = NewDispatcher()
 	}
-	return &Service{reg: reg, verifier: verifier, dispatcher: dispatcher, inbox: inbox}
+	return &Service{reg: reg, verifier: verifier, dispatcher: dispatcher, inbox: inbox, acl: acl}
 }
 
 // RegisterCard 注册 / 覆盖 AgentCard。
@@ -78,6 +87,13 @@ func (s *Service) RegisterCard(ctx context.Context, card *a2av1.AgentCard) (*a2a
 }
 
 // Discover 联邦发现。capability 空 → InvalidArgument("F_003:capability required")。
+//
+// Sprint 8：city_filter 真过滤，下沉到 Registry.Discover（in-mem）/
+// CardStore.Discover（SQL 谓词）。空 filter 保持"返回全部"的旧行为。
+//
+// 注：F_015（Discover 被 ACL 拒绝）本 sprint 不触发 —— Discover 尚无 caller
+// 身份概念（HTTP 侧只有可选的共享 Bearer key，识别不到具体 agent）。
+// errmap 已备好 403 映射，待 Sprint 9+ 引入 caller-identity 后启用。
 func (s *Service) Discover(ctx context.Context, req *a2av1.DiscoverRequest) (*a2av1.DiscoverResponse, error) {
 	if req.GetCapability() == "" {
 		return nil, status.Error(codes.InvalidArgument, "F_003:capability required")
@@ -92,6 +108,7 @@ func (s *Service) Discover(ctx context.Context, req *a2av1.DiscoverRequest) (*a2
 //   - 发件方未注册 → "F_005:sender not registered"
 //   - 签名缺失/坏/验签失败 → "F_007:..."
 //   - ts_ms 出窗 → "F_008:ts_ms out of window"
+//   - ACL 拒绝投递 → "F_016:delivery denied by ACL"（Sprint 8）
 //   - 路由无 adapter → "F_009:unknown provider"
 //   - 成功 → delivered:true, error=""
 func (s *Service) SendMessage(ctx context.Context, msg *a2av1.Message) (*a2av1.MessageResponse, error) {
@@ -107,6 +124,12 @@ func (s *Service) SendMessage(ctx context.Context, msg *a2av1.Message) (*a2av1.M
 		return &a2av1.MessageResponse{Delivered: false, Error: "F_005:sender not registered"}, nil
 	}
 	if err := s.verifier.Verify(sender, msg, time.Now()); err != nil {
+		return &a2av1.MessageResponse{Delivered: false, Error: err.Error()}, nil
+	}
+	// ACL 门在验签之后：先确认"你是谁"，再判断"你能不能发"。
+	if err := s.acl.CheckDeliver(ctx, sender, recipient); err != nil {
+		log.Printf("[a2asrv] SendMessage %s → %s denied: %v",
+			msg.GetFromAgentId(), msg.GetToAgentId(), err)
 		return &a2av1.MessageResponse{Delivered: false, Error: err.Error()}, nil
 	}
 	if _, err := s.dispatcher.Deliver(ctx, recipient, msg); err != nil {
@@ -141,6 +164,11 @@ func (s *Service) Stream(stream a2av1.A2AGateway_StreamServer) error {
 		if err := s.verifier.Verify(sender, msg, time.Now()); err != nil {
 			// F_007 / F_008 都映射到 Unauthenticated（流无法塞 MessageResponse.Error）
 			return status.Error(codes.Unauthenticated, err.Error())
+		}
+		// ACL 门（Sprint 8）：流内同样无法塞 MessageResponse.Error → 关流。
+		// 用 PermissionDenied 而非 Unauthenticated：身份已验过，是授权失败。
+		if err := s.acl.CheckDeliver(ctx, sender, recipient); err != nil {
+			return status.Error(codes.PermissionDenied, err.Error()) // F_016
 		}
 		reply, err := s.dispatcher.Deliver(ctx, recipient, msg)
 		if err != nil {

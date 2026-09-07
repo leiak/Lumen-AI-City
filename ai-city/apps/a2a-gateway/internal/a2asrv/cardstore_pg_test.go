@@ -180,3 +180,90 @@ func TestCardStore_PG_Register_BadPubkey_F006(t *testing.T) {
 		t.Errorf("bad pubkey: ok=%v code=%q, want false/F_006", ok, code)
 	}
 }
+
+// ---------- 7) Discover cityFilter（Sprint 8） ----------
+
+func TestCardStore_PG_CityFilter(t *testing.T) {
+	store, pool := newTestCardStore(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	store.Register(ctx, &a2av1.AgentCard{
+		AgentId: "alice", Name: "Alice",
+		Capabilities: []string{"chat"}, CityId: "beijing",
+	})
+	store.Register(ctx, &a2av1.AgentCard{
+		AgentId: "bob", Name: "Bob",
+		Capabilities: []string{"chat"}, CityId: "shanghai",
+	})
+	// charlie 无 city_id → 落 ''（旧 card 语义）
+	store.Register(ctx, &a2av1.AgentCard{
+		AgentId: "charlie", Name: "Charlie",
+		Capabilities: []string{"chat"},
+	})
+
+	// 空 filter → 退化为旧行为，返回全部
+	cards, code := store.Discover(ctx, "chat", "")
+	if code != "" {
+		t.Fatalf("Discover code=%q", code)
+	}
+	if len(cards) != 3 {
+		t.Errorf("Discover chat (no filter) want 3 got %d", len(cards))
+	}
+
+	// city=beijing → 只有 alice
+	cards, _ = store.Discover(ctx, "chat", "beijing")
+	if len(cards) != 1 {
+		t.Fatalf("Discover chat city=beijing want 1 got %d", len(cards))
+	}
+	if cards[0].GetAgentId() != "alice" {
+		t.Errorf("got %q, want alice", cards[0].GetAgentId())
+	}
+	if cards[0].GetCityId() != "beijing" {
+		t.Errorf("city_id = %q, want beijing (round-trip)", cards[0].GetCityId())
+	}
+
+	// city=shanghai → 只有 bob
+	cards, _ = store.Discover(ctx, "chat", "shanghai")
+	if len(cards) != 1 || cards[0].GetAgentId() != "bob" {
+		t.Errorf("Discover chat city=shanghai want [bob] got %v", agentIDs(cards))
+	}
+
+	// 不存在的城邦 → 0
+	cards, _ = store.Discover(ctx, "chat", "atlantis")
+	if len(cards) != 0 {
+		t.Errorf("Discover chat city=atlantis want 0 got %d", len(cards))
+	}
+}
+
+// Get 也要带回 city_id（Sprint 8）。
+func TestCardStore_PG_Get_CityID(t *testing.T) {
+	store, pool := newTestCardStore(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	store.Register(ctx, &a2av1.AgentCard{AgentId: "alice", Name: "Alice", CityId: "beijing"})
+	card, ok := store.Get(ctx, "alice")
+	if !ok {
+		t.Fatal("alice not found")
+	}
+	if card.GetCityId() != "beijing" {
+		t.Errorf("city_id = %q, want beijing", card.GetCityId())
+	}
+
+	// 未设 city 的 card → ''
+	store.Register(ctx, &a2av1.AgentCard{AgentId: "carol", Name: "Carol"})
+	card, _ = store.Get(ctx, "carol")
+	if card.GetCityId() != "" {
+		t.Errorf("city_id = %q, want empty", card.GetCityId())
+	}
+}
+
+// agentIDs 提取 agent_id 列表（错误信息可读性）。
+func agentIDs(cards []*a2av1.AgentCard) []string {
+	out := make([]string, 0, len(cards))
+	for _, c := range cards {
+		out = append(out, c.GetAgentId())
+	}
+	return out
+}

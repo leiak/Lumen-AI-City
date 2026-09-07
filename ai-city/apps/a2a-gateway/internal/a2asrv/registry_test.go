@@ -138,6 +138,67 @@ func TestRegistry_Discover_EmptyCapability_ReturnsF003(t *testing.T) {
 	}
 }
 
+// Sprint 8：in-memory 路径的 cityFilter 必须与 PG 路径（SQL 谓词）行为一致。
+func TestRegistry_Discover_CityFilter(t *testing.T) {
+	r := NewRegistry()
+
+	alice := newCard("alice", "Alice", "chat")
+	alice.CityId = "beijing"
+	bob := newCard("bob", "Bob", "chat")
+	bob.CityId = "shanghai"
+	carol := newCard("carol", "Carol", "chat") // 无 city_id
+
+	r.Register(alice)
+	r.Register(bob)
+	r.Register(carol)
+
+	// 空 filter → 退化为旧行为（全部返回）
+	all, errCode := r.Discover("chat", "")
+	if errCode != "" {
+		t.Fatalf("errCode = %q", errCode)
+	}
+	if len(all) != 3 {
+		t.Errorf("no filter: want 3 got %d", len(all))
+	}
+
+	// 精确匹配
+	bj, _ := r.Discover("chat", "beijing")
+	if len(bj) != 1 || bj[0].GetAgentId() != "alice" {
+		t.Errorf("city=beijing: want [alice] got %v", idsOf(bj))
+	}
+
+	sh, _ := r.Discover("chat", "shanghai")
+	if len(sh) != 1 || sh[0].GetAgentId() != "bob" {
+		t.Errorf("city=shanghai: want [bob] got %v", idsOf(sh))
+	}
+
+	// 无匹配城邦 → 空（且非 nil，与既有约定一致）
+	none, _ := r.Discover("chat", "atlantis")
+	if len(none) != 0 {
+		t.Errorf("city=atlantis: want 0 got %v", idsOf(none))
+	}
+
+	// city filter 与 capability 是 AND 关系
+	r.Register(func() *a2av1.AgentCard {
+		c := newCard("dave", "Dave", "search")
+		c.CityId = "beijing"
+		return c
+	}())
+	bj2, _ := r.Discover("chat", "beijing")
+	if len(bj2) != 1 || bj2[0].GetAgentId() != "alice" {
+		t.Errorf("city=beijing cap=chat: want [alice] got %v", idsOf(bj2))
+	}
+}
+
+// idsOf 提取 agent_id（错误信息可读性）。
+func idsOf(cards []*a2av1.AgentCard) []string {
+	out := make([]string, 0, len(cards))
+	for _, c := range cards {
+		out = append(out, c.GetAgentId())
+	}
+	return out
+}
+
 func TestRegistry_Get_And_Len(t *testing.T) {
 	r := NewRegistry()
 	if _, ok := r.Get("ghost"); ok {

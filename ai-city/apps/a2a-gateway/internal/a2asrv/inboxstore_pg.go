@@ -94,7 +94,10 @@ func (s *InboxStore) Append(ctx context.Context, e *InboxEntry, failReason strin
 	// Sprint 7+：决定 expires_at 写入策略
 	//   - explicit != zero → 用 explicit
 	//   - explicit == zero 且 defaultTTL > 0 → NOW() + defaultTTL
-	//   - explicit == zero 且 defaultTTL == 0 → 不写（让 PG DEFAULT 兜底）
+	//   - explicit == zero 且 defaultTTL == 0 → 传 nil，由 SQL 的 COALESCE 兜底
+	//     （注意：列已出现在 INSERT 列表里时传 nil 是写入 SQL NULL，不会触发
+	//      列的 DEFAULT，而 expires_at 是 NOT NULL → 必须显式 COALESCE。
+	//      兜底值与 packages/proto/pg-schema.sql 的 DEFAULT 保持一致：7 天）
 	var expiresAt *time.Time
 	if !e.ExpiresAt.IsZero() {
 		expiresAt = &e.ExpiresAt
@@ -105,7 +108,8 @@ func (s *InboxStore) Append(ctx context.Context, e *InboxEntry, failReason strin
 
 	const q = `
 INSERT INTO a2a_inbox (message_id, conversation_id, from_agent_id, to_agent_id, type, payload, ts_ms, trace_id, signature, fail_reason, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF($10, ''), $11)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF($10, ''),
+        COALESCE($11::timestamptz, NOW() + INTERVAL '7 days'))
 ON CONFLICT (message_id) DO NOTHING
 `
 	_, err := s.pool.Exec(ctx, q,
@@ -225,9 +229,11 @@ WHERE to_agent_id = $1 AND read_at IS NULL
 		}
 	}
 
-	// 标已读
-	if markRead && len(ids) > 0 {
-		if err := s.markRead(ctx, ids[:limit]...); err != nil {
+	// 标已读：只标真正返回给调用方的那些（out 可能已被截断到 limit）。
+	// 注意不能用 ids[:limit] —— 实际行数少于 limit 时会 panic
+	// （slice bounds out of range），这是最常见的情形。
+	if markRead && len(out) > 0 {
+		if err := s.markRead(ctx, ids[:len(out)]...); err != nil {
 			return nil, "", fmt.Errorf("inbox mark_read: %w", err)
 		}
 	}

@@ -1,10 +1,11 @@
-// Package main A2A Gateway 双协议入口（Sprint 5 + 5.5 + 6 + 7 + 7+）。
+// Package main A2A Gateway 双协议入口（Sprint 5 + 5.5 + 6 + 7 + 7+ + 8）。
 //
 // 启动：监听 gRPC (A2A_GRPC_ADDR) + HTTP (A2A_HTTP_ADDR) 两个端口，
 // 共用 *a2asrv.Service 单例；后台启动 a2a_inbox TTL cleanup cron。
 //
 // Sprint 7：注入 PG-backed CardStore + InboxStore；EchoAdapter 替换为 InboxAdapter。
 // Sprint 7+：InboxStore 加 defaultTTL；启动 cron 周期 DELETE expires_at < NOW()。
+// Sprint 8：注入 ACLStore → ACL 投递门（默认 allow；a2a_acl_policy 空表 = 全通）。
 //
 // 设计：docs/06-A2A协议.md §20；06-A2A-canonical.md（签名规范）。
 //
@@ -62,7 +63,10 @@ func main() {
 	}
 	cardStore := a2asrv.NewCardStore(pool)
 	inboxStore := a2asrv.NewInboxStoreWithTTL(pool, inboxTTL)
-	log.Printf("a2a-gateway: PG ready (card_store + inbox_store wired)")
+	// Sprint 8：ACL deny list（默认 allow —— a2a_acl_policy 空表 = 全通）
+	aclStore := a2asrv.NewACLStore(pool)
+	acl := a2asrv.NewACL(aclStore)
+	log.Printf("a2a-gateway: PG ready (card_store + inbox_store + acl_store wired)")
 
 	// 共享 Service
 	reg := a2asrv.NewRegistryFromCardStore(cardStore)
@@ -79,7 +83,7 @@ func main() {
 	dispatcher.Register(inboxAdapter)
 	dispatcher.SetFallback(inboxAdapter)
 
-	svc := a2asrv.NewService(reg, verifier, dispatcher, inboxStore)
+	svc := a2asrv.NewService(reg, verifier, dispatcher, inboxStore, acl)
 
 	// gRPC server
 	grpcLis, err := net.Listen("tcp", grpcAddr)

@@ -13,19 +13,19 @@ cd ai-city
 # 2. 安装工具链（Node 22 / pnpm / uv / Rust / Go / Docker）
 ./scripts/bootstrap.sh
 
-# 3. 启动中间件（PG / Redis / Kafka / Neo4j / Milvus）
-docker compose -f docker-compose.dev.yml up -d
+# 3. 启动全栈 Compose 工程 aitown（6 个容器）
+#    postgres / redis / world-engine / api-gateway / a2a-gateway / web
+#    schema 与种子数据由 postgres initdb 自动应用
+docker compose up -d --build
 
-# 4. 初始化种子数据
-./scripts/seed-data.sh
+# 4. 查看状态（五个带 healthcheck 的服务应为 healthy）
+docker compose ps
 
-# 5. 启动所有服务（按 Turbo 并行调度）
-make dev
-
-# 6. 访问
-open http://localhost:3000        # Web 玩家端
-open http://localhost:8080/health  # API Gateway
-open http://localhost:8081         # Admin Portal
+# 5. 访问
+open http://localhost:3000            # Web 玩家端（demo / demo123）
+open http://localhost:8080/health     # API Gateway
+open http://localhost:50052/readyz    # World Engine（pg_connected 必须 true）
+open http://localhost:8083/v1/healthz # A2A Gateway
 ```
 
 ## 📁 仓库结构

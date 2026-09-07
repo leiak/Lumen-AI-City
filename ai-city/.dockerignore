@@ -1,0 +1,68 @@
+# ============================================
+# Docker build context 过滤（上下文 = ai-city/）
+# ============================================
+# 不加这个文件时上下文约 4.5 GB（target 3.5 GB + node_modules 709 MB）；
+# 加上后约 15 MB。
+
+# --- 构建产物 / 依赖目录 ---
+**/target/
+**/node_modules/
+**/.next/
+**/dist/
+**/.turbo/
+bin/
+**/bin/
+**/*.exe
+
+# --- Rust toolchain 覆盖文件 ---
+# 必须排除：上下文为 ai-city/ 时 rust-toolchain.toml（channel 1.82.0 +
+# rustfmt/clippy/rust-src）会让镜像内的 rustup 去联网同步 musl 工具链和三个
+# component，白等数分钟。rust:1.82-alpine 自带的 1.82.0 已满足
+# apps/world-engine/Cargo.toml 的 rust-version = "1.82"。
+rust-toolchain.toml
+
+# --- VCS / CI / 文档 ---
+.git/
+.gitignore
+.github/
+docs/
+*.md
+
+# --- Python ---
+**/__pycache__/
+**/.venv/
+**/*.pyc
+
+# --- 机密 ---
+.env
+.env.*
+*.pem
+*.key
+*.crt
+
+# --- Docker 自身 ---
+docker-compose*.yml
+**/Dockerfile
+.dockerignore
+
+# ============================================
+# 显式保留（!）—— 以下都被上面的规则或直觉误伤，但构建必需
+# ============================================
+
+# packages/proto/gen/ 被 .gitignore:75 忽略，但文件在磁盘上且 Go 构建必需：
+# apps/api-gateway/internal/worldgrpc/client.go:15 import
+# github.com/aicity/proto/gen/go。排掉 = 两个 Go 服务直接编译失败。
+!packages/proto/gen/
+
+# go.work 列了 6 个模块，目录缺一个 go 命令就报错
+!go.work
+!go.work.sum
+
+# 依赖锁文件
+!pnpm-lock.yaml
+!Cargo.lock
+!**/package.json
+
+# pnpm-lock.yaml 的 importer（--frozen-lockfile 会核对 importer 集合）
+!apps/admin-portal/
+!packages/sdk-ts/

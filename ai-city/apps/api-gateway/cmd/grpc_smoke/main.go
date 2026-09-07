@@ -75,18 +75,20 @@ func main() {
 	}
 	fmt.Printf("[OK]   GetTile tile_1_0 size=%.0f players=%v\n", tile.GetSize(), tile.GetPlayerIds())
 
-	// 3) ComputePath → 直线 stub
+	// 3) ComputePath → Sprint 4 起是 A*（tile centers + building detour），
+	//    不再是 Sprint 3 的直线 stub（仅 [start, end]），故只断言 >= 2 个途经点
 	path, err := c.ComputePath(ctx, "grpc_smoke_player_001",
 		&worldv1.Vec2{X: 0, Y: 0}, &worldv1.Vec2{X: 30, Y: 40})
 	if err != nil {
 		fmt.Printf("[FAIL] ComputePath: %v\n", err)
 		os.Exit(7)
 	}
-	if len(path.GetWaypoints()) != 2 {
-		fmt.Printf("[FAIL] waypoints want 2 got %d\n", len(path.GetWaypoints()))
+	if len(path.GetWaypoints()) < 2 {
+		fmt.Printf("[FAIL] waypoints want >=2 got %d\n", len(path.GetWaypoints()))
 		os.Exit(8)
 	}
-	fmt.Printf("[OK]   ComputePath waypoints=2 distance=%.3f\n", path.GetDistanceM())
+	fmt.Printf("[OK]   ComputePath waypoints=%d distance=%.3f\n",
+		len(path.GetWaypoints()), path.GetDistanceM())
 
 	fmt.Println("\n[OK] all 3 grpc_smoke checks passed against", addr)
 }
