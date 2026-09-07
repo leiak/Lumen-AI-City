@@ -14,10 +14,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type Tile } from '@/lib/api';
 import { useGameStore } from '@/store/game';
+import { TILE_SIZE, tileIdAt } from '@/lib/world-coords';
 
 const POLL_MS = 3000;
 const HALF = 50; // tile 边长 100 的半值；tile 中心 = (50, 50) 之类的奇数倍
-const TILE_SIZE = 100;
 
 type LodColor = Record<Tile['lod_level'], string>;
 const LOD_FILL: LodColor = {
@@ -40,11 +40,6 @@ const BUILDING_FILL: Record<string, string> = {
   Road: '#525252',
   Office: '#1e40af',
 };
-
-/** world (x,y) → tile id（与 world-engine Tile::from_xy 一致） */
-function tileIdAt(x: number, y: number): string {
-  return `tile_${Math.floor(x / TILE_SIZE)}_${Math.floor(y / TILE_SIZE)}`;
-}
 
 /** SVG 客户端坐标 → world 坐标（用 CTM 反推 + y 翻转） */
 function screenToWorld(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } {
@@ -92,6 +87,8 @@ export function WorldMap() {
         if (myTile) {
           setMyPos({ x: myTile.center_x, y: myTile.center_y });
           setPosition({ x: myTile.center_x, y: myTile.center_y });
+          // 同步 lastMoveTileRef，否则首次 move 的 from_tile_id 会是 store 兜底默认值
+          lastMoveTileRef.current = myTile.id;
         }
       }
     } catch (err) {
@@ -210,25 +207,50 @@ export function WorldMap() {
             )),
           )}
 
-          {/* 玩家圆点：自己蓝大、别人灰小 */}
+          {/* 其它玩家（不含自己）：所在 tile 中心；自己单独画在 myPos */}
           {state.tiles.flatMap((t) =>
-            t.player_ids.map((pid) => {
-              const isMe = pid === playerId;
-              return (
+            t.player_ids
+              .filter((pid) => pid !== playerId)
+              .map((pid) => (
                 <circle
                   key={pid}
                   cx={t.center_x}
                   cy={t.center_y}
-                  r={isMe ? 5 : 3}
-                  fill={isMe ? '#3b82f6' : '#9ca3af'}
-                  stroke={isMe ? '#1e3a8a' : '#374151'}
-                  strokeWidth={isMe ? 1 : 0.5}
+                  r={3}
+                  fill="#9ca3af"
+                  stroke="#374151"
+                  strokeWidth={0.5}
                   data-player-id={pid}
                 >
-                  <title>{isMe ? '我' : pid}</title>
+                  <title>{pid}</title>
                 </circle>
-              );
-            }),
+              )),
+          )}
+
+          {/* 自己：myPos（move target / 初始 tile center），蓝大圆 + 浅蓝光圈 */}
+          {myPos && (
+            <g>
+              <circle
+                cx={myPos.x}
+                cy={myPos.y}
+                r={9}
+                fill="none"
+                stroke="#3b82f6"
+                strokeOpacity={0.35}
+                strokeWidth={0.5}
+              />
+              <circle
+                cx={myPos.x}
+                cy={myPos.y}
+                r={5}
+                fill="#3b82f6"
+                stroke="#1e3a8a"
+                strokeWidth={1}
+                data-player-id={playerId}
+              >
+                <title>我 {playerId}</title>
+              </circle>
+            </g>
           )}
         </g>
       </svg>
