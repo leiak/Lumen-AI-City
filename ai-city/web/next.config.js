@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@aicity/client-reconciler', '@aicity/offline-sync', '@aicity/bypass-filter'],
+  transpilePackages: ['@aicity/offline-sync', '@aicity/bypass-filter'],
   experimental: {
     typedRoutes: true,
   },

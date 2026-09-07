@@ -15,8 +15,6 @@
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "maplibre-gl": "^4.7.0",
-    "@aicity/client-reconciler": "workspace:*",
     "@aicity/offline-sync": "workspace:*",
     "@aicity/bypass-filter": "workspace:*",
     "zustand": "^5.0.0",

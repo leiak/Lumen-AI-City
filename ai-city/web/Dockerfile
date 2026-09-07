@@ -11,13 +11,11 @@ WORKDIR /app
 RUN corepack enable
 
 # --- 依赖层：先只拷 manifest + lockfile，源码改动不失效这一层 ---
-# pnpm-lock.yaml 有 5 个 importer（. / apps/admin-portal /
-# packages/client-reconciler / packages/offline-sync / packages/sdk-ts / web），
-# --frozen-lockfile 会核对 importer 与磁盘 package.json 集合 →
-# 这些（外加 packages/bypass-filter）的 manifest 都要拷进来。
+# pnpm-lock.yaml 有 importer（. / apps/admin-portal / packages/offline-sync /
+# packages/sdk-ts / web），--frozen-lockfile 会核对 importer 与磁盘 package.json
+# 集合 → 这些（外加 packages/bypass-filter）的 manifest 都要拷进来。
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/admin-portal/package.json apps/admin-portal/package.json
-COPY packages/client-reconciler/package.json packages/client-reconciler/package.json
 COPY packages/offline-sync/package.json packages/offline-sync/package.json
 COPY packages/bypass-filter/package.json packages/bypass-filter/package.json
 COPY packages/sdk-ts/package.json packages/sdk-ts/package.json
@@ -26,9 +24,8 @@ COPY web/package.json web/package.json
 RUN pnpm install --frozen-lockfile
 
 # --- 源码层 ---
-# 三个 workspace 包的 package.json 已改成 main/types 指向 src/index.ts，
+# workspace 包的 package.json 已改成 main/types 指向 src/index.ts，
 # 且 web/next.config.js 把它们全列进 transpilePackages → Next 直接编译 TS 源码。
-COPY packages/client-reconciler packages/client-reconciler
 COPY packages/offline-sync packages/offline-sync
 COPY packages/bypass-filter packages/bypass-filter
 COPY packages/sdk-ts packages/sdk-ts
