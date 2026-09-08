@@ -14,6 +14,7 @@
 | [ADR-0004](0004-use-kafka-for-saga.md) | Saga 采用 Kafka + Orchestrator/Worker | Accepted | 2026-09-03 |
 | [ADR-0005](0005-use-claude-sonnet-as-primary-llm.md) | 主 LLM 选 Claude Sonnet 4.6 | Accepted | 2026-09-03 |
 | [ADR-0006](0006-1.0-scope-mvp-demo-slice.md) | 1.0 范围切到 M3 MVP Demo 闭环 | Accepted | 2026-09-07 |
+| [ADR-0007](0007-2.0-scope-llm-federation-memory-saga.md) | 2.0 范围 — LLM-NPC + 联邦 + 记忆 + Saga | Proposed | 2026-09-08 |
 
 ## 待决策（候选）
 
