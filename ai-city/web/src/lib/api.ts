@@ -1,6 +1,8 @@
 /**
  * API 客户端封装。
  */
+import type { NpcDialoguePayload } from './ws-events';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:8080';
 
 // 字段与 apps/world-engine/src/tile.rs::Tile 一致
@@ -93,6 +95,19 @@ class ApiClient {
     this.request<{ reply: string }>(`/v1/npcs/${npcId}/dialogue`, {
       method: 'POST',
       body: JSON.stringify({ message }),
+    });
+
+  // POST /v1/npc/talk —— Sprint 12 T03b（talk_tree 持久化）
+  // 字段定义见 apps/ws-gateway/internal/protocol/message.go::NpcDialogue
+  // 与 ws-events.ts::NpcDialoguePayload 形状一致；后端实现见 api-gateway T05
+  postNpcTalk = (npcId: string, choiceId: string, playerId: string) =>
+    this.request<NpcDialoguePayload>('/v1/npc/talk', {
+      method: 'POST',
+      body: JSON.stringify({
+        npc_id: npcId,
+        player_id: playerId,
+        choice_id: choiceId,
+      }),
     });
 }
 
