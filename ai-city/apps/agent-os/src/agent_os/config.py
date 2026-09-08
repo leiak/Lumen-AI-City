@@ -1,5 +1,4 @@
-"""配置管理。"""
-from pydantic import Field
+"""配置管理。Sprint 12 减面：只保留本范围需要的字段。"""
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,30 +8,18 @@ class Settings(BaseSettings):
     service_name: str = "agent-os"
     log_level: str = "info"
 
-    # LLM
-    anthropic_api_key: str = ""
-    litellm_base_url: str = "http://localhost:4000"
-    primary_model: str = "claude-sonnet-4-6"
-    fallback_model: str = "claude-haiku-4-5-20251001"
-    daily_budget_usd: float = 5000.0
+    # HTTP（沿用 Sprint 11 T04 决定：8084 平行于 8080/8082/8083）
+    http_port: int = 8084
 
-    # 数据
+    # Redis（沿用 world-engine 模式：手写 RESP，URL 形如 redis://host:port[/db]）
     redis_url: str = "redis://localhost:6379/0"
-    database_url: str = "postgresql://aicity:aicity_dev@localhost:5432/aicity"
-    kafka_brokers: str = "localhost:9092"
+    redis_channel_npc_dialogue: str = "aicity:npc_dialogue"
 
-    # Tick（按 §19.9）
-    cbd_tick_seconds: float = 2.0
-    residential_tick_seconds: float = 5.0
-    suburb_tick_seconds: float = 10.0
+    # NPC 模板（dev 走 monorepo 相对路径；容器化时由 Dockerfile COPY 注入 /etc/aicity/npc-templates）
+    npc_templates_dir: str = "./packages/npc-templates"
 
-    # LOD
-    lod0_distance_m: float = 50.0  # < 50m 升级到 L1
-    lod1_distance_m: float = 0.0   # 玩家选中升级到 L2
-
-    # 决策日志
-    log_to_loki: bool = True
-    log_to_kafka: bool = True
+    # Say 调度（5s 触发一轮；Sprint 13+ 接 player listener 后改成事件驱动）
+    say_tick_seconds: float = 5.0
 
 
 settings = Settings()
