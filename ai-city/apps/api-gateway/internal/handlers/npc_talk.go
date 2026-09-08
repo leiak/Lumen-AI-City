@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/aicity/api-gateway/internal/npc"
 	"github.com/gin-gonic/gin"
@@ -120,19 +121,21 @@ func (h *NPCTalkHandler) Handle(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 
 	// Best-effort publish — log on failure, but never surface as HTTP error.
-	envelope := map[string]any{
-		"type":     "npc_dialogue",
-		"trace_id": c.GetHeader("X-Trace-ID"),
-		"payload": map[string]any{
-			"npc_id":             resp.NpcID,
-			"player_id":          resp.PlayerID,
-			"tile_id":            resp.TileID,
-			"say":                resp.Say,
-			"options":            opts,
-			"reply_to_choice_id": resp.ReplyToChoiceID,
-		},
+	//
+	// Publishes the INNER payload only (no outer envelope). ws-gateway wraps it
+	// uniformly with type/trace_id/ts_ms before fanning out to the browser.
+	// This matches the world-engine pattern for `aicity:player:moved`.
+	innerPayload := map[string]any{
+		"npc_id":             resp.NpcID,
+		"player_id":          resp.PlayerID,
+		"tile_id":            resp.TileID,
+		"say":                resp.Say,
+		"options":            opts,
+		"reply_to_choice_id": resp.ReplyToChoiceID,
+		"ts_ms":              time.Now().UnixMilli(),
+		"trace_id":           c.GetHeader("X-Trace-ID"),
 	}
-	payload, _ := json.Marshal(envelope)
+	payload, _ := json.Marshal(innerPayload)
 	if err := h.Redis.Publish(c.Request.Context(), h.NPCChannel, string(payload)).Err(); err != nil {
 		h.Logger.Warn("npc publish failed",
 			zap.String("npc_id", req.NpcID),

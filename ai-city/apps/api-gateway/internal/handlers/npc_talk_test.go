@@ -84,6 +84,37 @@ func TestNPCTalk_HappyPath(t *testing.T) {
 	if fakeR.published[0].Channel != "aicity:npc_dialogue" {
 		t.Errorf("channel = %s", fakeR.published[0].Channel)
 	}
+
+	// Published payload must be the INNER payload (no outer envelope).
+	// ws-gateway wraps it uniformly — publishers must NOT double-wrap.
+	var published map[string]any
+	if err := json.Unmarshal([]byte(fakeR.published[0].Payload), &published); err != nil {
+		t.Fatalf("unmarshal published payload: %v raw=%s", err, fakeR.published[0].Payload)
+	}
+	if _, hasType := published["type"]; hasType {
+		t.Errorf("published payload should NOT have outer 'type' key; got %+v", published)
+	}
+	if _, hasPayload := published["payload"]; hasPayload {
+		t.Errorf("published payload should NOT have outer 'payload' key; got %+v", published)
+	}
+	if published["npc_id"] != "npc_wang_boss_001" {
+		t.Errorf("published npc_id = %v, want npc_wang_boss_001", published["npc_id"])
+	}
+	if published["say"] != "小店经营杂货。" {
+		t.Errorf("published say = %v, want 小店经营杂货。", published["say"])
+	}
+	if published["reply_to_choice_id"] != "ask_business" {
+		t.Errorf("published reply_to_choice_id = %v, want ask_business", published["reply_to_choice_id"])
+	}
+	if published["tile_id"] != "tile_1_1" {
+		t.Errorf("published tile_id = %v, want tile_1_1", published["tile_id"])
+	}
+	if _, ok := published["ts_ms"].(float64); !ok {
+		t.Errorf("published ts_ms should be a number; got %T (%v)", published["ts_ms"], published["ts_ms"])
+	}
+	if _, ok := published["trace_id"].(string); !ok {
+		t.Errorf("published trace_id should be a string; got %T (%v)", published["trace_id"], published["trace_id"])
+	}
 }
 
 func TestNPCTalk_NPCNotFound(t *testing.T) {
