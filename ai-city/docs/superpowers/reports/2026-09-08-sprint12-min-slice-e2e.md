@@ -16,7 +16,7 @@
 | Wire-contract fix | — | DONE | `b90e8a0` (agent-os), `53a753d` (api-gateway) |
 | Docker pre-work | T06-A | DONE | `890ef4b` (this PR) |
 
-Total: 20 commits, ~1900 lines of new code across 4 services.
+Total: 23 commits, ~1900 lines of new code across 4 services.
 
 ### What landed
 
@@ -28,7 +28,7 @@ Total: 20 commits, ~1900 lines of new code across 4 services.
   best-effort Redis publish
 - **web** — `api.postNpcTalk` client, `npc_dialogue` event bridge → `NPCDialog` component,
   WorldMap NPC marker rendering + click-to-open dialog
-- **templates** — `wang_boss.yaml` (OCEAN + 3 greetings + schedule + talk_tree stub),
+- **templates** — `wang_boss.yaml` (OCEAN + 3 greetings + schedule; `talk_tree` deferred to Sprint 13+),
   `lihua.yaml` (second NPC fixture, future use), `OCEAN-schema.json`
 
 ### Wire-contract fix
@@ -155,7 +155,7 @@ docker compose exec -T redis redis-cli SUBSCRIBE aicity:npc_dialogue
 
 1. 打开 `http://localhost:3000`，login as `demo / demo123`
 2. 落到 `/city` —— WorldMap 渲染 3×3 网格，王老板 NPC marker 在 `tile_0_0`
-   （参 `web/src/lib/npc-positions.ts`，目前 hardcode 1 个 NPC）
+   （参 `web/src/lib/npc-positions.ts`，目前 2 个 NPCs 配置，但只渲染 王老板 marker）
 3. 点 NPC marker → NPCDialog 打开，显示 greeting（"来了您嘞！..."）
 4. （min-slice 不带 talk_tree 选项，所以 4 仅作 visual 验证）
 5. 等 5s → agent-os tick fires → 当前 NPCDialog 的 active-say 自动出现新台词
