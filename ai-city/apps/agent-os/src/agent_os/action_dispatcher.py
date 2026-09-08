@@ -36,34 +36,32 @@ class ActionDispatcher:
     ) -> None:
         """发送一句 NPC 台词。失败仅 warn，agent tick 不阻塞。
 
-        envelope:
+        Publishes the INNER payload only (no outer envelope) — ws-gateway wraps
+        it uniformly with type/trace_id/ts_ms before fanning out to the browser.
+        This matches the world-engine pattern for `aicity:player:moved`.
+
+        payload:
         {
-          "type": "npc_dialogue",
-          "trace_id": "<uuid>",
+          "npc_id": "...", "player_id": "...", "tile_id": "...",
+          "say": "...",
+          "options": [...],                   // 始终是数组（不是 null）
+          "reply_to_choice_id": "..."|null,   // null = 主动 say；非空 = 玩家回复
           "ts_ms": <int ms>,
-          "payload": {
-            "npc_id": "...", "player_id": "...", "tile_id": "...",
-            "say": "...",
-            "options": [...],                   // 始终是数组（不是 null）
-            "reply_to_choice_id": "..."|null    // null = 主动 say；非空 = 玩家回复
-          }
+          "trace_id": "<uuid>"
         }
         """
-        envelope: dict[str, Any] = {
-            "type": "npc_dialogue",
-            "trace_id": str(uuid.uuid4()),
+        payload: dict[str, Any] = {
+            "npc_id": npc_id,
+            "player_id": player_id or "",
+            "tile_id": tile_id or "",
+            "say": text,
+            "options": list(options) if options else [],
+            "reply_to_choice_id": reply_to_choice_id,
             "ts_ms": int(time.time() * 1000),
-            "payload": {
-                "npc_id": npc_id,
-                "player_id": player_id or "",
-                "tile_id": tile_id or "",
-                "say": text,
-                "options": list(options) if options else [],
-                "reply_to_choice_id": reply_to_choice_id,
-            },
+            "trace_id": str(uuid.uuid4()),
         }
         try:
-            await self._redis.publish(self._channel, json.dumps(envelope, ensure_ascii=False))
+            await self._redis.publish(self._channel, json.dumps(payload, ensure_ascii=False))
         except Exception as e:  # noqa: BLE001
             logger.warning(
                 "dispatcher.say publish failed",

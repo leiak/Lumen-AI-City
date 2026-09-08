@@ -27,13 +27,18 @@ async def test_say_minimal_publishes_envelope():
     assert len(fake.calls) == 1
     channel, payload = fake.calls[0]
     assert channel == "aicity:npc_dialogue"
-    env = json.loads(payload)
-    assert env["type"] == "npc_dialogue"
-    assert env["payload"]["npc_id"] == "npc_wang_boss_001"
-    assert env["payload"]["say"] == "来了您嘞！"
-    assert env["payload"]["options"] == []  # 空数组不是 null
-    assert env["trace_id"]  # uuid 字符串非空
-    assert env["ts_ms"] > 0
+    msg = json.loads(payload)
+    # Published msg IS the inner payload (no outer envelope) —
+    # ws-gateway will wrap it for browser delivery.
+    assert "type" not in msg
+    assert msg["npc_id"] == "npc_wang_boss_001"
+    assert msg["say"] == "来了您嘞！"
+    assert msg["options"] == []  # 空数组不是 null
+    assert msg["player_id"] == ""
+    assert msg["tile_id"] == ""
+    assert msg["reply_to_choice_id"] is None
+    assert msg["trace_id"]  # uuid 字符串非空
+    assert msg["ts_ms"] > 0
 
 
 @pytest.mark.asyncio
@@ -48,12 +53,11 @@ async def test_say_with_options_and_reply_to():
         options=[{"id": "ok", "text": "好的"}],
         reply_to_choice_id="ask_business",
     )
-    env = json.loads(fake.calls[0][1])
-    p = env["payload"]
-    assert p["player_id"] == "p-1"
-    assert p["tile_id"] == "tile_0_0"
-    assert p["options"] == [{"id": "ok", "text": "好的"}]
-    assert p["reply_to_choice_id"] == "ask_business"
+    msg = json.loads(fake.calls[0][1])
+    assert msg["player_id"] == "p-1"
+    assert msg["tile_id"] == "tile_0_0"
+    assert msg["options"] == [{"id": "ok", "text": "好的"}]
+    assert msg["reply_to_choice_id"] == "ask_business"
 
 
 @pytest.mark.asyncio
