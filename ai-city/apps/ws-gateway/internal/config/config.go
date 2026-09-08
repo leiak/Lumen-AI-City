@@ -13,6 +13,9 @@ type Config struct {
 	RedisURL string
 	// ChannelMoved 是 world-engine publish 的频道（与 REDIS_CHANNEL_MOVED 一致）
 	ChannelMoved string
+	// ChannelNpcDialogue 是 agent-os publish 的频道（Sprint 11+ 加 T02c）。
+	// 默认 "aicity:npc_dialogue"，与 agent-os T01d 约定一致。
+	ChannelNpcDialogue string
 	// JWTSecret 必须与 api-gateway 的 JWT_SECRET 相同，否则签发的 token 验不过
 	JWTSecret string
 	// AllowAnon 为 true 时 ?token= 缺失也放行（仅 dev/调试）
@@ -32,16 +35,17 @@ type Config struct {
 
 func Load() *Config {
 	return &Config{
-		Port:         getEnv("WS_GATEWAY_PORT", "8082"),
-		RedisURL:     getEnv("REDIS_URL", "redis://localhost:6379/0"),
-		ChannelMoved: getEnv("REDIS_CHANNEL_MOVED", "aicity:player:moved"),
-		JWTSecret:    getEnv("JWT_SECRET", "dev-secret-change-me"),
-		AllowAnon:    getEnv("WS_ALLOW_ANON", "false") == "true",
-		VerifyOrigin: getEnv("WS_VERIFY_ORIGIN", "false") == "true",
-		SendBuffer:   getEnvInt("WS_SEND_BUFFER", 16),
-		PingInterval: time.Duration(getEnvInt("WS_PING_INTERVAL_SEC", 30)) * time.Second,
-		LogLevel:     getEnv("LOG_LEVEL", "info"),
-		ServiceName:  getEnv("SERVICE_NAME", "ws-gateway"),
+		Port:               getEnv("WS_GATEWAY_PORT", "8082"),
+		RedisURL:           getEnv("REDIS_URL", "redis://localhost:6379/0"),
+		ChannelMoved:       getEnv("REDIS_CHANNEL_MOVED", "aicity:player:moved"),
+		ChannelNpcDialogue: getEnv("REDIS_CHANNEL_NPC_DIALOGUE", "aicity:npc_dialogue"),
+		JWTSecret:          getEnv("JWT_SECRET", "dev-secret-change-me"),
+		AllowAnon:          getEnv("WS_ALLOW_ANON", "false") == "true",
+		VerifyOrigin:       getEnv("WS_VERIFY_ORIGIN", "false") == "true",
+		SendBuffer:         getEnvInt("WS_SEND_BUFFER", 16),
+		PingInterval:       time.Duration(getEnvInt("WS_PING_INTERVAL_SEC", 30)) * time.Second,
+		LogLevel:           getEnv("LOG_LEVEL", "info"),
+		ServiceName:        getEnv("SERVICE_NAME", "ws-gateway"),
 		CORSAllowedOrigins: strings.Split(
 			getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"), ","),
 	}

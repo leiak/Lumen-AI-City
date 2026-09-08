@@ -1,9 +1,10 @@
-// Package main WebSocket Gateway（Sprint 9 实装）
+// Package main WebSocket Gateway（Sprint 9 + Sprint 11 多频道）
 //
-// 职责：Redis `aicity:player:moved` 订阅 → 扇出到所有 WS 连接。
+// 职责：Redis 多频道订阅（player_moved + npc_dialogue）→ 扇出到所有 WS 连接。
 //
-//	world-engine ─pub─> Redis ─sub─> api-gateway  (写 PG player_position)
-//	                          └sub─> ws-gateway ─ws─> web
+//	world-engine ─pub─> aicity:player:moved   ─sub─> api-gateway  (写 PG player_position)
+//	                                        └sub─> ws-gateway
+//	agent-os    ─pub─> aicity:npc_dialogue   ─sub─> ws-gateway
 //
 // 端点：
 //   - GET /ws?token=<jwt>  WebSocket 升级（HS256，密钥与 api-gateway 共享）
@@ -26,6 +27,7 @@ import (
 	"github.com/aicity/ws-gateway/internal/config"
 	"github.com/aicity/ws-gateway/internal/cors"
 	"github.com/aicity/ws-gateway/internal/hub"
+	"github.com/aicity/ws-gateway/internal/protocol"
 	wsredis "github.com/aicity/ws-gateway/internal/redis"
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
@@ -61,7 +63,30 @@ func main() {
 	h := hub.New(logger)
 	go h.Run(appCtx)
 
-	wsredis.PlayerMoved(appCtx, rdb, cfg.ChannelMoved, h, logger)
+	// 多频道订阅（Sprint 11+ T02c）：player_moved + npc_dialogue 共用同一
+	// hub.Broadcast 出口。每条消息到 hub 后再扇出到所有 WS 客户端。
+	// broadcastFilter 闭包等价于 redis.broadcastFilter（后者 unexported）——
+	// marshal 信封失败丢弃本条，否则把字节交给 hub 扇出。
+	broadcastFilter := func(env protocol.Envelope) bool {
+		out, err := json.Marshal(env)
+		if err != nil {
+			logger.Warn("marshal envelope failed",
+				zap.String("type", env.Type), zap.Error(err))
+			return true
+		}
+		h.Broadcast(out)
+		return false
+	}
+	go func() {
+		// RunMultiSubscriber 是阻塞的（wg.Wait），ctx 取消时返回。包在 goroutine
+		// 里让它和 PlayerMoved 旧版行为一致（fire-and-forget，靠 appCancel 关停）。
+		if err := wsredis.RunMultiSubscriber(appCtx, rdb, []wsredis.ChannelConfig{
+			{Channel: cfg.ChannelMoved, Type: protocol.TypePlayerMoved, Filter: broadcastFilter},
+			{Channel: cfg.ChannelNpcDialogue, Type: protocol.TypeNpcDialogue, Filter: broadcastFilter},
+		}, logger); err != nil {
+			logger.Error("multi-subscriber failed", zap.Error(err))
+		}
+	}()
 
 	verifier := auth.NewVerifier(cfg.JWTSecret)
 
@@ -80,7 +105,8 @@ func main() {
 	go func() {
 		logger.Info("ws-gateway starting",
 			zap.String("port", cfg.Port),
-			zap.String("channel", cfg.ChannelMoved),
+			zap.String("channel_moved", cfg.ChannelMoved),
+			zap.String("channel_npc_dialogue", cfg.ChannelNpcDialogue),
 			zap.Bool("allow_anon", cfg.AllowAnon),
 			zap.Bool("verify_origin", cfg.VerifyOrigin),
 			zap.Int("send_buffer", cfg.SendBuffer),
