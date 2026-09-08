@@ -1,0 +1,17 @@
+npc_id: npc_wang_boss_001
+home_tile: tile_1_1
+default_say: "来了您嘞！今儿买点嘛？"
+nodes:
+  ask_business:
+    say: "小店经营杂货：米面油盐酱醋茶。您要点嘛？"
+    options:
+      - id: yes_browse
+        text: "我看看"
+      - id: no_leave
+        text: "改天再来"
+  yes_browse:
+    say: "好嘞，慢慢挑。"
+    options: []
+  no_leave:
+    say: "得嘞，慢走。"
+    options: []
