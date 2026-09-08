@@ -1,5 +1,5 @@
 /**
- * WS 推送 → 应用状态的桥（Sprint 9）。
+ * WS 推送 → 应用状态的桥（Sprint 9 + Sprint 12）。
  *
  * 取代 WorldMap 原来的 3s 轮询：ws-gateway 收到 world-engine 的
  * `aicity:player:moved` 后立刻扇出，这里把信封分派成：
@@ -7,14 +7,23 @@
  *   - 任何玩家的 move    → dispatch `aicity:player_moved` CustomEvent，
  *                          WorldMap 收到后 debounce 重拉 /v1/tiles
  *
- * 为什么还要重拉 tiles：信封只带一个玩家的新坐标，tile.player_ids /
- * npc_ids 的归属变化要靠 /v1/tiles 才拿得到。推送在这里只当"失效通知"用。
+ * Sprint 12 新增 npc_dialogue 分派（来自 ws-gateway 的 agent-os NPC 对话流）：
+ *   - dispatch `aicity:npc_dialogue` CustomEvent，NPCDialog 组件订阅；
+ *     detail 是完整信封（envelope），消费方按 `e.detail.payload.{npc_id,say,...}` 取值
+ *   - 不进 zustand：对话是 ephemeral 推送流，组件本地 useState 更合适
+ *     （同一 NPC 多条对话重叠、Sprint 13 之后才考虑进 store 做历史回放）
+ *
+ * 为什么 player_moved 还要重拉 tiles：信封只带一个玩家的新坐标，
+ * tile.player_ids / npc_ids 的归属变化要靠 /v1/tiles 才拿得到。
  */
 import { ws } from '@/lib/ws';
 import { useGameStore } from '@/store/game';
 
 /** WorldMap 监听的事件名 */
 export const PLAYER_MOVED_EVENT = 'aicity:player_moved';
+
+/** NPCDialog 组件监听的事件名（Sprint 12 引入） */
+export const NPC_DIALOGUE_EVENT = 'aicity:npc_dialogue';
 
 /** 与 apps/ws-gateway/internal/protocol/message.go::Envelope 一致 */
 interface WsEnvelope<T> {
@@ -36,6 +45,29 @@ export interface PlayerMovedPayload {
   ts_ms: number;
 }
 
+/**
+ * 与 apps/ws-gateway/internal/protocol/message.go::NpcDialogue + DialogOption 一致。
+ *
+ * 区分两种语义（消费方按 reply_to_choice_id === null 判断）：
+ *   - active say：player_id=""、tile_id=""、reply_to_choice_id=null
+ *     （NPC 主动说，附近所有玩家都收到，options 通常为 []）
+ *   - reply    ：player_id/tile_id 非空、reply_to_choice_id="<choice_id>"
+ *     （NPC 回复某个玩家的选项，options 至少 1 条）
+ */
+export interface NpcDialogOption {
+  id: string;
+  text: string;
+}
+
+export interface NpcDialoguePayload {
+  npc_id: string;
+  player_id: string;
+  tile_id: string;
+  say: string;
+  options: NpcDialogOption[];
+  reply_to_choice_id: string | null;
+}
+
 function isPlayerMoved(msg: unknown): msg is WsEnvelope<PlayerMovedPayload> {
   if (typeof msg !== 'object' || msg === null) return false;
   const m = msg as Record<string, unknown>;
@@ -47,6 +79,20 @@ function isPlayerMoved(msg: unknown): msg is WsEnvelope<PlayerMovedPayload> {
     typeof p.player_id === 'string' &&
     typeof p.x === 'number' &&
     typeof p.y === 'number'
+  );
+}
+
+function isNpcDialogue(msg: unknown): msg is WsEnvelope<NpcDialoguePayload> {
+  if (typeof msg !== 'object' || msg === null) return false;
+  const m = msg as Record<string, unknown>;
+  if (m.type !== 'npc_dialogue') return false;
+  const p = m.payload as Record<string, unknown> | undefined;
+  // 只校最核心两个字段；options / reply_to_choice_id 留给消费方运行时处理
+  return (
+    typeof p === 'object' &&
+    p !== null &&
+    typeof p.npc_id === 'string' &&
+    typeof p.say === 'string'
   );
 }
 
@@ -65,16 +111,29 @@ export function startWsBridge(): () => void {
   }
 
   const off = ws.onMessage((msg) => {
-    if (!isPlayerMoved(msg)) return;
-
-    const p = msg.payload;
-    // 自己的 echo：用服务端权威坐标校准乐观更新
-    if (p.player_id === useGameStore.getState().playerId) {
-      useGameStore.getState().setPosition({ x: p.x, y: p.y });
+    if (isPlayerMoved(msg)) {
+      const p = msg.payload;
+      // 自己的 echo：用服务端权威坐标校准乐观更新
+      if (p.player_id === useGameStore.getState().playerId) {
+        useGameStore.getState().setPosition({ x: p.x, y: p.y });
+      }
+      // 无论谁移动都通知 WorldMap 重拉 tiles（tile.player_ids 归属可能变了）
+      window.dispatchEvent(
+        new CustomEvent<PlayerMovedPayload>(PLAYER_MOVED_EVENT, { detail: p })
+      );
+      return;
     }
 
-    // 无论谁移动都通知 WorldMap 重拉 tiles（tile.player_ids 归属可能变了）
-    window.dispatchEvent(new CustomEvent<PlayerMovedPayload>(PLAYER_MOVED_EVENT, { detail: p }));
+    if (isNpcDialogue(msg)) {
+      // Sprint 12 min slice: 只 dispatch CustomEvent 让 NPCDialog 组件订阅；
+      // detail 用完整信封而非只 payload，方便消费方读 trace_id 做关联分析。
+      window.dispatchEvent(
+        new CustomEvent<WsEnvelope<NpcDialoguePayload>>(NPC_DIALOGUE_EVENT, { detail: msg })
+      );
+      return;
+    }
+
+    // 未知 type：静默忽略。ws.ts 已经有 JSON.parse 兜底，这里再叠一层 type 过滤。
   });
 
   ws.connect(token);
