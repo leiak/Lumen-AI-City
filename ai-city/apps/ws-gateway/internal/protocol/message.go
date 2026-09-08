@@ -14,6 +14,7 @@ import (
 // 消息 type 常量
 const (
 	TypePlayerMoved = "player_moved"
+	TypeNpcDialogue = "npc_dialogue"
 )
 
 // Envelope 是所有下行消息的外层结构。
@@ -38,6 +39,31 @@ type PlayerMoved struct {
 	X        float32 `json:"x"`
 	Y        float32 `json:"y"`
 	TsMs     int64   `json:"ts_ms"`
+}
+
+// NpcDialogue 是 agent-os（T01d）序列化进 Redis 的 NPC 对话消息体。
+//
+// 区分两种语义（前端按 reply_to_choice_id === null 区分）：
+//   - active say：PlayerID="", TileID="", ReplyToChoiceID=nil
+//     （NPC 主动说，所有附近玩家都收到，options 通常为 []）
+//   - reply    ：PlayerID/TileID 非空，ReplyToChoiceID=&"<choice_id>"
+//     （NPC 回复某个玩家的选项，options 至少 1 条）
+//
+// 字段名必须与 agent-os 输出对齐（snake_case）—— web 端按 JSON key 取值。
+type NpcDialogue struct {
+	NpcID           string         `json:"npc_id"`
+	PlayerID        string         `json:"player_id"`         // "" when active say
+	TileID          string         `json:"tile_id"`           // "" when active say
+	Say             string         `json:"say"`
+	Options         []DialogOption `json:"options"`           // 始终 []（非 null）—— 即使空也是 []DialogOption{}
+	ReplyToChoiceID *string        `json:"reply_to_choice_id"` // nil → JSON null（active say）；非 nil → string（reply）
+}
+
+// DialogOption 是 NpcDialogue.Options 的元素。
+// id 是稳定的机器可读 key（agent-os 内部路由用），text 是给玩家看的中文/本地化文本。
+type DialogOption struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
 }
 
 // NewEnvelope 用原始 payload 字节包一个信封。
