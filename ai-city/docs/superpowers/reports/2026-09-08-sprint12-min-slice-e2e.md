@@ -189,7 +189,7 @@ docker compose exec -T redis redis-cli SUBSCRIBE aicity:npc_dialogue
 - **talk_tree only on api-gateway side** —— agent-os 只用 `say.greeting` 随机；
   api-gateway 的 `/v1/npc/talk` 也只能返 `NPC_002`（YAML 还没补 talk_tree 节点）
 - **No player position tracking** —— `npc_dialogue` 事件里 `player_id=""`（active say 没人触发）
-- **Hardcoded NPC positions** —— `web/src/lib/npc-positions.ts` 只有王老板；后续从 world-engine fetch
+- **Hardcoded NPC positions** —— `web/src/lib/npc-positions.ts` 目前 2 个 NPCs 配置，但只渲染 王老板 marker；后续从 world-engine fetch
 - **5s tick interval** —— 无事件驱动；玩家进 tile 不会主动触发 greeting
 - **No multi-NPC UI** —— 仅有 `npc_wang_boss_001` 一个 marker；`lihua.yaml` 留作 fixture
 - **Wang_boss tile id mismatch 风险** —— `home_tile_id: tile_0_0`（与 web 端硬编码一致），
