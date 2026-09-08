@@ -3,8 +3,8 @@
 # ============================================
 # 用法: docker compose up -d --build
 #
-# 七个容器：postgres + redis + world-engine + api-gateway + a2a-gateway
-#           + ws-gateway + web
+# 八个容器：postgres + redis + world-engine + api-gateway + a2a-gateway
+#           + ws-gateway + web + agent-os
 # schema 由 postgres 的 /docker-entrypoint-initdb.d 自动初始化（仅数据卷为空时）。
 # 原生 .exe 跑法已废弃，容器是唯一入口。
 
@@ -91,6 +91,15 @@ services:
       # 否则登录响应被浏览器丢弃（curl 看不出问题）
       CORS_ALLOWED_ORIGINS: http://localhost:3000
       LOG_LEVEL: info
+      # Sprint 12：/v1/npc/talk 用 talk_tree（api-gateway 侧 lookup），
+      # 目录与 agent-os 共享同一份 bind mount，保证两边看到的 NPC 一致。
+      NPC_CONFIG_DIR: /etc/aicity/npc-templates
+      # Sprint 12：与 agent-os 保持同一频道名（main.go:117 写死，但留 env
+      # 槽位便于以后从 env 取）。当前 agent-os 默认值 = aicity:npc_dialogue。
+      REDIS_CHANNEL_NPC_DIALOGUE: aicity:npc_dialogue
+    volumes:
+      # 同一份模板 mount 进 agent-os 和 api-gateway；:ro 防容器内误改 host。
+      - ./packages/npc-templates:/etc/aicity/npc-templates:ro
     depends_on:
       # 启动期硬依赖：worldgrpc.NewClient 用 grpc.WithBlock() + 5s 超时，
       # 失败即 logger.Fatal（cmd/main.go:81）。PG / Redis ping 同样 fatal。
@@ -181,6 +190,44 @@ services:
       # web 全是客户端渲染，无 SSR 取数，不需要 gate 在 healthy 上
       api-gateway:
         condition: service_started
+    restart: unless-stopped
+
+  agent-os:
+    # Sprint 12：NPC 主动说（active say）服务。FastAPI + lifespan 启 SayScheduler
+    # 后台 asyncio.Task，每 SAY_TICK_SECONDS 触发一轮 npc.Say()。
+    build:
+      context: .
+      dockerfile: apps/agent-os/Dockerfile
+    container_name: agent-os
+    ports:
+      - '8084:8084'
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      REDIS_CHANNEL_NPC_DIALOGUE: aicity:npc_dialogue
+      NPC_TEMPLATES_DIR: /etc/aicity/npc-templates
+      HTTP_PORT: '8084'
+      LOG_LEVEL: info
+      SERVICE_NAME: agent-os
+      SAY_TICK_SECONDS: '5.0'
+    volumes:
+      # 与 api-gateway 共用同一份 bind mount；:ro 保护 host 源文件。
+      - ./packages/npc-templates:/etc/aicity/npc-templates:ro
+    depends_on:
+      # SayScheduler 启动后第一轮 tick 就会 publish，没 redis 就直接抛。
+      # Redis ping 仅 best-effort（app.py:62），但 publish 是 hot path。
+      redis:
+        condition: service_healthy
+      # 不强制 healthy：api-gateway 不卡 ws-gateway 健康，同理这里也不卡。
+      api-gateway:
+        condition: service_started
+    healthcheck:
+      # /healthz 不依赖 redis 真活着（app.py:82）—— 只看进程是否在 listen。
+      # 用 wget 而非 curl：镜像走 python:3.12-slim 不带 curl，wget 在 busybox。
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8084/healthz']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
 volumes:
