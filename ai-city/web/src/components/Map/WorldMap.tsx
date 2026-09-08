@@ -17,7 +17,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type Tile } from '@/lib/api';
 import { useGameStore } from '@/store/game';
 import { TILE_SIZE, tileIdAt } from '@/lib/world-coords';
-import { PLAYER_MOVED_EVENT } from '@/lib/ws-events';
+import { NPC_DIALOGUE_EVENT, PLAYER_MOVED_EVENT } from '@/lib/ws-events';
+import { getNpcDisplayName } from '@/lib/npc-positions';
 
 /** 推送合并窗口：多人同时移动时把多条 player_moved 折成一次 /v1/tiles */
 const REFETCH_DEBOUNCE_MS = 200;
@@ -147,11 +148,65 @@ export function WorldMap() {
     return () => clearInterval(t);
   }, [playerId]);
 
+  /**
+   * 点 NPC 派发合成 greeting 信封（Sprint 12 T03d min slice）。
+   *
+   * 两处调用：
+   *   1. NPC 圆点的 onClick（直接、可测试；stopPropagation 防触发 svg 移动）
+   *   2. svg onClick 的 closest 命中分支（兜底；防御 <title>/未来扩展元素命中）
+   *
+   * Sprint 13+ 替换为：点 NPC → POST /v1/npc/talk（probe）→ 触发 agent-os
+   * 异步 push 真 say envelope。本函数保留作 legacy greeting fallback。
+   */
+  const dispatchNpcGreeting = useCallback(
+    (npcId: string) => {
+      if (!playerId) return;
+      const tile = state.tiles.find((t) => t.npc_ids.includes(npcId));
+      const tileId = tile?.id ?? '';
+      const displayName = getNpcDisplayName(npcId);
+      // 选项给 [greet / leave]，点 leave 客户端识别后直接关 dialog（NPCDialog 暂未实现该协议，
+      // 会调 api.postNpcTalk('leave')，后端 404 是可接受的 fallback —— 1.0 简化）。
+      const env = {
+        type: 'npc_dialogue' as const,
+        trace_id:
+          typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `t-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        ts_ms: Date.now(),
+        payload: {
+          npc_id: npcId,
+          player_id: playerId,
+          tile_id: tileId,
+          say: `${displayName}在。`,
+          options: [
+            { id: 'greet', text: '打招呼' },
+            { id: 'leave', text: '离开' },
+          ],
+          reply_to_choice_id: null,
+        },
+      };
+      window.dispatchEvent(new CustomEvent(NPC_DIALOGUE_EVENT, { detail: env }));
+    },
+    [playerId, state.tiles],
+  );
+
   const onSvgClick = async (e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current) return;
     if (!playerId) {
       setState((s) => ({ ...s, error: '未登录（playerId 缺失）' }));
       return;
+    }
+    // T03d 兜底：NPC 圆点 onClick 会 stopPropagation，所以 svg 层大多数时候
+    // 看不到 NPC 命中；但未来 <title>/扩展元素可能无 onClick —— closest
+    // 兜底保证"只要点中带 data-npc-id 祖先的子元素，都触发 NPCDialog"。
+    const target = e.target as Element | null;
+    const npcEl = target?.closest?.('[data-npc-id]');
+    if (npcEl) {
+      const npcId = npcEl.getAttribute('data-npc-id');
+      if (npcId) {
+        dispatchNpcGreeting(npcId);
+        return;
+      }
     }
     // e.target 是事件触发的元素；点 polygon/circle 不发 move（留给后续 chat/NPC 交互）
     const tag = (e.target as Element).tagName;
@@ -217,7 +272,8 @@ export function WorldMap() {
             <TileGroup key={t.id} tile={t} />
           ))}
 
-          {/* NPC 圆点（用所在 tile 中心） */}
+          {/* NPC 圆点（用所在 tile 中心）—— T03d：onClick 直接触发 NPCDialog,
+              stopPropagation 防冒泡到 svg 触发 move 逻辑；svg 层有 closest 兜底 */}
           {state.tiles.flatMap((t) =>
             t.npc_ids.map((nid) => (
               <circle
@@ -229,6 +285,11 @@ export function WorldMap() {
                 stroke="#78350f"
                 strokeWidth={0.5}
                 data-npc-id={nid}
+                style={{ cursor: 'pointer' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  dispatchNpcGreeting(nid);
+                }}
               >
                 <title>{nid}</title>
               </circle>
