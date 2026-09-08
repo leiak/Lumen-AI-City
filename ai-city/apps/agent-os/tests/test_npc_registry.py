@@ -69,6 +69,27 @@ def test_yaml_missing_npc_id_raises(tmp_path: Path):
         reg.get("bad")
 
 
+def test_list_enabled_skips_load_errors(tmp_path: Path):
+    """Regression: list_enabled() must skip _LoadError entries, not crash."""
+    # valid NPC
+    _write_yaml(tmp_path, "good.yaml", """\
+        npc_id: npc_good
+        enabled: true
+        say:
+          greeting: ["hi"]
+    """)
+    # invalid NPC (uses old schema)
+    _write_yaml(tmp_path, "bad.yaml", """\
+        agent_id: legacy_001
+        enabled: true
+    """)
+    reg = NpcRegistry(tmp_path)
+    enabled = reg.list_enabled()
+    # Only the valid NPC should appear
+    assert len(enabled) == 1
+    assert enabled[0].npc_id == "npc_good"
+
+
 def test_ocean_fields_parsed(tmp_path: Path):
     _write_yaml(tmp_path, "wang_boss.yaml", """\
         npc_id: npc_wang_boss_001

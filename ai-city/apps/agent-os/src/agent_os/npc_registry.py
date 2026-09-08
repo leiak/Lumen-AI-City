@@ -158,4 +158,7 @@ class NpcRegistry:
         return val
 
     def list_enabled(self) -> list[NpcTemplate]:
-        return [t for t in self._by_id.values() if t.enabled]
+        return [
+            t for t in self._by_id.values()
+            if not isinstance(t, _LoadError) and t.enabled
+        ]
