@@ -12,6 +12,20 @@
 > Stakeholder demo 包：[`docs/1.0-demo-package/`](docs/1.0-demo-package/) ·
 > 演示流程：[`docs/1.0-demo-script.md`](docs/1.0-demo-script.md) ·
 > Release notes：[`docs/1.0-demo-package/CHANGELOG-1.0.md`](docs/1.0-demo-package/CHANGELOG-1.0.md)
+>
+> ---
+>
+> **🔭 2.0 展望（Proposed — 等 1.0 GA 后启动）**：[`ADR-0007`](docs/adr/0007-2.0-scope-llm-federation-memory-saga.md)
+>
+> 4 大核心差异化能力：**LLM-NPC**（agent-os 接入 Claude Sonnet 4.6，dispatcher.say 走 LiteLLM）/ **记忆系统**（Milvus 2.4，per-player context top-K=5）/ **Saga 剧本引擎**（Kafka 3.7 + saga-orchestrator + saga-worker，3 NPC 协作 + 失败回滚）/ **A2A 联邦第 1 个外部 Agent**（a2a-gateway 复活 + openClaw Adapter，稳定运行 7 天）。
+>
+> **8 → 11 容器**（a2a-gateway 复活 + memory-service / saga-orchestrator / saga-worker stub → 真服务）+ 外部 Milvus + Kafka 基础设施。
+>
+> **启动条件**：1.0 GA + 1 个 LLM-NPC 实跑 7 天无 crash + 具体"为什么需要联邦"场景 doc + Tech Lead 评审。
+>
+> **工期估算**：阶段 1（桶 1 必做 4 项）14 周 + 阶段 2（桶 2 候选 6 项取舍 2 项）3 周 + 阶段 3（缓冲 + 2.0 GA 收尾）2 周 = **19 周 ≈ 4.5 个月**。
+>
+> **成功判据**（stakeholder 视角）：1. "NPC 记得我上次说了什么"（记忆）· 2. "NPC 用 LLM 跟我聊天"（LLM）· 3. "3 NPC 协作 + 失败回滚"（Saga）。**只能记 1 件 → NPC 记忆**（2.0 最差异化）。
 
 ---
 
