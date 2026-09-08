@@ -1,7 +1,7 @@
-[tool.uv]
+[tool.uv.workspace]
 # Python workspace root - all Python packages live under apps/ or packages/
 # Install with: uv sync --all-packages
-workspace = [
+members = [
     "apps/agent-os",
     "apps/memory-service",
     "apps/saga-orchestrator",
