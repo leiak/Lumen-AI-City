@@ -1,8 +1,11 @@
 /**
  * NPCDialog 类型定义 —— 单独抽出避免和 ws-events.ts 形成循环 import。
  *
- * ws-events.ts 同时被 client（这里）和 server-only 路径引用；类型按值搬过来
- * 保持结构同源；运行时仍走 ws-events 的 NPC_DIALOGUE_EVENT 常量。
+ * 类型大部分与 ws-events.ts 的 WsEnvelope<T> 同源，
+ * 故意把 envelope 顶层字段（trace_id / ts_ms / payload）标为 optional，
+ * 是为了让 CustomEvent detail 的防御性读路径（ce.detail?.payload）在
+ * 极端 malformed 帧时不抛 TS error。运行时 dispatch（ws-events.ts）
+ * 始终填齐全部字段，所以这是纯类型层防御，不影响 wire contract。
  */
 export interface NpcDialogOption {
   id: string;
