@@ -22,4 +22,6 @@ class Settings(BaseSettings):
     say_tick_seconds: float = 5.0
 
 
+# Alias used by app factory:  spec 文档统一写 `Config()`。
+Config = Settings
 settings = Settings()
