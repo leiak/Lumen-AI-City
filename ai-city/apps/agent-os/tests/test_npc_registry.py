@@ -67,3 +67,54 @@ def test_yaml_missing_npc_id_raises(tmp_path: Path):
     reg = NpcRegistry(tmp_path)
     with pytest.raises(ValueError):
         reg.get("bad")
+
+
+def test_ocean_fields_parsed(tmp_path: Path):
+    _write_yaml(tmp_path, "wang_boss.yaml", """\
+        npc_id: npc_wang_boss_001
+        enabled: true
+        personality:
+          openness: 0.3
+          conscientiousness: 0.9
+          extraversion: 0.8
+          agreeableness: 0.4
+          neuroticism: 0.2
+        say:
+          greeting:
+            - "来了您嘞！"
+    """)
+    reg = NpcRegistry(tmp_path)
+    tpl = reg.get("npc_wang_boss_001")
+    assert tpl.personality is not None
+    assert tpl.personality.openness == 0.3
+    assert tpl.personality.conscientiousness == 0.9
+    assert tpl.personality.extraversion == 0.8
+    assert tpl.personality.agreeableness == 0.4
+    assert tpl.personality.neuroticism == 0.2
+
+
+def test_ocean_optional_defaults_to_none(tmp_path: Path):
+    _write_yaml(tmp_path, "wang_boss.yaml", """\
+        npc_id: npc_wang_boss_001
+        enabled: true
+        say:
+          greeting:
+            - "来了您嘞！"
+    """)
+    reg = NpcRegistry(tmp_path)
+    tpl = reg.get("npc_wang_boss_001")
+    # 没有 personality 块 → None (向后兼容老 YAML)
+    assert tpl.personality is None
+
+
+def test_ocean_partial_raises(tmp_path: Path):
+    _write_yaml(tmp_path, "wang_boss.yaml", """\
+        npc_id: npc_wang_boss_001
+        enabled: true
+        personality:
+          openness: 0.3
+        # 缺少其他 4 个字段
+    """)
+    reg = NpcRegistry(tmp_path)
+    with pytest.raises((ValueError, KeyError)):
+        reg.get("npc_wang_boss_001")

@@ -41,6 +41,18 @@ class TalkTree:
     nodes: dict[str, TalkNode] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class OceanPersonality:
+    """OCEAN 五维人格 (Openness, Conscientiousness, Extraversion, Agreeableness, Neuroticism).
+    每个字段 0.0–1.0 float；Sprint 13+ 才会被 dispatcher 用来影响台词选择。
+    """
+    openness: float          # 开放性
+    conscientiousness: float # 尽责性
+    extraversion: float      # 外向性
+    agreeableness: float     # 宜人性
+    neuroticism: float       # 神经质
+
+
 @dataclass
 class NpcTemplate:
     npc_id: str
@@ -50,6 +62,7 @@ class NpcTemplate:
     avatar_url: str = ""
     say: Say = field(default_factory=Say)
     talk_tree: TalkTree = field(default_factory=TalkTree)
+    personality: OceanPersonality | None = None  # 可选；旧 YAML 没填则 None
 
 
 @dataclass
@@ -86,6 +99,22 @@ def _load_one(path: Path) -> NpcTemplate:
         )
     tree = TalkTree(initial=str(tree_data.get("initial", "") or ""), nodes=nodes)
 
+    personality = None
+    if "personality" in data and data["personality"] is not None:
+        p = data["personality"]
+        if not isinstance(p, dict):
+            raise ValueError(f"{path.name}: personality must be a mapping")
+        try:
+            personality = OceanPersonality(
+                openness=float(p["openness"]),
+                conscientiousness=float(p["conscientiousness"]),
+                extraversion=float(p["extraversion"]),
+                agreeableness=float(p["agreeableness"]),
+                neuroticism=float(p["neuroticism"]),
+            )
+        except KeyError as e:
+            raise ValueError(f"{path.name}: personality missing field {e}")
+
     return NpcTemplate(
         npc_id=npc_id,
         name=str(data.get("name", "") or ""),
@@ -94,6 +123,7 @@ def _load_one(path: Path) -> NpcTemplate:
         avatar_url=str(data.get("avatar_url", "") or ""),
         say=say,
         talk_tree=tree,
+        personality=personality,
     )
 
 
