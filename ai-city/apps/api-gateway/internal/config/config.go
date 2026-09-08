@@ -20,6 +20,9 @@ type Config struct {
 	WorldGRPCAddr string
 	// CORS allowlist（逗号分隔的 origin），默认放通 web 的 http://localhost:3000
 	CORSAllowedOrigins []string
+	// Sprint 12：NPC 模板目录（*.yaml/*.yml），启动期一次性 LoadAll。
+	// 缺目录或解析失败时 best-effort 跳过，服务仍可启动但 /v1/npc/talk 会 NPC_001。
+	NPCConfigDir string
 }
 
 func Load() *Config {
@@ -35,6 +38,7 @@ func Load() *Config {
 		WorldGRPCAddr: getEnv("WORLD_ENGINE_GRPC_ADDR", "127.0.0.1:50051"),
 		CORSAllowedOrigins: strings.Split(
 			getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"), ","),
+		NPCConfigDir: getEnv("NPC_CONFIG_DIR", "./configs/npc"),
 	}
 }
 

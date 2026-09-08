@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *store.PlayerStore, worldClient *worldgrpc.Client) {
+func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *store.PlayerStore, worldClient *worldgrpc.Client, npcTalkHandler *handlers.NPCTalkHandler) {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": cfg.ServiceName})
 	})
@@ -46,7 +46,10 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		authed.GET("/players/me", playerHandler.Me)
 		authed.GET("/players/:id", playerHandler.GetByID)
 
-		// NPC 相关（占位）
+		// NPC 相关
+		// Sprint 12: POST /v1/npc/talk — body 含 {npc_id, player_id, choice_id}
+		authed.POST("/npc/talk", npcTalkHandler.Handle)
+		// 旧占位（保留以免破坏前端假设；T05 系列外另起 task 替换）
 		authed.GET("/npcs/:id", func(c *gin.Context) { c.JSON(501, gin.H{"error": "TODO"}) })
 		authed.POST("/npcs/:id/dialogue", func(c *gin.Context) { c.JSON(501, gin.H{"error": "TODO"}) })
 

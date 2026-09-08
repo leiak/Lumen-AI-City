@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/aicity/api-gateway/internal/config"
+	"github.com/aicity/api-gateway/internal/handlers"
 	"github.com/aicity/api-gateway/internal/middleware"
+	"github.com/aicity/api-gateway/internal/npc"
 	"github.com/aicity/api-gateway/internal/router"
 	"github.com/aicity/api-gateway/internal/store"
 	"github.com/aicity/api-gateway/internal/subscriber"
@@ -24,6 +26,15 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
+
+// stringRedisPublisher 适配 *redis.Client 的 Publish(ctx, channel string, payload interface{})
+// 到 handlers.RedisPublisher 要求的 Publish(ctx, channel, payload string)。
+// 仅 npc_talk 用 — handler 内部 payload 是 string，避免给整个 handlers 包暴露 interface{} 入参。
+type stringRedisPublisher struct{ c *redis.Client }
+
+func (s stringRedisPublisher) Publish(ctx context.Context, channel, payload string) *redis.IntCmd {
+	return s.c.Publish(ctx, channel, payload)
+}
 
 func main() {
 	cfg := config.Load()
@@ -80,6 +91,18 @@ func main() {
 	playerStore := store.NewPlayerStore(db)
 	subscriber.PlayerMoved(appCtx, rdb, "aicity:player:moved", playerStore, logger)
 
+	// Sprint 12：加载 NPC talk_tree YAML（best-effort — 目录不存在/解析失败
+	// 仅 warn，不阻断启动；服务带空 trees 也能起，/v1/npc/talk 会全 NPC_001）。
+	trees, npcErr := npc.LoadAll(cfg.NPCConfigDir)
+	if npcErr != nil {
+		logger.Warn("npc config dir load failed; serving with empty tree map",
+			zap.String("dir", cfg.NPCConfigDir), zap.Error(npcErr))
+		trees = map[string]*npc.Tree{}
+	}
+	logger.Info("npc trees loaded",
+		zap.String("dir", cfg.NPCConfigDir),
+		zap.Int("count", len(trees)))
+
 	// Sprint 3.5：连接 world-engine gRPC（高频写路径 /v1/world/move 用）
 	worldClient, err := worldgrpc.NewClient(cfg.WorldGRPCAddr)
 	if err != nil {
@@ -89,7 +112,11 @@ func main() {
 	defer worldClient.Close()
 	logger.Info("world-engine gRPC connected", zap.String("addr", cfg.WorldGRPCAddr))
 
-	router.Register(r, cfg, db, playerStore, worldClient)
+	// Sprint 12：构造 NPC talk handler（POST /v1/npc/talk，body 含 npc_id/player_id/choice_id；
+	// reply 同步返 + best-effort publish 到 aicity:npc_dialogue 给 ws-gateway fanout）。
+	npcTalkHandler := handlers.NewNPCTalkHandler(trees, stringRedisPublisher{rdb}, logger, "aicity:npc_dialogue")
+
+	router.Register(r, cfg, db, playerStore, worldClient, npcTalkHandler)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
