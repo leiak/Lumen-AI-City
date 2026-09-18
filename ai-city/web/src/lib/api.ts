@@ -38,6 +38,13 @@ export interface MoveResponse {
   source_channel?: string;
 }
 
+export interface NpcInfo {
+  npc_id: string;
+  name: string;
+  home_tile_id: string;
+  say: string;
+  options: Array<{ id: string; text: string }>;
+}
 class ApiClient {
   private token: string | null = null;
 
@@ -89,7 +96,7 @@ class ApiClient {
       body: JSON.stringify(params),
     });
 
-  getNpc = (id: string) => this.request<unknown>(`/v1/npcs/${id}`);
+  getNpc = (id: string) => this.request<NpcInfo>(`/v1/npcs/${id}`);
 
   dialogue = (npcId: string, message: string) =>
     this.request<{ reply: string }>(`/v1/npcs/${npcId}/dialogue`, {
@@ -109,6 +116,7 @@ class ApiClient {
         choice_id: choiceId,
       }),
     });
+
 }
 
 export const api = new ApiClient();

@@ -21,11 +21,40 @@ say:
     - "来了您嘞！今儿喝点什么？"
     - "哟，您来了！坐坐，马上给您沏茶。"
     - "欢迎光临小店，您随便看看。"
-  welcome: []                # 留给 T07 / Sprint 13+
+  welcome:
+    - "哟，客官您来了！正好刚烫了壶好茶，先给您倒上。"
   default_reply: "您先看着，我忙完这茬儿再说。"
 
-# talk_tree 留给 Sprint 13+：当 api-gateway /v1/npc/talk 接 choice_id 时，
-# 走 talk_tree[choice_id].say 路径返回对应台词。Sprint 12 演示用 say.greeting 随机即可。
+# talk_tree：玩家可点的对话树（api-gateway /v1/npc/talk 按 choice_id 查 nodes；
+# agent-os 主动 say 时取 initial(此处为 root) 节点的 options 让玩家有得选）。
+# 单一真源：agent-os 与 api-gateway 都解析本文件的 talk_tree 块。
+talk_tree:
+  initial: root
+  default_say: "您先看着，我忙完这茬儿再说。"
+  nodes:
+    root:
+      say: "来了您嘞！几位？"
+      options:
+        - {id: ask_food, text: "有什么招牌菜？"}
+        - {id: ask_gossip, text: "最近城里有什么新鲜事？"}
+        - {id: leave, text: "我先走了，回见。"}
+    ask_food:
+      say: "老北京炸酱面，酱是我三天前亲手炖的，保您满意。"
+      options:
+        - {id: ask_food_price, text: "多少钱一碗？"}
+        - {id: leave, text: "来一碗，先记我账上。"}
+    ask_food_price:
+      say: "十八块一碗，加两份菜码。主食管够。"
+      options:
+        - {id: leave, text: "行，那我点的就这个。"}
+    ask_gossip:
+      say: "嘿，听说东城把那个旧戏台要重新翻修，老李头逢人就说要去唱两嗓子。"
+      options:
+        - {id: ask_food, text: "那他们唱我边吃面边听。"}
+        - {id: leave, text: "长见识了，改天再来听。"}
+    leave:
+      say: "慢走，明儿再来坐。"
+      options: []
 
 # ——— 以下字段仅作策划/剧情参考，agent-os 暂不读取 ———
 

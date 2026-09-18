@@ -31,6 +31,7 @@ vi.mock('@/lib/api', () => ({
   api: {
     getTiles: vi.fn(),
     move: vi.fn(),
+    getNpc: vi.fn(),
     setToken: vi.fn(),
   },
 }));
@@ -86,6 +87,16 @@ describe('WorldMap - NPC 命中 (T03d)', () => {
       ts_ms: Date.now(),
       accepted: true,
     });
+    vi.mocked(api.getNpc).mockResolvedValue({
+      npc_id: 'npc_wang_boss_001',
+      name: '王老板',
+      home_tile_id: 'tile_1_1',
+      say: '来了您嘞！几位？',
+      options: [
+        { id: 'ask_food', text: '有什么招牌菜？' },
+        { id: 'leave', text: '我先走了，回见。' },
+      ],
+    });
     onDialogue = vi.fn();
     window.addEventListener(NPC_DIALOGUE_EVENT, onDialogue);
   });
@@ -124,12 +135,12 @@ describe('WorldMap - NPC 命中 (T03d)', () => {
       npc_id: 'npc_wang_boss_001',
       player_id: 'test-player-id',
       tile_id: 'tile_1_1',
-      say: '王老板在。',
+      say: '来了您嘞！几位？',
       reply_to_choice_id: null,
     });
     expect(detail.payload.options).toEqual([
-      { id: 'greet', text: '打招呼' },
-      { id: 'leave', text: '离开' },
+      { id: 'ask_food', text: '有什么招牌菜？' },
+      { id: 'leave', text: '我先走了，回见。' },
     ]);
   });
 
@@ -143,5 +154,22 @@ describe('WorldMap - NPC 命中 (T03d)', () => {
       expect(onDialogue).toHaveBeenCalledTimes(1);
     });
     expect(api.move).not.toHaveBeenCalled();
+  });
+
+  it('getNpc 失败时降级为 legacy greeting', async () => {
+    vi.mocked(api.getNpc).mockRejectedValue(new Error('boom'));
+    render(<WorldMap />);
+    const npc = await waitFor(findNpc);
+    fireEvent.click(npc);
+
+    await waitFor(() => {
+      expect(onDialogue).toHaveBeenCalledTimes(1);
+    });
+    const detail = onDialogue.mock.calls[0][0].detail;
+    expect(detail.payload.say).toBe('王老板在。');
+    expect(detail.payload.options).toEqual([
+      { id: 'greet', text: '打招呼' },
+      { id: 'leave', text: '离开' },
+    ]);
   });
 });

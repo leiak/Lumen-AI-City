@@ -16,7 +16,7 @@
 /** npc_id → 显示名（中文）。fallback 到 npc_id 自身，避免 UI 显示空白 */
 const NPC_DISPLAY_NAMES: Record<string, string> = {
   npc_wang_boss_001: '王老板',
-  npc_lihua_002: '李华',
+  npc_lihua_001: '李华',
 };
 
 /** 查 NPC 显示名。找不到时返回 npc_id 自身（Sprint 12 NPCDialog 的同款兜底） */

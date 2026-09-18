@@ -21,12 +21,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { NPC_DIALOGUE_EVENT } from '@/lib/ws-events';
+import { useGameStore } from '@/store/game';
 import type { NpcDialoguePayload, WsEnvelopeLike } from './NPCDialog.types';
 
 /** npc_id → 显示名（Sprint 12 min slice 静态表；后续换 manifest / /v1/npcs） */
 const NPC_NAMES: Record<string, string> = {
   npc_wang_boss_001: '王老板',
-  npc_lihua_002: '李华',
+  npc_lihua_001: '李华',
 };
 
 export function NPCDialog() {
@@ -39,7 +40,12 @@ export function NPCDialog() {
     function onNpc(ev: Event) {
       const ce = ev as CustomEvent<WsEnvelopeLike>;
       if (ce.detail?.type !== 'npc_dialogue' || !ce.detail.payload) return;
-      setPayload(ce.detail.payload);
+      const p = ce.detail.payload;
+      // Sprint 13：专属台词（welcome / reply 带非空 player_id）只渲染给目标玩家；
+      // 主动广播（player_id==""）或未登录（无 myId 可比对）时对所有人显示。
+      const myId = useGameStore.getState().playerId;
+      if (p.player_id && myId && p.player_id !== myId) return;
+      setPayload(p);
     }
     window.addEventListener(NPC_DIALOGUE_EVENT, onNpc as EventListener);
     return () =>
@@ -64,10 +70,13 @@ export function NPCDialog() {
     if (!payload) return;
     setBusy(true);
     try {
-      // active say 时 payload.player_id === ''，按接口契约透传即可
-      await api.postNpcTalk(payload.npc_id, choiceId, payload.player_id || '');
-      // 真正刷新：等下一次 npc_dialogue WS 事件（api-gateway 同步 publish），
-      // 或 reply 不带 options → 用户按 Esc 关闭。
+      // player_id 优先取登录态（active say 的 payload.player_id 为空，直接透传会被
+      // handler 的必填校验拦下）；未登录则退回 payload 值。
+      const playerId = useGameStore.getState().playerId || payload.player_id || '';
+      const reply = await api.postNpcTalk(payload.npc_id, choiceId, playerId);
+      // Sprint 13: 用同步响应立刻渲染下一句（后端把响应体当唯一真源）。
+      // WS 的 npc_dialogue 事件作为冗余；二者数据一致，先到先显示。
+      setPayload(reply);
     } catch (e) {
       // 失败：保留当前 dialog，让用户重试或 Esc 关；这里只记日志
       console.error('[NPCDialog] postNpcTalk failed', e);

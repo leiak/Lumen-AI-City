@@ -159,13 +159,24 @@ export function WorldMap() {
    * 异步 push 真 say envelope。本函数保留作 legacy greeting fallback。
    */
   const dispatchNpcGreeting = useCallback(
-    (npcId: string) => {
+    async (npcId: string) => {
       if (!playerId) return;
       const tile = state.tiles.find((t) => t.npc_ids.includes(npcId));
       const tileId = tile?.id ?? '';
       const displayName = getNpcDisplayName(npcId);
-      // 选项给 [greet / leave]，点 leave 客户端识别后直接关 dialog（NPCDialog 暂未实现该协议，
-      // 会调 api.postNpcTalk('leave')，后端 404 是可接受的 fallback —— 1.0 简化）。
+      // Sprint 13：点 NPC 先拉真实初始节点（say + options）；失败降级为 legacy 问候。
+      let say = `${displayName}在。`;
+      let options: Array<{ id: string; text: string }> = [
+        { id: 'greet', text: '打招呼' },
+        { id: 'leave', text: '离开' },
+      ];
+      try {
+        const info = await api.getNpc(npcId);
+        if (info.say) say = info.say;
+        if (info.options && info.options.length > 0) options = info.options;
+      } catch (e) {
+        console.warn(`[WorldMap] getNpc(${npcId}) failed, using legacy greeting`, e);
+      }
       const env = {
         type: 'npc_dialogue' as const,
         trace_id:
@@ -177,11 +188,8 @@ export function WorldMap() {
           npc_id: npcId,
           player_id: playerId,
           tile_id: tileId,
-          say: `${displayName}在。`,
-          options: [
-            { id: 'greet', text: '打招呼' },
-            { id: 'leave', text: '离开' },
-          ],
+          say,
+          options,
           reply_to_choice_id: null,
         },
       };

@@ -29,11 +29,44 @@ type Node struct {
 //
 // Nodes is keyed by choice_id — i.e. the id the player sent on the previous
 // turn (or the NPC's "root" choice_id for the first turn).
+//
+// The canonical source is the shared `talk_tree:` block in
+// packages/npc-templates/*.yaml (also parsed by agent-os), so LoadFromFile
+// normalizes that nested block into these flat fields. Legacy top-level
+// `nodes:` / `home_tile` are still honoured for backward compatibility.
 type Tree struct {
 	NpcID      string          `yaml:"npc_id" json:"npc_id"`
+	Name       string          `yaml:"name" json:"name"`
 	HomeTile   string          `yaml:"home_tile" json:"home_tile"`
+	HomeTileID string          `yaml:"home_tile_id" json:"-"` // alias used by world-engine / agent-os templates
 	DefaultSay string          `yaml:"default_say" json:"default_say"`
-	Nodes      map[string]Node `yaml:"nodes" json:"nodes"`
+	Nodes      map[string]Node `yaml:"nodes" json:"nodes"` // legacy inline nodes
+	TalkTree   *TalkTreeBlock  `yaml:"talk_tree" json:"-"` // preferred shared block
+	Initial    string          `yaml:"-" json:"initial"`   // first-turn choice_id (root)
+}
+
+// TalkTreeBlock is the nested `talk_tree:` section that both api-gateway and
+// agent-os read from the same packages/npc-templates/*.yaml files. It mirrors
+// agent_os.npc_registry.TalkTree.
+type TalkTreeBlock struct {
+	Initial    string          `yaml:"initial"`
+	DefaultSay string          `yaml:"default_say"`
+	Nodes      map[string]Node `yaml:"nodes"`
+}
+
+// InitialChoice returns the choice_id to seed a fresh conversation from (the
+// root node). Returns "" when the tree has no explicit root.
+func (t *Tree) InitialChoice() string {
+	return t.Initial
+}
+
+// InitialNode returns the root node (InitialChoice) that seeds a fresh
+// conversation, plus false if the tree has no root node.
+func (t *Tree) InitialNode() (Node, bool) {
+	if t.Initial == "" {
+		return Node{}, false
+	}
+	return t.Lookup(t.Initial)
 }
 
 // Lookup returns the Node for a given choice_id.
@@ -51,6 +84,27 @@ func (t *Tree) HasChoice(choiceID string) bool {
 	return ok
 }
 
+// normalize folds the preferred nested `talk_tree:` block (and the
+// world-engine style `home_tile_id` alias) into Tree's flat fields, so the
+// handler only ever reads Tree.Nodes / Tree.HomeTile.
+func normalize(t *Tree) {
+	if len(t.Nodes) == 0 && t.TalkTree != nil {
+		t.Nodes = t.TalkTree.Nodes
+		if t.Initial == "" {
+			t.Initial = t.TalkTree.Initial
+		}
+		if t.DefaultSay == "" {
+			t.DefaultSay = t.TalkTree.DefaultSay
+		}
+	}
+	if t.HomeTile == "" {
+		t.HomeTile = t.HomeTileID
+	}
+	if t.Nodes == nil {
+		t.Nodes = map[string]Node{}
+	}
+}
+
 // LoadFromFile parses a single YAML file into a Tree.
 // Returns error if the file is missing, malformed, or npc_id is empty.
 func LoadFromFile(path string) (*Tree, error) {
@@ -65,6 +119,7 @@ func LoadFromFile(path string) (*Tree, error) {
 	if t.NpcID == "" {
 		return nil, fmt.Errorf("%s: npc_id is required", path)
 	}
+	normalize(&t)
 	return &t, nil
 }
 

@@ -179,3 +179,35 @@ def test_canonical_wang_boss_yaml_loads_with_personality_and_greetings():
     assert len(tpl.say.greeting) >= 3
     # 全部非空字符串
     assert all(isinstance(g, str) and g.strip() for g in tpl.say.greeting)
+
+def test_canonical_lihua_yaml_migrated_schema():
+    """Sprint 13：仓库内置 lihua.yaml 已迁到新 schema（npc_id + personality 0.0-1.0）。
+
+    enabled 保持 False（1.0 demo 只跑王老板），talk_tree 可被解析。
+    用 NPC_TEMPLATES_DIR 解析到 monorepo 顶层 packages/npc-templates/；目录缺失则跳过。
+    """
+    from agent_os.config import Config
+
+    cfg = Config()
+    template_dir = Path(cfg.npc_templates_dir)
+    if not template_dir.exists():
+        pytest.skip(f"npc_templates_dir not found: {template_dir}")
+    lihua = template_dir / "lihua.yaml"
+    if not lihua.exists():
+        pytest.skip(f"lihua.yaml not in {template_dir}")
+
+    reg = NpcRegistry(template_dir)
+    tpl = reg.get("npc_lihua_001")
+    assert tpl.enabled is False
+    assert tpl.personality is not None
+    assert tpl.personality.openness == 0.6
+    assert tpl.personality.conscientiousness == 0.75
+    assert tpl.personality.extraversion == 0.6
+    assert tpl.personality.agreeableness == 0.65
+    assert tpl.personality.neuroticism == 0.3
+    assert tpl.talk_tree.initial == "root"
+    assert set(tpl.talk_tree.nodes.keys()) == {"root", "ask_work", "ask_game", "leave"}
+    # 所有 option id 必须能落到某个 node，避免前端点了返回 NPC_002
+    for node in tpl.talk_tree.nodes.values():
+        for opt in node.options:
+            assert opt.id in tpl.talk_tree.nodes, f"dangling option {opt.id!r}"

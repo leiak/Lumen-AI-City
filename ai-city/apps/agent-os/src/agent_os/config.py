@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # Redis（沿用 world-engine 模式：手写 RESP，URL 形如 redis://host:port[/db]）
     redis_url: str = "redis://localhost:6379/0"
     redis_channel_npc_dialogue: str = "aicity:npc_dialogue"
+    redis_channel_player_moved: str = "aicity:player:moved"
 
     # NPC 模板（dev 走 monorepo 相对路径；容器化时由 Dockerfile COPY 注入 /etc/aicity/npc-templates）
     npc_templates_dir: str = "./packages/npc-templates"

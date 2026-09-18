@@ -13,7 +13,7 @@
 //   - NPC_001: NPC not found (npc_id missing from registry)      → 404
 //   - NPC_002: bad request (missing fields / unknown choice_id)  → 400
 //   - NPC_003: internal error (reserved; publish failures are NOT NPC_003
-//              because they are best-effort — see above)
+//     because they are best-effort — see above)
 package handlers
 
 import (
@@ -145,4 +145,42 @@ func (h *NPCTalkHandler) Handle(c *gin.Context) {
 			zap.Error(err),
 		)
 	}
+}
+
+// npcInfoResp is the GET /v1/npcs/:id response: the NPC's first-turn (root)
+// say + options, so a client can seed a conversation without re-parsing the
+// talk_tree YAML (single source of truth stays in packages/npc-templates).
+type npcInfoResp struct {
+	NpcID      string            `json:"npc_id"`
+	Name       string            `json:"name"`
+	HomeTileID string            `json:"home_tile_id"`
+	Say        string            `json:"say"`
+	Options    []dialogOptionDTO `json:"options"`
+}
+
+// HandleInfo serves GET /v1/npcs/:id.
+// Returns 404 NPC_001 for an unknown npc_id.
+// Known NPC without a root node: 200 with empty say/options (front-end falls back).
+func (h *NPCTalkHandler) HandleInfo(c *gin.Context) {
+	id := c.Param("id")
+	tree, ok := h.Trees[id]
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "NPC_001", "detail": "NPC not found: " + id})
+		return
+	}
+	var node npc.Node
+	if n, found := tree.InitialNode(); found {
+		node = n
+	}
+	opts := make([]dialogOptionDTO, len(node.Options))
+	for i, o := range node.Options {
+		opts[i] = dialogOptionDTO{ID: o.ID, Text: o.Text}
+	}
+	c.JSON(http.StatusOK, npcInfoResp{
+		NpcID:      tree.NpcID,
+		Name:       tree.Name,
+		HomeTileID: tree.HomeTile,
+		Say:        node.Say,
+		Options:    opts,
+	})
 }

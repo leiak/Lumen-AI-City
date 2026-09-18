@@ -50,7 +50,7 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		// Sprint 12: POST /v1/npc/talk — body 含 {npc_id, player_id, choice_id}
 		authed.POST("/npc/talk", npcTalkHandler.Handle)
 		// 旧占位（保留以免破坏前端假设；T05 系列外另起 task 替换）
-		authed.GET("/npcs/:id", func(c *gin.Context) { c.JSON(501, gin.H{"error": "TODO"}) })
+		authed.GET("/npcs/:id", npcTalkHandler.HandleInfo) // Sprint 13: NPC 初始节点（say + options）
 		authed.POST("/npcs/:id/dialogue", func(c *gin.Context) { c.JSON(501, gin.H{"error": "TODO"}) })
 
 		// 剧本相关（占位）

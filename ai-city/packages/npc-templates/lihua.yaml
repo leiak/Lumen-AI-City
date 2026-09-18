@@ -1,16 +1,53 @@
 # 李华 - 上班族 / 玩家邻居（§15.2）
-# OCEAN: 中开放、中尽责、中外向、中宜人性、低神经质
+# Sprint 13 迁移：旧 schema（agent_id / ocean 0-100）→ npc_id + personality 0.0-1.0，与 wang_boss.yaml 对齐。
+# enabled: false —— 1.0 demo 只跑王老板，李华作为第二个可加载 fixture（world-engine / DB 权威 id = npc_lihua_001）。
 
-agent_id: npc_lihua_001
+npc_id: npc_lihua_001
+enabled: false
 name: 李华
+home_tile_id: tile_1_0
 avatar_url: /static/npc/lihua.png
 
-ocean:
-  O: 60
-  C: 75
-  E: 60
-  A: 65
-  N: 30
+personality:
+  openness: 0.6         # 开放性：中开放，爱尝新游戏
+  conscientiousness: 0.75 # 尽责性：干活认真
+  extraversion: 0.6      # 外向性：温和但不爱主动社交
+  agreeableness: 0.65    # 宜人性：好说话
+  neuroticism: 0.3       # 神经质：低，宅得住
+
+say:
+  greeting:
+    - "哟，您回来了？我刚加班完，正好撞上您。"
+    - "刚点的外卖到了，一起吃点？"
+    - "行吧，我先撤了……哦，您在啊。"
+  welcome: []
+  default_reply: "我这边还得赶个需求，回聊。"
+
+# talk_tree：单一真源，agent-os 与 api-gateway 都解析本文件的 talk_tree 块。
+talk_tree:
+  initial: root
+  default_say: "我这边还得赶个需求，回聊。"
+  nodes:
+    root:
+      say: "哟，这么晚才下班？"
+      options:
+        - {id: ask_work, text: "你最近忙吗？"}
+        - {id: ask_game, text: "最近玩什么新游戏？"}
+        - {id: leave, text: "我先回去了。"}
+    ask_work:
+      say: "别提了，赶一个新框架的验收，天天折腾到晚上十点。"
+      options:
+        - {id: ask_game, text: "那你还挤得出时间打游戏？"}
+        - {id: leave, text: "那你早点休息。"}
+    ask_game:
+      say: "在追《遗迹折光》，就等周五出新本，咱俩可以组一队。"
+      options:
+        - {id: leave, text: "可以，改天喊我。"}
+    leave:
+      say: "行，回见。记得把周报写了。"
+      options: []
+
+# ——— 以下字段仅作策划/剧情参考，agent-os 暂不读取 ———
 
 speech_style:
   tone: casual
@@ -29,7 +66,6 @@ tags:
   - 年轻人
   - 程序员
 
-home_tile_id: tile_1_0
 schedule:
   - hour: 8
     activity: 起床 / 通勤

@@ -1,5 +1,6 @@
 """config defaults — Sprint 12 减面后只剩本范围需要的字段。"""
 import os
+
 from agent_os.config import Settings
 
 
@@ -19,6 +20,12 @@ def test_npc_dialogue_channel_default():
     os.environ.pop("REDIS_CHANNEL_NPC_DIALOGUE", None)
     s = Settings()
     assert s.redis_channel_npc_dialogue == "aicity:npc_dialogue"
+
+
+def test_player_moved_channel_default():
+    os.environ.pop("REDIS_CHANNEL_PLAYER_MOVED", None)
+    s = Settings()
+    assert s.redis_channel_player_moved == "aicity:player:moved"
 
 
 def test_say_tick_seconds_default():

@@ -37,6 +37,7 @@ func setupTestRouter(t *testing.T, trees map[string]*npc.Tree) (*gin.Engine, *fa
 	fakeR := &fakeRedis{}
 	h := NewNPCTalkHandler(trees, fakeR, zap.NewNop(), "aicity:npc_dialogue")
 	r.POST("/v1/npc/talk", h.Handle)
+	r.GET("/v1/npcs/:id", h.HandleInfo)
 	return r, fakeR
 }
 
@@ -172,5 +173,94 @@ func TestNPCTalk_MissingFields(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp["error"] != "NPC_002" {
 		t.Errorf("error = %v, want NPC_002", resp["error"])
+	}
+}
+
+func TestNPCMetaInfo_HappyPath(t *testing.T) {
+	trees := map[string]*npc.Tree{
+		"npc_wang_boss_001": {
+			NpcID:    "npc_wang_boss_001",
+			Name:     "王老板",
+			HomeTile: "tile_0_0",
+			Nodes: map[string]npc.Node{
+				"root": {
+					Say: "来了您嘞！几位？",
+					Options: []npc.Option{
+						{ID: "ask_food", Text: "有什么招牌菜？"},
+						{ID: "leave", Text: "我先走了"},
+					},
+				},
+				"ask_food": {Say: "炸酱面。", Options: nil},
+			},
+			Initial: "root",
+		},
+	}
+	r, _ := setupTestRouter(t, trees)
+	req := httptest.NewRequest("GET", "/v1/npcs/npc_wang_boss_001", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["npc_id"] != "npc_wang_boss_001" {
+		t.Errorf("npc_id = %v", resp["npc_id"])
+	}
+	if resp["name"] != "王老板" {
+		t.Errorf("name = %v, want 王老板", resp["name"])
+	}
+	if resp["home_tile_id"] != "tile_0_0" {
+		t.Errorf("home_tile_id = %v", resp["home_tile_id"])
+	}
+	if resp["say"] != "来了您嘞！几位？" {
+		t.Errorf("say = %v", resp["say"])
+	}
+	opts, ok := resp["options"].([]any)
+	if !ok || len(opts) != 2 {
+		t.Fatalf("options = %v", resp["options"])
+	}
+	first := opts[0].(map[string]any)
+	if first["id"] != "ask_food" || first["text"] != "有什么招牌菜？" {
+		t.Errorf("first option = %v", first)
+	}
+}
+
+func TestNPCMetaInfo_NotFound(t *testing.T) {
+	r, _ := setupTestRouter(t, map[string]*npc.Tree{})
+	req := httptest.NewRequest("GET", "/v1/npcs/npc_ghost", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["error"] != "NPC_001" {
+		t.Errorf("error = %v, want NPC_001", resp["error"])
+	}
+}
+
+func TestNPCMetaInfo_NoInitialNode(t *testing.T) {
+	trees := map[string]*npc.Tree{
+		"npc_x": {NpcID: "npc_x", Name: "路人", HomeTile: "tile_0_0", Nodes: map[string]npc.Node{}},
+	}
+	r, _ := setupTestRouter(t, trees)
+	req := httptest.NewRequest("GET", "/v1/npcs/npc_x", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["say"] != "" || resp["options"] == nil {
+		t.Errorf("expected empty say + empty options, got say=%v options=%v", resp["say"], resp["options"])
+	}
+	if resp["name"] != "路人" {
+		t.Errorf("name = %v, want 路人", resp["name"])
 	}
 }
