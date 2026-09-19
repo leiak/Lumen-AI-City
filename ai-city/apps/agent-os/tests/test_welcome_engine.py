@@ -24,13 +24,17 @@ class FakeDispatcher:
 
 
 def _template(npc_id="npc_wang_boss_001", home="tile_0_0", welcome=None,
-              greeting=None, with_tree=False) -> NpcTemplate:
+              greeting=None, with_tree=False, default_say=""):
     tpl = NpcTemplate(npc_id=npc_id, enabled=True, home_tile_id=home)
+    if greeting is None:
+        greeting = ["来了您嘞！"]
     tpl.say = Say(
         welcome=list(welcome or []),
-        greeting=list(greeting or ["来了您嘞！"]),
+        greeting=list(greeting),
         default_reply="",
     )
+    if default_say:
+        tpl.talk_tree.default_say = default_say
     if with_tree:
         tpl.talk_tree = TalkTree(
             initial="root",
@@ -40,6 +44,7 @@ def _template(npc_id="npc_wang_boss_001", home="tile_0_0", welcome=None,
                     options=[DialogOption(id="ask_food", text="有什么菜？")],
                 )
             },
+            default_say=default_say,
         )
     return tpl
 
@@ -93,6 +98,32 @@ async def test_welcome_falls_back_to_greeting():
     await engine.handle_payload(_moved("p1", "tile_0_0"))
     assert len(disp.calls) == 1
     assert disp.calls[0]["text"] == "来了您嘞！"
+
+
+@pytest.mark.asyncio
+async def test_welcome_falls_back_to_default_say():
+    disp = FakeDispatcher()
+    engine = WelcomeEngine(
+        registry=FakeRegistry(
+            [_template(welcome=[], greeting=[], default_say="您先看着，我忙完这茬儿再说。")]
+        ),
+        dispatcher=disp,  # type: ignore[arg-type]
+    )
+    await engine.handle_payload(_moved("p1", "tile_0_0"))
+    assert len(disp.calls) == 1
+    assert disp.calls[0]["text"] == "您先看着，我忙完这茬儿再说。"
+
+
+@pytest.mark.asyncio
+async def test_welcome_no_lines_does_not_spoke():
+    disp = FakeDispatcher()
+    engine = WelcomeEngine(
+        registry=FakeRegistry([_template(welcome=[], greeting=[], default_say="")]),
+        dispatcher=disp,  # type: ignore[arg-type]
+    )
+    await engine.handle_payload(_moved("p1", "tile_0_0"))
+    assert disp.calls == []
+    assert engine.listener.is_welcomed("p1") is False
 
 
 @pytest.mark.asyncio

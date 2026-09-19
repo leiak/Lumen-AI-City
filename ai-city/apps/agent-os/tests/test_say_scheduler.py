@@ -117,3 +117,88 @@ async def test_run_stops_on_event(tmp_path: Path):
     stop.set()
     await asyncio.wait_for(task, timeout=1.0)
     assert len(disp.calls) >= 1
+class FakeListener:
+    def __init__(self, occupied: set[str] | None = None):
+        self._occupied = set(occupied or [])
+
+    def players_in_tile(self, tile_id: str):
+        return [object()] if tile_id in self._occupied else []
+
+
+@pytest.mark.asyncio
+async def test_tick_skips_when_player_at_home(tmp_path: Path):
+    """Sprint 13：home tile 有玩家时 tick 不广播 greeting（交给 WelcomeEngine）。"""
+    _write_yaml(tmp_path, "wang_boss.yaml", """\
+        npc_id: npc_wang_boss_001
+        enabled: true
+        home_tile_id: tile_0_0
+        say:
+          greeting:
+            - "来了您嘞！"
+    """)
+    reg = NpcRegistry(tmp_path)
+    disp = FakeDispatcher()
+    listener = FakeListener({"tile_0_0"})
+    sched = SayScheduler(
+        registry=reg, dispatcher=disp, tick_seconds=0.01, listener=listener  # type: ignore[arg-type]
+    )
+    await sched.tick_once()
+    assert disp.calls == []
+
+
+@pytest.mark.asyncio
+async def test_tick_greets_when_no_player_at_home(tmp_path: Path):
+    """home 无玩家（或玩家在别处 / 无 listener）时仍广播 greeting 兜底。"""
+    _write_yaml(tmp_path, "wang_boss.yaml", """\
+        npc_id: npc_wang_boss_001
+        enabled: true
+        home_tile_id: tile_0_0
+        say:
+          greeting:
+            - "来了您嘞！"
+    """)
+    reg = NpcRegistry(tmp_path)
+    for listener in (FakeListener(), FakeListener({"tile_1_0"})):
+        disp = FakeDispatcher()
+        sched = SayScheduler(
+            registry=reg, dispatcher=disp, tick_seconds=0.01, listener=listener  # type: ignore[arg-type]
+        )
+        await sched.tick_once()
+        assert [c["npc_id"] for c in disp.calls] == ["npc_wang_boss_001"]
+
+@pytest.mark.asyncio
+async def test_tick_falls_back_to_default_say():
+    """无 greeting 时 tick 兜底用 talk_tree.default_say。"""
+    from agent_os.npc_registry import NpcTemplate, Say, TalkTree
+
+    tpl = NpcTemplate(npc_id="npc_wang_boss_001", enabled=True)
+    tpl.say = Say(greeting=[], welcome=[])
+    tpl.talk_tree = TalkTree(initial="root", default_say="您先看着，我忙完这茬儿再说。")
+
+    class FakeRegistry:
+        def list_enabled(self):
+            return [tpl]
+
+    disp = FakeDispatcher()
+    sched = SayScheduler(registry=FakeRegistry(), dispatcher=disp, tick_seconds=0.01)  # type: ignore[arg-type]
+    await sched.tick_once()
+    assert [c["npc_id"] for c in disp.calls] == ["npc_wang_boss_001"]
+    assert disp.calls[0]["text"] == "您先看着，我忙完这茬儿再说。"
+
+
+@pytest.mark.asyncio
+async def test_tick_no_greeting_no_default_skips():
+    """无 greeting 且无 default_say 时不广播（不抛 IndexError）。"""
+    from agent_os.npc_registry import NpcTemplate, Say
+
+    tpl = NpcTemplate(npc_id="npc_wang_boss_001", enabled=True)
+    tpl.say = Say(greeting=[], welcome=[])
+
+    class FakeRegistry:
+        def list_enabled(self):
+            return [tpl]
+
+    disp = FakeDispatcher()
+    sched = SayScheduler(registry=FakeRegistry(), dispatcher=disp, tick_seconds=0.01)  # type: ignore[arg-type]
+    await sched.tick_once()
+    assert disp.calls == []

@@ -60,6 +60,8 @@ class SayScheduler:
         for tpl in self._registry.list_enabled():
             greetings = tpl.say.greeting
             if not greetings:
+                greetings = [tpl.talk_tree.default_say] if tpl.talk_tree.default_say else []
+            if not greetings:
                 continue
             # Sprint 13：home tile 有玩家时，进场问候交给 WelcomeEngine（一次性
             # welcome），tick 不再广播 —— 避免玩家在场时 welcome 与 greeting 叠加。
@@ -78,10 +80,10 @@ class SayScheduler:
         while not stop.is_set():
             try:
                 await self.tick_once()
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 logger.exception("scheduler tick exception", extra={"err": str(e)})
             try:
                 await asyncio.wait_for(stop.wait(), timeout=self._tick)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
         logger.info("say_scheduler stopped")

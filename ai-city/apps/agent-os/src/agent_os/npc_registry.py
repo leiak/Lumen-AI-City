@@ -38,6 +38,7 @@ class TalkNode:
 @dataclass
 class TalkTree:
     initial: str = ""
+    default_say: str = ""  # 兜底台词（api-gateway /v1/npc/talk 未知选项回退用；agent-os welcome/say 兜底）
     nodes: dict[str, TalkNode] = field(default_factory=dict)
 
 
@@ -54,6 +55,13 @@ class OceanPersonality:
 
 
 @dataclass
+class Walk:
+    """NPC 走法（1.0：王老板「3 步走法」）。tiles 是循环访问的 tile id 序列（从 home 起）。"""
+    enabled: bool = False
+    tiles: list[str] = field(default_factory=list)
+
+
+@dataclass
 class NpcTemplate:
     npc_id: str
     name: str = ""
@@ -63,6 +71,7 @@ class NpcTemplate:
     say: Say = field(default_factory=Say)
     talk_tree: TalkTree = field(default_factory=TalkTree)
     personality: OceanPersonality | None = None  # 可选；旧 YAML 没填则 None
+    walk: Walk | None = None  # 可选；旧 YAML 没填则随机邻格
 
 
 @dataclass
@@ -97,7 +106,11 @@ def _load_one(path: Path) -> NpcTemplate:
             reply_map=dict(n.get("reply_map", {}) or {}),
             next_options=next_opts,
         )
-    tree = TalkTree(initial=str(tree_data.get("initial", "") or ""), nodes=nodes)
+    tree = TalkTree(
+        initial=str(tree_data.get("initial", "") or ""),
+        default_say=str(tree_data.get("default_say", "") or ""),
+        nodes=nodes,
+    )
 
     personality = None
     if "personality" in data and data["personality"] is not None:
@@ -115,6 +128,14 @@ def _load_one(path: Path) -> NpcTemplate:
         except KeyError as e:
             raise ValueError(f"{path.name}: personality missing field {e}")
 
+    walk = None
+    if "walk" in data and data["walk"] is not None:
+        w = data["walk"]
+        walk = Walk(
+            enabled=bool(w.get("enabled", False)),
+            tiles=[str(x) for x in (w.get("tiles", []) or [])],
+        )
+
     return NpcTemplate(
         npc_id=npc_id,
         name=str(data.get("name", "") or ""),
@@ -124,6 +145,7 @@ def _load_one(path: Path) -> NpcTemplate:
         say=say,
         talk_tree=tree,
         personality=personality,
+        walk=walk,
     )
 
 
@@ -144,7 +166,7 @@ class NpcRegistry:
                 logger.error("npc yaml config error", extra={"file": p.name, "err": str(e)})
                 # Use filename stem as key so get("bad") raises ValueError for bad.yaml
                 self._by_id[p.stem] = _LoadError(file=p.name, err=str(e))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — 容错加载：坏文件记 sentinel 不崩
                 logger.warning("npc yaml load failed", extra={"file": p.name, "err": str(e)})
                 continue
         logger.info("npc_registry loaded", extra={"count": len(self._by_id)})
@@ -154,7 +176,7 @@ class NpcRegistry:
         if val is None:
             raise KeyError(npc_id)
         if isinstance(val, _LoadError):
-            raise ValueError(f"{val.file}: {val.err}")
+            raise ValueError(f"{val.file}: {val.err}")  # noqa: TRY004 — 调用方按 ValueError 处理坏模板
         return val
 
     def list_enabled(self) -> list[NpcTemplate]:

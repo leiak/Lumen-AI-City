@@ -418,3 +418,47 @@ talk_tree:
 | api-gateway talk_tree yaml 解析与 agent-os 不一致 | 字段命名 / 嵌套层级 | api-gateway 端用独立 mirror struct（不 import agent-os 代码）；两套代码各自维护，yaml 是 single source of truth |
 | `reply` envelope 误判为新主动 say | type 都是 `npc_dialogue` | 用 `payload.reply_to_choice_id` 区分（null/缺失 → 主动 say；非空 → reply） |
 | `data-npc-id` 点击命中区域过小 | NPC 圆点 r=3 单位 | click handler 用 `closest('[data-npc-id]')` 命中 `<g>` 容器，命中范围 = 整个 g 的 bbox |
+
+---
+
+## 八、Sprint 13 增补：npc_dialogue 专属投递（决策 + 验收）
+
+> 日期：2026-09-18。本设计稿按 Sprint 12 完成，以下是之后**增量决策与验收**，
+> 不改动已锁的 Sprint 12 决策，只补充 ws-gateway 投递语义。
+
+### 8.1 决策
+
+- **Sprint 12（原始）**：`aicity:npc_dialogue` 一律 `hub.Broadcast` —— 所有连接都收到同一条 NPC 台词。
+- **Sprint 13（本增补）**：带非空 `player_id` 的专属台词（welcome / reply）改走
+  `hub.SendToPlayer(playerID, msg)`，**只投递到目标玩家那条连接**。
+  - `player_moved` 与主动广播（`player_id==""`）仍 `Broadcast` 到所有连接。
+  - 原因：多玩家/多标签页下跨用户串台；前端 NPCDialog 已按 `player_id` 过滤，
+    本轮把规则下沉到服务端源头，前端过滤降级为冗余保险（双层过滤一致）。
+  - 路由失败按广播处理（`npcDialogueTarget` 解析失败返回 `""` 走广播），
+    宁可多投，也不丢主动招呼。
+
+### 8.2 实施（文件级）
+
+| 层 | 文件 | 改动 |
+|---|---|---|
+| ws-gateway | `internal/hub/hub.go` | 新增 `sendTo chan targetedSend` + `SendToPlayer` + `Stats.Targeted`；仍在事件循环单 goroutine 处理 |
+| ws-gateway | `cmd/main.go` | `broadcastFilter` 委托 `publishEnvelope`；按 `npcDialogueTarget` 路由到 `SendToPlayer` 或 `Broadcast` |
+| ws-gateway | `cmd/main_test.go` | `TestAgentOsNpcDialogueReachesTargetConnection`：真 hub + fake conn，断言专属只到目标连接、广播/player_moved 到所有 |
+| ws-gateway | `internal/hub/hub_test.go` | `SendToPlayer` 单测（目标收到 / 非目标不收到 / 未知玩家 no-op） |
+| agent-os | `tests/test_action_dispatcher.py` | 新增 payload schema 契约测试，钉死 ws-gateway `NpcDialogue` 依赖的字段集 |
+| web | `src/lib/ws-events.ts` | 文档注释对齐新语义（主动广播 vs 专属投递） |
+
+### 8.3 契约（agent-os → ws-gateway）
+
+agent-os `ActionDispatcher.say()` 发布 **inner payload**（无外层信封）到 `aicity:npc_dialogue`，
+字段与 ws-gateway `internal/protocol/message.go::NpcDialogue` 对齐：
+`npc_id, player_id, tile_id, say, options[]（始终数组非 null）, reply_to_choice_id（null=主动）, ts_ms, trace_id`。
+配合 `aicity:player_moved`，该频道数据已能被订阅器用 `protocol.NewEnvelope` 包信封再路由。
+
+### 8.4 验收
+
+- `go build ./...`：通过
+- `go test ./cmd/... ./internal/hub/...`：`cmd`、`internal/hub`、`internal/redis` 等全 `ok`
+  （`TestAgentOsNpcDialogueReachesTargetConnection` 断言专属/主动/player_moved 三种投递）
+- agent-os `test_action_dispatcher.py`：4 passed；项目 ruff：All checks passed
+- 遗留：`docker compose up` + `acceptance_1_0` 的真机 WS 端到端仍需有网环境

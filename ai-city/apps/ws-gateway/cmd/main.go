@@ -68,13 +68,7 @@ func main() {
 	// broadcastFilter 闭包等价于 redis.broadcastFilter（后者 unexported）——
 	// marshal 信封失败丢弃本条，否则把字节交给 hub 扇出。
 	broadcastFilter := func(env protocol.Envelope) bool {
-		out, err := json.Marshal(env)
-		if err != nil {
-			logger.Warn("marshal envelope failed",
-				zap.String("type", env.Type), zap.Error(err))
-			return true
-		}
-		h.Broadcast(out)
+		publishEnvelope(h, logger, env)
 		return false
 	}
 	go func() {
@@ -83,6 +77,7 @@ func main() {
 		if err := wsredis.RunMultiSubscriber(appCtx, rdb, []wsredis.ChannelConfig{
 			{Channel: cfg.ChannelMoved, Type: protocol.TypePlayerMoved, Filter: broadcastFilter},
 			{Channel: cfg.ChannelNpcDialogue, Type: protocol.TypeNpcDialogue, Filter: broadcastFilter},
+			{Channel: cfg.ChannelNpcMoved, Type: protocol.TypeNpcMoved, Filter: broadcastFilter},
 		}, logger); err != nil {
 			logger.Error("multi-subscriber failed", zap.Error(err))
 		}
@@ -107,6 +102,7 @@ func main() {
 			zap.String("port", cfg.Port),
 			zap.String("channel_moved", cfg.ChannelMoved),
 			zap.String("channel_npc_dialogue", cfg.ChannelNpcDialogue),
+			zap.String("channel_npc_moved", cfg.ChannelNpcMoved),
 			zap.Bool("allow_anon", cfg.AllowAnon),
 			zap.Bool("verify_origin", cfg.VerifyOrigin),
 			zap.Int("send_buffer", cfg.SendBuffer),
@@ -131,6 +127,40 @@ func main() {
 		logger.Warn("shutdown failed", zap.Error(err))
 	}
 	logger.Info("bye")
+}
+
+// publishEnvelope 把信封按类型分发：带非空 player_id 的 npc_dialogue 走
+// SendToPlayer（只投目标玩家连接），其余（player_moved、主动广播）Broadcast 到所有。
+// marshal 失败返回（丢弃本条）。抽成可测函数，broadcastFilter 与契约测试共用。
+func publishEnvelope(b interface {
+	Broadcast(msg []byte)
+	SendToPlayer(playerID string, msg []byte)
+}, logger *zap.Logger, env protocol.Envelope) {
+	out, err := json.Marshal(env)
+	if err != nil {
+		logger.Warn("marshal envelope failed",
+			zap.String("type", env.Type), zap.Error(err))
+		return
+	}
+	if env.Type == protocol.TypeNpcDialogue {
+		if playerID := npcDialogueTarget(env.Payload); playerID != "" {
+			b.SendToPlayer(playerID, out)
+			return
+		}
+	}
+	b.Broadcast(out)
+}
+
+// npcDialogueTarget 从 npc_dialogue 负荷里取 player_id（"" = 主动广播，投递所有）。
+// 解析失败按广播处理返回 ""：宁可多投，也不丢主动招呼。
+func npcDialogueTarget(payload json.RawMessage) string {
+	var d struct {
+		PlayerID string `json:"player_id"`
+	}
+	if err := json.Unmarshal(payload, &d); err != nil {
+		return ""
+	}
+	return d.PlayerID
 }
 
 // wsHandler 处理 /ws 升级：鉴权 → Accept → 注册 → 双 pump。

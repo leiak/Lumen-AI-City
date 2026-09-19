@@ -15,12 +15,14 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     redis_channel_npc_dialogue: str = "aicity:npc_dialogue"
     redis_channel_player_moved: str = "aicity:player:moved"
+    redis_channel_npc_moved: str = "aicity:npc_moved"
 
     # NPC 模板（dev 走 monorepo 相对路径；容器化时由 Dockerfile COPY 注入 /etc/aicity/npc-templates）
     npc_templates_dir: str = "./packages/npc-templates"
 
     # Say 调度（5s 触发一轮；Sprint 13+ 接 player listener 后改成事件驱动）
     say_tick_seconds: float = 5.0
+    move_tick_seconds: float = 30.0
 
 
 # Alias used by app factory:  spec 文档统一写 `Config()`。

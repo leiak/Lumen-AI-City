@@ -15,6 +15,7 @@ import (
 const (
 	TypePlayerMoved = "player_moved"
 	TypeNpcDialogue = "npc_dialogue"
+	TypeNpcMoved    = "npc_moved"
 )
 
 // Envelope 是所有下行消息的外层结构。
@@ -52,15 +53,25 @@ type PlayerMoved struct {
 // 字段名必须与 agent-os 输出对齐（snake_case）—— web 端按 JSON key 取值。
 type NpcDialogue struct {
 	NpcID           string         `json:"npc_id"`
-	PlayerID        string         `json:"player_id"`         // "" when active say
-	TileID          string         `json:"tile_id"`           // "" when active say
+	PlayerID        string         `json:"player_id"` // "" when active say
+	TileID          string         `json:"tile_id"`   // "" when active say
 	Say             string         `json:"say"`
-	Options         []DialogOption `json:"options"`           // 始终 []（非 null）—— 即使空也是 []DialogOption{}
+	Options         []DialogOption `json:"options"`            // 始终 []（非 null）—— 即使空也是 []DialogOption{}
 	ReplyToChoiceID *string        `json:"reply_to_choice_id"` // nil → JSON null（active say）；非 nil → string（reply）
 }
 
 // DialogOption 是 NpcDialogue.Options 的元素。
 // id 是稳定的机器可读 key（agent-os 内部路由用），text 是给玩家看的中文/本地化文本。
+// NpcMoved 是 agent-os MoveScheduler 序列化进 Redis 的 NPC 移动消息体。
+// 字段名必须与 agent-os move_scheduler.py 输出对齐（snake_case）。
+type NpcMoved struct {
+	NpcID  string  `json:"npc_id"`
+	TileID string  `json:"tile_id"`
+	X      float32 `json:"x"`
+	Y      float32 `json:"y"`
+	TsMs   int64   `json:"ts_ms"`
+}
+
 type DialogOption struct {
 	ID   string `json:"id"`
 	Text string `json:"text"`

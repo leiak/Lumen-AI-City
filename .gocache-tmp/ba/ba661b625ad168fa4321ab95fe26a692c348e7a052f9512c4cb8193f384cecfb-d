@@ -1,0 +1,5 @@
+./client.go
+./hub.go
+./client_test.go
+./fakeconn_test.go
+./hub_test.go

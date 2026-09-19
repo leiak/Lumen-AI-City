@@ -24,6 +24,7 @@ from fastapi import FastAPI
 
 from agent_os.action_dispatcher import ActionDispatcher
 from agent_os.config import Config
+from agent_os.move_scheduler import MoveScheduler
 from agent_os.npc_registry import NpcRegistry
 from agent_os.player_listener import PlayerListener
 from agent_os.redis_pub import RedisPub
@@ -48,27 +49,34 @@ def create_app(config: Config | None = None) -> FastAPI:
     redis_pub = RedisPub(cfg.redis_url)
     registry = NpcRegistry(Path(cfg.npc_templates_dir))
     dispatcher = ActionDispatcher(redis_pub, channel=cfg.redis_channel_npc_dialogue)
+    listener = PlayerListener()
     scheduler = SayScheduler(
         registry=registry,
         dispatcher=dispatcher,  # type: ignore[arg-type]
         tick_seconds=cfg.say_tick_seconds,
         listener=listener,
     )
-    listener = PlayerListener()
     welcome_engine = WelcomeEngine(
         registry=registry,
         dispatcher=dispatcher,  # type: ignore[arg-type]
         listener=listener,
+    )
+    move_scheduler = MoveScheduler(
+        registry=registry,
+        publisher=redis_pub,
+        channel=cfg.redis_channel_npc_moved,
+        tick_seconds=cfg.move_tick_seconds,
     )
     redis_sub = RedisSub(cfg.redis_url)
 
     stop_event = asyncio.Event()
     scheduler_task: asyncio.Task[None] | None = None
     welcome_task: asyncio.Task[None] | None = None
+    move_task: asyncio.Task[None] | None = None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        nonlocal scheduler_task, welcome_task
+        nonlocal scheduler_task, welcome_task, move_task
         logger.info(
             "agent-os starting",
             extra={
@@ -91,6 +99,8 @@ def create_app(config: Config | None = None) -> FastAPI:
         welcome_task = asyncio.create_task(
             _welcome_pump(redis_sub, cfg.redis_channel_player_moved, welcome_engine)
         )
+        # spawn npc move scheduler（NPC 行为引擎：每 move_tick 发一条 npc_moved）
+        move_task = asyncio.create_task(move_scheduler.run(stop_event))
         try:
             yield
         finally:
@@ -104,6 +114,12 @@ def create_app(config: Config | None = None) -> FastAPI:
                 welcome_task.cancel()
                 try:
                     await welcome_task
+                except asyncio.CancelledError:
+                    pass
+            if move_task is not None:
+                move_task.cancel()
+                try:
+                    await move_task
                 except asyncio.CancelledError:
                     pass
             # RedisPub 是 fire-and-forget；每 publish 新连接；这里无 close 方法。
@@ -122,4 +138,5 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.state.scheduler = scheduler
     app.state.player_listener = listener
     app.state.welcome_engine = welcome_engine
+    app.state.move_scheduler = move_scheduler
     return app

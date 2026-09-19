@@ -9,6 +9,11 @@ name: 王老板                  # web 端 NPCDialog 显示名
 home_tile_id: tile_0_0
 avatar_url: /static/npc/wang_boss.png
 
+# 走法（agent-os MoveScheduler 读取 walk.tiles 循环走；1.0 王老板「3 步走法」）
+walk:
+  enabled: true
+  tiles: [tile_0_0, tile_1_0, tile_-1_0]
+
 personality:
   openness: 0.3            # 开放性：偏保守，不爱新潮
   conscientiousness: 0.85  # 尽责性：做事有条理，认真

@@ -24,6 +24,7 @@ export const PLAYER_MOVED_EVENT = 'aicity:player_moved';
 
 /** NPCDialog 组件监听的事件名（Sprint 12 引入） */
 export const NPC_DIALOGUE_EVENT = 'aicity:npc_dialogue';
+export const NPC_MOVED_EVENT = 'aicity:npc_moved';
 
 /** 与 apps/ws-gateway/internal/protocol/message.go::Envelope 一致 */
 interface WsEnvelope<T> {
@@ -51,6 +52,7 @@ export interface PlayerMovedPayload {
  * 区分两种语义（消费方按 reply_to_choice_id === null 判断）：
  *   - active say：player_id=""、tile_id=""、reply_to_choice_id=null
  *     （NPC 主动说，附近所有玩家都收到，options 通常为 []）
+ *   - 专属 message（welcome / reply：player_id 非空）：ws-gateway SendToPlayer 只投递到目标玩家连接；前端归属过滤是冗余保险。
  *   - reply    ：player_id/tile_id 非空、reply_to_choice_id="<choice_id>"
  *     （NPC 回复某个玩家的选项，options 至少 1 条）
  */
@@ -59,6 +61,13 @@ export interface NpcDialogOption {
   text: string;
 }
 
+export interface NpcMovedPayload {
+  npc_id: string;
+  tile_id: string;
+  x: number;
+  y: number;
+  ts_ms: number;
+}
 export interface NpcDialoguePayload {
   npc_id: string;
   player_id: string;
@@ -82,6 +91,19 @@ function isPlayerMoved(msg: unknown): msg is WsEnvelope<PlayerMovedPayload> {
   );
 }
 
+function isNpcMoved(msg: unknown): msg is WsEnvelope<NpcMovedPayload> {
+  if (typeof msg !== 'object' || msg === null) return false;
+  const m = msg as Record<string, unknown>;
+  if (m.type !== 'npc_moved') return false;
+  const p = m.payload as Record<string, unknown> | undefined;
+  return (
+    typeof p === 'object' &&
+    p !== null &&
+    typeof p.npc_id === 'string' &&
+    typeof p.x === 'number' &&
+    typeof p.y === 'number'
+  );
+}
 function isNpcDialogue(msg: unknown): msg is WsEnvelope<NpcDialoguePayload> {
   if (typeof msg !== 'object' || msg === null) return false;
   const m = msg as Record<string, unknown>;
@@ -133,6 +155,13 @@ export function startWsBridge(): () => void {
       return;
     }
 
+    if (isNpcMoved(msg)) {
+      // Sprint 13：NPC 移动事件广播给所有连接；WorldMap 按 npc_id 覆盖圆点坐标。
+      window.dispatchEvent(
+        new CustomEvent<NpcMovedPayload>(NPC_MOVED_EVENT, { detail: msg.payload })
+      );
+      return;
+    }
     // 未知 type：静默忽略。ws.ts 已经有 JSON.parse 兜底，这里再叠一层 type 过滤。
   });
 

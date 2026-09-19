@@ -1,0 +1,13 @@
+# test log
+getenv GOTMPDIR
+open C:\Users\wma19\AppData\Local\Temp\TestLoadFromFile_ParsesNestedTalkTree1892212717\001\wang_boss.yaml
+open C:\Users\wma19\AppData\Local\Temp\TestLoadFromFile_ParsesNestedTalkTree1892212717\001\wang_boss.yaml
+open C:\Users\wma19\AppData\Local\Temp
+getenv GOTMPDIR
+open C:\Users\wma19\AppData\Local\Temp\TestLoadFromFile_ParsesLegacyInline1322082950\001\lihua.yaml
+open C:\Users\wma19\AppData\Local\Temp\TestLoadFromFile_ParsesLegacyInline1322082950\001\lihua.yaml
+open C:\Users\wma19\AppData\Local\Temp
+getenv GOTMPDIR
+open C:\Users\wma19\AppData\Local\Temp\TestTree_InitialNode3298533310\001\n.yaml
+open C:\Users\wma19\AppData\Local\Temp\TestTree_InitialNode3298533310\001\n.yaml
+open C:\Users\wma19\AppData\Local\Temp

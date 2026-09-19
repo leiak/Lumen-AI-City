@@ -264,3 +264,86 @@ func TestNPCMetaInfo_NoInitialNode(t *testing.T) {
 		t.Errorf("name = %v, want 路人", resp["name"])
 	}
 }
+
+// Sprint13：未知/过期 choice_id 回退到模板 default_say（照常发布，不打断对话）。
+func TestNPCTalk_UnknownChoice_WithDefaultFallback(t *testing.T) {
+	trees := map[string]*npc.Tree{
+		"npc_wang_boss_001": {
+			NpcID:      "npc_wang_boss_001",
+			HomeTile:   "tile_0_0",
+			DefaultSay: "您先看着，我忙完这茬儿再说。",
+			Nodes: map[string]npc.Node{
+				"ask_business": {Say: "小店经营杂货。"},
+			},
+		},
+	}
+	r, fakeR := setupTestRouter(t, trees)
+	body := bytes.NewBufferString(`{"npc_id":"npc_wang_boss_001","player_id":"player-1","choice_id":"stale_choice"}`)
+	req := httptest.NewRequest("POST", "/v1/npc/talk", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v body=%s", err, w.Body.String())
+	}
+	if resp["say"] != "您先看着，我忙完这茬儿再说。" {
+		t.Errorf("say = %v, want default_say", resp["say"])
+	}
+	if resp["reply_to_choice_id"] != "stale_choice" {
+		t.Errorf("reply_to_choice_id = %v, want stale_choice", resp["reply_to_choice_id"])
+	}
+	if opts, ok := resp["options"].([]any); !ok || len(opts) != 0 {
+		t.Errorf("fallback options should be empty []Any, got %#v", resp["options"])
+	}
+	// 回退同样 fire-and-forget 发布，让玩家浏览器也能收到这句 default。
+	if len(fakeR.published) != 1 {
+		t.Fatalf("expected 1 publish, got %d", len(fakeR.published))
+	}
+	var published map[string]any
+	if err := json.Unmarshal([]byte(fakeR.published[0].Payload), &published); err != nil {
+		t.Fatalf("unmarshal published payload: %v raw=%s", err, fakeR.published[0].Payload)
+	}
+	if published["say"] != "您先看着，我忙完这茬儿再说。" {
+		t.Errorf("published say = %v, want default_say", published["say"])
+	}
+	if published["reply_to_choice_id"] != "stale_choice" {
+		t.Errorf("published reply_to_choice_id = %v, want stale_choice", published["reply_to_choice_id"])
+	}
+}
+
+
+// Sprint13：已知 NPC 无 root 节点但有 default_say → 首轮 say 回退默认开场而非空。
+func TestNPCMetaInfo_DefaultSayFallback(t *testing.T) {
+	trees := map[string]*npc.Tree{
+		"npc_wang_boss_001": {
+			NpcID:      "npc_wang_boss_001",
+			Name:       "王老板",
+			HomeTile:   "tile_0_0",
+			DefaultSay: "您先看着，我忙完这茬儿再说。",
+			Nodes:      map[string]npc.Node{},
+		},
+	}
+	r, _ := setupTestRouter(t, trees)
+	req := httptest.NewRequest("GET", "/v1/npcs/npc_wang_boss_001", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp["say"] != "您先看着，我忙完这茬儿再说。" {
+		t.Errorf("say = %v, want default_say", resp["say"])
+	}
+	if opts, ok := resp["options"].([]any); !ok || len(opts) != 0 {
+		t.Errorf("options should be empty [], got %#v", resp["options"])
+	}
+}

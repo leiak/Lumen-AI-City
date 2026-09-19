@@ -66,6 +66,8 @@ class WelcomeEngine:
                 continue
             lines = tpl.say.welcome or tpl.say.greeting
             if not lines:
+                lines = [tpl.talk_tree.default_say] if tpl.talk_tree.default_say else []
+            if not lines:
                 continue
             text = self._rng.choice(lines)
             options = _root_options(tpl)

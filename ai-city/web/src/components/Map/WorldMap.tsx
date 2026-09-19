@@ -17,7 +17,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type Tile } from '@/lib/api';
 import { useGameStore } from '@/store/game';
 import { TILE_SIZE, tileIdAt } from '@/lib/world-coords';
-import { NPC_DIALOGUE_EVENT, PLAYER_MOVED_EVENT } from '@/lib/ws-events';
+import { NPC_DIALOGUE_EVENT, NPC_MOVED_EVENT, PLAYER_MOVED_EVENT } from '@/lib/ws-events';
 import { getNpcDisplayName } from '@/lib/npc-positions';
 
 /** 推送合并窗口：多人同时移动时把多条 player_moved 折成一次 /v1/tiles */
@@ -77,6 +77,7 @@ export function WorldMap() {
   });
   const [myPos, setMyPos] = useState<{ x: number; y: number } | null>(null);
   const [moving, setMoving] = useState(false);
+    const [npcPos, setNpcPos] = useState<Record<string, { x: number; y: number }>>({});
   const svgRef = useRef<SVGSVGElement>(null);
   const lastMoveTileRef = useRef<string>(myTileId);
 
@@ -134,6 +135,17 @@ export function WorldMap() {
       window.removeEventListener(PLAYER_MOVED_EVENT, onMoved);
       if (timer) clearTimeout(timer);
     };
+  }, []);
+
+  // Sprint 13：NPC 移动事件 → 覆盖该 NPC 圆点坐标（归属变化留给下一次 /v1/tiles）。
+  useEffect(() => {
+    const onNpcMoved = (e: Event) => {
+      const det = (e as CustomEvent<{ npc_id: string; x: number; y: number }>).detail;
+      if (!det || !det.npc_id) return;
+      setNpcPos((prev) => ({ ...prev, [det.npc_id]: { x: det.x, y: det.y } }));
+    };
+    window.addEventListener(NPC_MOVED_EVENT, onNpcMoved);
+    return () => window.removeEventListener(NPC_MOVED_EVENT, onNpcMoved);
   }, []);
 
   // 兜底：本地没 playerId 时每 200ms 试一次（处理 login 后跳 city 的极小窗口）
@@ -286,8 +298,8 @@ export function WorldMap() {
             t.npc_ids.map((nid) => (
               <circle
                 key={nid}
-                cx={t.center_x}
-                cy={t.center_y}
+                cx={npcPos[nid]?.x ?? t.center_x}
+                cy={npcPos[nid]?.y ?? t.center_y}
                 r={3}
                 fill="#fbbf24"
                 stroke="#78350f"

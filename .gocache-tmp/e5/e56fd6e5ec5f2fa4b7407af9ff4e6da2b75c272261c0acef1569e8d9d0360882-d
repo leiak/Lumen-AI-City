@@ -1,0 +1,7 @@
+./auth.go
+./npc_talk.go
+./player.go
+./world_move.go
+./world_proxy.go
+./npc_talk_test.go
+./world_move_test.go

@@ -147,11 +147,9 @@ def test_canonical_wang_boss_yaml_loads_with_personality_and_greetings():
     用 NPC_TEMPLATES_DIR 解析到 monorepo 顶层 packages/npc-templates/；
     若目录或文件缺失（CI sandbox / 错 cwd），跳过而不是失败。
     """
-    from agent_os.config import Config
     from agent_os.npc_registry import NpcRegistry, _LoadError  # type: ignore[attr-defined]
 
-    cfg = Config()
-    template_dir = Path(cfg.npc_templates_dir)
+    template_dir = Path(__file__).resolve().parents[3] / "packages" / "npc-templates"
     if not template_dir.exists():
         pytest.skip(f"npc_templates_dir not found: {template_dir}")
     wang = template_dir / "wang_boss.yaml"
@@ -186,10 +184,8 @@ def test_canonical_lihua_yaml_migrated_schema():
     enabled 保持 False（1.0 demo 只跑王老板），talk_tree 可被解析。
     用 NPC_TEMPLATES_DIR 解析到 monorepo 顶层 packages/npc-templates/；目录缺失则跳过。
     """
-    from agent_os.config import Config
 
-    cfg = Config()
-    template_dir = Path(cfg.npc_templates_dir)
+    template_dir = Path(__file__).resolve().parents[3] / "packages" / "npc-templates"
     if not template_dir.exists():
         pytest.skip(f"npc_templates_dir not found: {template_dir}")
     lihua = template_dir / "lihua.yaml"
@@ -211,3 +207,42 @@ def test_canonical_lihua_yaml_migrated_schema():
     for node in tpl.talk_tree.nodes.values():
         for opt in node.options:
             assert opt.id in tpl.talk_tree.nodes, f"dangling option {opt.id!r}"
+
+def test_canonical_talk_tree_default_say():
+    """Sprint 13: 仓库内置 wang_boss.yaml 解析出 talk_tree.default_say 兜底台词。"""
+    from agent_os.npc_registry import NpcRegistry
+
+    template_dir = Path(__file__).resolve().parents[3] / "packages" / "npc-templates"
+    if not template_dir.exists():
+        pytest.skip(f"npc_templates_dir not found: {template_dir}")
+    wang = template_dir / "wang_boss.yaml"
+    if not wang.exists():
+        pytest.skip(f"wang_boss.yaml not in {template_dir}")
+
+    reg = NpcRegistry(template_dir)
+    tpl = reg.get("npc_wang_boss_001")
+    assert tpl.talk_tree.initial == "root"
+    assert tpl.talk_tree.default_say == "您先看着，我忙完这茬儿再说。"
+    assert tpl.talk_tree.nodes.keys() == {
+        "root",
+        "ask_food",
+        "ask_food_price",
+        "ask_gossip",
+        "leave",
+    }
+
+def test_canonical_wang_boss_walk_parsed():
+    """Sprint 13：仓库内置 wang_boss.yaml 的 walk（3 步走法）被解析，供 MoveScheduler 驱动。"""
+    from agent_os.npc_registry import NpcRegistry
+
+    template_dir = Path(__file__).resolve().parents[3] / "packages" / "npc-templates"
+    if not template_dir.exists():
+        pytest.skip(f"npc_templates_dir not found: {template_dir}")
+    wang = template_dir / "wang_boss.yaml"
+    if not wang.exists():
+        pytest.skip(f"wang_boss.yaml not in {template_dir}")
+    reg = NpcRegistry(template_dir)
+    tpl = reg.get("npc_wang_boss_001")
+    assert tpl.walk is not None
+    assert tpl.walk.enabled is True
+    assert tpl.walk.tiles == ["tile_0_0", "tile_1_0", "tile_-1_0"]

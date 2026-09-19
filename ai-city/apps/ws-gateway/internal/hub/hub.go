@@ -1,10 +1,13 @@
 // Package hub 管理所有 WS 连接并做扇出广播。
 //
 // 经典 hub pattern：**单个 goroutine 独占 clients map**，外部只通过
-// register / unregister / broadcast 三个 channel 交互 —— 于是 map 无需锁。
+// register / unregister / broadcast / sendTo 四个 channel 交互 —— 于是 map 无需锁。
 //
 // Sprint 9 MVP 不做 tile/region 过滤，一条 player_moved 广播给所有连接
 // （量级：9 tile × 个位数玩家）。过滤留到 Sprint 10+。
+//
+// Sprint 13：SendToPlayer 把带非空 player_id 的专属台词（npc_dialogue welcome /
+// reply）只投递给目标玩家那条连接；player_moved 与主动广播仍走 Broadcast。
 package hub
 
 import (
@@ -23,13 +26,21 @@ type Stats struct {
 	Connected int64  `json:"connected"`
 	Delivered uint64 `json:"delivered"`
 	Broadcast uint64 `json:"broadcast"`
+	Targeted  uint64 `json:"targeted"`
 	Evicted   uint64 `json:"evicted"`
+}
+
+// targetedSend 是给特定玩家连接的带参消息（经 sendTo channel 提交到事件循环）。
+type targetedSend struct {
+	playerID string
+	msg      []byte
 }
 
 type Hub struct {
 	register   chan *Client
 	unregister chan *Client
 	broadcast  chan []byte
+	sendTo     chan targetedSend
 	done       chan struct{}
 
 	// 仅 Run goroutine 访问，无需锁
@@ -37,10 +48,11 @@ type Hub struct {
 
 	logger *zap.Logger
 
-	connected atomic.Int64
-	delivered atomic.Uint64
+	connected  atomic.Int64
+	delivered  atomic.Uint64
 	broadcasts atomic.Uint64
-	evicted   atomic.Uint64
+	targeted   atomic.Uint64
+	evicted    atomic.Uint64
 }
 
 func New(logger *zap.Logger) *Hub {
@@ -52,6 +64,7 @@ func New(logger *zap.Logger) *Hub {
 		register:   make(chan *Client, 32),
 		unregister: make(chan *Client, 32),
 		broadcast:  make(chan []byte, 256),
+		sendTo:     make(chan targetedSend, 256),
 		done:       make(chan struct{}),
 		clients:    make(map[*Client]struct{}),
 		logger:     logger,
@@ -109,6 +122,26 @@ func (h *Hub) Run(ctx context.Context) {
 					zap.String("player_id", c.PlayerID))
 				go c.close(StatusPolicyViolation, "slow consumer")
 			}
+
+		case t := <-h.sendTo:
+			h.targeted.Add(1)
+			for c := range h.clients {
+				if c.PlayerID != t.playerID {
+					continue
+				}
+				if c.trySend(t.msg) {
+					h.delivered.Add(1)
+					continue
+				}
+				// 目标玩家是慢消费者：踢掉，避免拖住后续投递。
+				delete(h.clients, c)
+				h.connected.Add(-1)
+				h.evicted.Add(1)
+				h.logger.Warn("evicting slow targeted consumer",
+					zap.String("client_id", c.ID),
+					zap.String("player_id", c.PlayerID))
+				go c.close(StatusPolicyViolation, "slow consumer")
+			}
 		}
 	}
 }
@@ -162,11 +195,30 @@ func (h *Hub) Broadcast(msg []byte) {
 	}
 }
 
+// SendToPlayer 只把消息投递给指定 player 的连接（NPC 专属台词 welcome / reply）。
+//
+// 与 Broadcast 同样的非阻塞语义：sendTo chan 满则丢弃并告警，不反压订阅循环。
+// 没有该 player 的连接时消息静默消失（属于正常情况）。
+func (h *Hub) SendToPlayer(playerID string, msg []byte) {
+	select {
+	case <-h.done:
+		return
+	default:
+	}
+	select {
+	case h.sendTo <- targetedSend{playerID: playerID, msg: msg}:
+	default:
+		h.logger.Warn("sendTo queue full, dropping message",
+			zap.String("player_id", playerID))
+	}
+}
+
 func (h *Hub) Stats() Stats {
 	return Stats{
 		Connected: h.connected.Load(),
 		Delivered: h.delivered.Load(),
 		Broadcast: h.broadcasts.Load(),
+		Targeted:  h.targeted.Load(),
 		Evicted:   h.evicted.Load(),
 	}
 }

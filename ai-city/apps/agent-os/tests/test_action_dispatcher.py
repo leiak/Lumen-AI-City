@@ -69,3 +69,36 @@ async def test_say_publish_failure_does_not_raise():
     d = ActionDispatcher(BadRedis(), channel="aicity:npc_dialogue")  # type: ignore[arg-type]
     # 不抛：fire-and-forget
     await d.say("npc_wang_boss_001", "x")
+
+@pytest.mark.asyncio
+async def test_say_payload_matches_wsgateway_npc_dialogue_contract():
+    """agent-os→ws-gateway 契约：inner payload 的字段与
+    ws-gateway internal/protocol/message.go::NpcDialogue JSON 对齐，
+    ws-gateway 仅据此包信封并路由（welcome/reply 按 player_id 只投目标连接）。
+
+    Agent-os 侧只保证「字段存在且类型对」；路由与连接级行为由 ws-gateway
+    的 cmd 契约测试 TestAgentOsNpcDialogueReachesTargetConnection 断言。
+    """
+    fake = FakeRedis()
+    d = ActionDispatcher(fake, channel="aicity:npc_dialogue")  # type: ignore[arg-type]
+    await d.say(
+        "npc_wang_boss_001",
+        "哟，您可算回来了！",
+        player_id="player-A",
+        tile_id="tile_0_0",
+        options=[{"id": "ask_food", "text": "有什么菜？"}],
+    )
+    msg = json.loads(fake.calls[0][1])
+    want_keys = {
+        "npc_id", "player_id", "tile_id", "say",
+        "options", "reply_to_choice_id", "ts_ms", "trace_id",
+    }
+    assert set(msg) == want_keys
+    assert isinstance(msg["npc_id"], str)
+    assert isinstance(msg["player_id"], str)
+    assert isinstance(msg["tile_id"], str)
+    assert isinstance(msg["say"], str)
+    assert isinstance(msg["options"], list)   # 始终是数组（不是 null）
+    assert msg["reply_to_choice_id"] is None  # 主动说 → null
+    assert isinstance(msg["ts_ms"], int)
+    assert isinstance(msg["trace_id"], str)

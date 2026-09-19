@@ -158,3 +158,66 @@ func TestHub_ShutdownClosesClients(t *testing.T) {
 	h.Unregister(c)
 	h.Broadcast([]byte(`ignored`))
 }
+
+// Sprint 13：带 player_id 的专属台词走 SendToPlayer，只投递给目标玩家的连接。
+func TestHub_SendToPlayerRoutesOnlyTarget(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	h := New(nil)
+	go h.Run(ctx)
+
+	fcA := newFakeConn()
+	a := NewClient("a", "player-1", fcA, 4, nil)
+	fcB := newFakeConn()
+	b := NewClient("b", "player-2", fcB, 4, nil)
+	if err := h.Register(a); err != nil {
+		t.Fatalf("register a: %v", err)
+	}
+	if err := h.Register(b); err != nil {
+		t.Fatalf("register b: %v", err)
+	}
+	waitFor(t, time.Second, "connected=2", func() bool { return h.Stats().Connected == 2 })
+
+	h.SendToPlayer("player-1", []byte(`welcome`))
+
+	select {
+	case got := <-a.send:
+		if string(got) != "welcome" {
+			t.Errorf("target player-1 got %q, want welcome", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("target player-1 got nothing")
+	}
+
+	select {
+	case got := <-b.send:
+		t.Errorf("player-2 unexpectedly received %q", got)
+	case <-time.After(150 * time.Millisecond):
+	}
+}
+
+// 目标玩家未连接：SendToPlayer 静默无副作用（不 panic、不误投他人）。
+func TestHub_SendToPlayerUnknownPlayerNoOp(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	h := New(nil)
+	go h.Run(ctx)
+
+	fc := newFakeConn()
+	c := NewClient("c1", "player-1", fc, 4, nil)
+	if err := h.Register(c); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	waitFor(t, time.Second, "connected=1", func() bool { return h.Stats().Connected == 1 })
+
+	h.SendToPlayer("ghost", []byte(`x`))
+	waitFor(t, time.Second, "targeted counted", func() bool { return h.Stats().Targeted == 1 })
+
+	select {
+	case got := <-c.send:
+		t.Errorf("player-1 unexpectedly received %q", got)
+	case <-time.After(150 * time.Millisecond):
+	}
+}

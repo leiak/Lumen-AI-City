@@ -98,11 +98,17 @@ func (h *NPCTalkHandler) Handle(c *gin.Context) {
 	}
 	node, ok := tree.Lookup(req.ChoiceID)
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":  "NPC_002",
-			"detail": "unknown choice_id: " + req.ChoiceID,
-		})
-		return
+		// Sprint13 增补：未知/过期 choice → 优雅回退到模板 `talk_tree.default_say`
+		// （不打断对话，回一句 default 并照常发布到玩家浏览器）。只有连 default_say
+		// 都没配的 NPC 才维持 400。
+		if tree.DefaultSay == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":  "NPC_002",
+				"detail": "unknown choice_id: " + req.ChoiceID,
+			})
+			return
+		}
+		node = npc.Node{Say: tree.DefaultSay}
 	}
 
 	opts := make([]dialogOptionDTO, len(node.Options))
@@ -168,19 +174,20 @@ func (h *NPCTalkHandler) HandleInfo(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "NPC_001", "detail": "NPC not found: " + id})
 		return
 	}
-	var node npc.Node
+	say := tree.DefaultSay // Sprint13 增补：无 root 节点时回退默认开场，而非空
+	opts := []dialogOptionDTO{}
 	if n, found := tree.InitialNode(); found {
-		node = n
-	}
-	opts := make([]dialogOptionDTO, len(node.Options))
-	for i, o := range node.Options {
-		opts[i] = dialogOptionDTO{ID: o.ID, Text: o.Text}
+		say = n.Say
+		opts = make([]dialogOptionDTO, len(n.Options))
+		for i, o := range n.Options {
+			opts[i] = dialogOptionDTO{ID: o.ID, Text: o.Text}
+		}
 	}
 	c.JSON(http.StatusOK, npcInfoResp{
 		NpcID:      tree.NpcID,
 		Name:       tree.Name,
 		HomeTileID: tree.HomeTile,
-		Say:        node.Say,
+		Say:        say,
 		Options:    opts,
 	})
 }

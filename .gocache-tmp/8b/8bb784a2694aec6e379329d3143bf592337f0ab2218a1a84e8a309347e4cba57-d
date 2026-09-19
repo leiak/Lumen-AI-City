@@ -1,0 +1,15 @@
+./accept.go
+./close.go
+./compress.go
+./conn.go
+./dial.go
+./doc.go
+./frame.go
+./mask.go
+./mask_asm.go
+./netconn.go
+./netconn_notjs.go
+./read.go
+./stringer.go
+./write.go
+./mask_amd64.s
