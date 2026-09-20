@@ -1,0 +1,7 @@
+# 本地工具缓存（Codex 沙箱无出网时的 GOCACHE/pytest tmp 重定向目录，非源码产物）
+.gocache-tmp/
+.pytest-tmp/
+
+# OS
+Thumbs.db
+.DS_Store

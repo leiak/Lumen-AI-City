@@ -220,3 +220,35 @@
 ### 长期（2027 年）
 - [ ] a2a-gateway 仍无用户 → 正式 deprecated
 - [ ] 3.0 / 4.0 规划（联邦 / 创作者市场 / 商业化）
+
+---
+
+## Sprint 13 实际落地（2026-09）—— 对话 + 移动闭环可发初版
+
+> 本段记录 Sprint 13 真正落地的能力，作为初始版本的发版注记；前文部分 Rust/Go
+> endpoint 是规划名（如 `POST /v1/npc/:id/talk`），以本段"实际落地"为准。
+
+### 玩家 ↔ NPC 剧本对话闭环
+- `POST /v1/npc/talk`（实际）：body `{"npc_id","player_id","choice_id"}` → 查
+  `talk_tree` 返 next `say` + `options`；未知/过期 choice 回退模板 `talk_tree.default_say`。
+- `GET /v1/npcs/:id`（实际）：返初始节点（`say` + `options`）——前端点 NPC 无需先
+  收到 welcome 也能弹出开场白；无 root 节点时回退 `default_say`。
+- web `WorldMap` 点 NPC → `getNpc` 拉初始节点 → `NPCDialog` 渲染 → 点选项 → `postNpcTalk`。
+
+### NPC 移动闭环（"NPC 会动"）
+- agent-os `MoveScheduler`（mission：每 `move_tick_seconds` 给每个 enabled NPC 发
+  `aicity:npc_moved`）：payload `{npc_id, tile_id, x, y, ts_ms}`。
+- **walk 数据驱动**：`wang_boss.yaml::walk.tiles`（3 步走法）驱动 `default_chooser`；
+  旧模板无 `walk` 回退 home±1 随机邻格。
+- ws-gateway 订阅 `aicity:npc_moved` 并 **Broadcast**；web `WorldMap` 按 `npc_id`
+  实时覆盖圆点坐标（无事件回退 tile 中心）。
+- 权威坐标（world-engine 落位置表）列为硬化项，初始版由 agent-os 直接发布。
+
+### 其它一致性修复
+- ws-gateway `SendToPlayer`：带非空 `player_id` 的 `npc_dialogue`（welcome/reply）
+  只投目标玩家连接，主动广播/移动仍全量广播。
+- agent-os welcome/say 兜底 `talk_tree.default_say`（无 welcome/greeting 时）。
+
+### 端到端（unit 级通过，acceptance/docker 待网络恢复）
+- agent-os pytest（welcome/say/move/registry/action_dispatcher）+ api-gateway
+  `go test ./...` + ws-gateway `go test ./...` + web `tsc --noEmit` 全绿。
