@@ -2,8 +2,8 @@
  * api client 单元测试 —— Sprint 12 T03b。
  *
  * 测试目标：`api.postNpcTalk(npcId, choiceId, playerId)`
- *   - POST /v1/npc/talk
- *   - body = {npc_id, player_id, choice_id}
+ *   - POST /v1/npc/:id/talk（spec endpoint，npc_id 在 URL 路径）
+ *   - body = {player_id, choice_id}（npc_id 不重复出现在 body）
  *   - Authorization: Bearer <token>（token 来自 api.setToken）
  *   - 非 2xx 抛错
  *
@@ -41,7 +41,7 @@ describe('api.postNpcTalk (T03b)', () => {
     api.setToken(''); // 清 token，避免跨 test 串
   });
 
-  it('POSTs to /v1/npc/talk with Bearer auth and JSON body', async () => {
+  it('POSTs to /v1/npc/:id/talk (spec endpoint) with Bearer auth and JSON body', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -56,12 +56,12 @@ describe('api.postNpcTalk (T03b)', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe('http://localhost:8080/v1/npc/talk');
+    // spec endpoint：npc_id 在 URL 路径，body 不再包含 npc_id
+    expect(url).toBe('http://localhost:8080/v1/npc/npc_wang_boss_001/talk');
     expect(init.method).toBe('POST');
     expect(init.headers['Content-Type']).toBe('application/json');
     expect(init.headers.Authorization).toBe('Bearer test-jwt');
     expect(JSON.parse(init.body)).toEqual({
-      npc_id: 'npc_wang_boss_001',
       player_id: 'player-1',
       choice_id: 'ask_business',
     });

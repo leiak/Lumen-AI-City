@@ -10,8 +10,13 @@ from agent_os.config import Config
 
 def main() -> None:
     cfg = Config()
+    # Python stdlib `logging.basicConfig(level=...)` 要求大写（"INFO"），与 Go/Rust
+    # 的小写约定不一致；uvicorn 也接受大小写，但 lib 严格要求。normalize 一次：
+    # - basicConfig 走 UPPER（lib 约束）
+    # - uvicorn log_level 走 lower（与 uvicorn 内部常量一致）
+    log_level_upper = cfg.log_level.upper()
     logging.basicConfig(
-        level=cfg.log_level,
+        level=log_level_upper,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
     uvicorn.run(

@@ -98,20 +98,14 @@ class ApiClient {
 
   getNpc = (id: string) => this.request<NpcInfo>(`/v1/npcs/${id}`);
 
-  dialogue = (npcId: string, message: string) =>
-    this.request<{ reply: string }>(`/v1/npcs/${npcId}/dialogue`, {
-      method: 'POST',
-      body: JSON.stringify({ message }),
-    });
-
-  // POST /v1/npc/talk —— Sprint 12 T03b（talk_tree 持久化）
-  // 字段定义见 apps/ws-gateway/internal/protocol/message.go::NpcDialogue
-  // 与 ws-events.ts::NpcDialoguePayload 形状一致；后端实现见 api-gateway T05
+  // POST /v1/npc/:id/talk —— Sprint 12 spec endpoint（npc_id 在 URL 路径）
+  // body 只携带 {player_id, choice_id}，npc_id 不再重复出现在 body 中。
+  // 后端实现：apps/api-gateway/internal/handlers/npc_talk.go::HandleByID
+  // 返回形状与 ws-gateway NpcDialoguePayload 一致（见下）。
   postNpcTalk = (npcId: string, choiceId: string, playerId: string) =>
-    this.request<NpcDialoguePayload>('/v1/npc/talk', {
+    this.request<NpcDialoguePayload>(`/v1/npc/${npcId}/talk`, {
       method: 'POST',
       body: JSON.stringify({
-        npc_id: npcId,
         player_id: playerId,
         choice_id: choiceId,
       }),

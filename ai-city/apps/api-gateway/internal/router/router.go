@@ -49,14 +49,11 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		// NPC 相关
 		// Sprint 12 spec 端点：POST /v1/npc/:id/talk，body = {player_id, choice_id}（npc_id 在 URL 路径）
 		authed.POST("/npc/:id/talk", npcTalkHandler.HandleByID)
-		// Sprint 12 别名（旧 body 含 npc_id 形态，向后兼容已写 web 客户端代码）
-		authed.POST("/npc/talk", npcTalkHandler.Handle)
 		// 1.0 必新 endpoint（acceptance_1_0 §一.B）：GET/POST /v1/npc/:id/position
 		authed.GET("/npc/:id/position", npcPositionHandler.HandleGet)
 		authed.POST("/npc/:id/position", npcPositionHandler.HandleSet)
-		// 旧占位（保留以免破坏前端假设；T05 系列外另起 task 替换）
-		authed.GET("/npcs/:id", npcTalkHandler.HandleInfo) // Sprint 13: NPC 初始节点（say + options）
-		authed.POST("/npcs/:id/dialogue", func(c *gin.Context) { c.JSON(501, gin.H{"error": "TODO"}) })
+		// NPC 初始节点（say + options）—— Web 点 NPC 时可拉
+		authed.GET("/npcs/:id", npcTalkHandler.HandleInfo)
 
 		// 剧本相关（占位）
 		authed.POST("/sagas", func(c *gin.Context) { c.JSON(501, gin.H{"error": "TODO"}) })

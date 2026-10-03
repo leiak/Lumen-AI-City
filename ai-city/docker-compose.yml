@@ -206,9 +206,8 @@ services:
       REDIS_CHANNEL_NPC_DIALOGUE: aicity:npc_dialogue
       NPC_TEMPLATES_DIR: /etc/aicity/npc-templates
       HTTP_PORT: '8084'
-      # Python stdlib logging 需要大写（logging.basicConfig(level='INFO')），与 Go/Rust 小写约定不一致；
-      # 暂用环境变量绕开 —— 真正修法是 main.py:13 .upper()，待 src/agent-os/main.py 改完可恢复 'info'
-      LOG_LEVEL: INFO
+      # 小写 OK —— main.py:13 已 normalize 为 'INFO' 给 stdlib logging，'info' 给 uvicorn
+      LOG_LEVEL: info
       SERVICE_NAME: agent-os
       SAY_TICK_SECONDS: '5.0'
     volumes:
