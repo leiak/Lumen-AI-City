@@ -83,7 +83,7 @@ class MoveScheduler:
         self._step = 0
         self._last_pos: dict[str, tuple[str, float, float]] = {}
 
-    def tick_once(self) -> None:
+    async def tick_once(self) -> None:
         """每个 enabled NPC（有 home_tile_id）发布一条 npc_moved。"""
         for tpl in self._registry.list_enabled():
             if not tpl.home_tile_id:
@@ -99,7 +99,7 @@ class MoveScheduler:
             }
             self._last_pos[tpl.npc_id] = (tile_id, float(x), float(y))
             try:
-                self._publisher.publish(self._channel, json.dumps(payload))
+                await self._publisher.publish(self._channel, json.dumps(payload))
             except Exception as e:  # noqa: BLE001
                 logger.warning(
                     "npc move publish failed",
@@ -112,7 +112,7 @@ class MoveScheduler:
         logger.info("move_scheduler starting", extra={"tick_seconds": self._tick})
         while not stop.is_set():
             try:
-                self.tick_once()
+                await self.tick_once()
             except Exception as e:
                 logger.exception("npc move tick exception", extra={"err": str(e)})
             try:

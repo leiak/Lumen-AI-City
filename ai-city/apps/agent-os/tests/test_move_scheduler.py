@@ -22,7 +22,7 @@ class FakePublisher:
     def __init__(self):
         self.calls: list[tuple[str, str]] = []
 
-    def publish(self, channel: str, payload: str) -> None:
+    async def publish(self, channel: str, payload: str) -> None:
         self.calls.append((channel, payload))
 
 
@@ -38,7 +38,8 @@ def _clock_seq():
     return clock
 
 
-def test_tick_publishes_one_npc_moved_per_enabled():
+@pytest.mark.asyncio
+async def test_tick_publishes_one_npc_moved_per_enabled():
     pub = FakePublisher()
     sched = MoveScheduler(
         registry=FakeRegistry([_tpl(), _tpl("npc_lihua_001", enabled=True, home="tile_1_0")]),
@@ -48,7 +49,7 @@ def test_tick_publishes_one_npc_moved_per_enabled():
         rng=random.Random(7),
         clock=_clock_seq(),
     )
-    sched.tick_once()
+    await sched.tick_once()
     assert len(pub.calls) == 2
     for channel, payload in pub.calls:
         assert channel == "aicity:npc_moved"
@@ -61,7 +62,8 @@ def test_tick_publishes_one_npc_moved_per_enabled():
         assert isinstance(msg["ts_ms"], int)
 
 
-def test_tick_skips_disabled_and_homeless():
+@pytest.mark.asyncio
+async def test_tick_skips_disabled_and_homeless():
     pub = FakePublisher()
     sched = MoveScheduler(
         registry=FakeRegistry([
@@ -74,13 +76,14 @@ def test_tick_skips_disabled_and_homeless():
         tick_seconds=30.0,
         rng=random.Random(1),
     )
-    sched.tick_once()
+    await sched.tick_once()
     assert [json.loads(p)["npc_id"] for _, p in pub.calls] == [
         "npc_wang_boss_001"
     ]
 
 
-def test_tick_tracks_last_position_for_continuity():
+@pytest.mark.asyncio
+async def test_tick_tracks_last_position_for_continuity():
     pub = FakePublisher()
     rng = random.Random(3)
     sched = MoveScheduler(
@@ -91,8 +94,8 @@ def test_tick_tracks_last_position_for_continuity():
         rng=rng,
         clock=_clock_seq(),
     )
-    sched.tick_once()
-    sched.tick_once()
+    await sched.tick_once()
+    await sched.tick_once()
     assert len(pub.calls) == 2
     first = json.loads(pub.calls[0][1])
     second = json.loads(pub.calls[1][1])
@@ -117,7 +120,8 @@ def test_default_chooser_stays_within_home_plus_minus_one():
         assert abs(y - cy_target) < 37.5, f"y out of bounds: {y} center={cy_target}"
 
 
-def test_chooser_injectable():
+@pytest.mark.asyncio
+async def test_chooser_injectable():
     """自定义 chooser 决定移动目标（供测试/后续模板步法复用）。"""
     pub = FakePublisher()
     def chooser(tpl, current, step, rng) -> tuple[str, float, float]:
@@ -129,7 +133,7 @@ def test_chooser_injectable():
         tick_seconds=30.0,
         chooser=chooser,
     )
-    sched.tick_once()
+    await sched.tick_once()
     msg = json.loads(pub.calls[0][1])
     assert msg["tile_id"] == "tile_1_0"
     assert msg["x"] == 150.0

@@ -7,6 +7,11 @@
 
 FROM python:3.12-slim
 
+# 网络修正：files.pythonhosted.org 偶发 read timeout，改走清华镜像。后续
+# `uv pip install` 也会用同源（uv 尊重 PIP_INDEX_URL）。
+ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+
 # uv 安装到 system python（与 dev 环境一致，避免 venv 路径漂移）
 RUN pip install --no-cache-dir uv
 

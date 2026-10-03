@@ -116,7 +116,10 @@ func main() {
 	// reply 同步返 + best-effort publish 到 aicity:npc_dialogue 给 ws-gateway fanout）。
 	npcTalkHandler := handlers.NewNPCTalkHandler(trees, stringRedisPublisher{rdb}, logger, "aicity:npc_dialogue")
 
-	router.Register(r, cfg, db, playerStore, worldClient, npcTalkHandler)
+	// 1.0 必新 endpoint（acceptance_1_0 §一.B）：NPC position 读写（PG upsert）
+	npcPositionHandler := handlers.NewNPCPositionHandler(db, logger)
+
+	router.Register(r, cfg, db, playerStore, worldClient, npcTalkHandler, npcPositionHandler)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

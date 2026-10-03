@@ -12,6 +12,10 @@ COPY go.work go.work.sum ./
 COPY apps apps
 COPY packages packages
 
+# 网络修正：本机 egress 不到 proxy.golang.org（实测 timeout），改走 goproxy.cn 镜像。
+# 直连兜底，万一镜像挂了也能继续。
+ENV GOPROXY=https://goproxy.cn,direct
+
 # 不跑 go mod download：a2a-gateway 没有 go.sum，单模块 download 会失败；
 # workspace 模式下用 go.work.sum 校验。
 RUN --mount=type=cache,target=/root/.cache/go-build \

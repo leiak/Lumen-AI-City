@@ -153,6 +153,102 @@ func (h *NPCTalkHandler) Handle(c *gin.Context) {
 	}
 }
 
+// HandleByID serves POST /v1/npc/:id/talk — the spec-shaped endpoint.
+//
+// Per docs/superpowers/specs/2026-09-08-sprint12-min-slice-design.md §1.1 /
+// §2.3 the canonical shape is "npc_id in URL path, body only carries
+// {player_id, choice_id}". The earlier POST /v1/npc/talk route (with npc_id
+// in the body) is kept as an alias for backward compatibility with callers
+// that already speak that shape — see router.go for the two registrations.
+//
+// Behaviour mirrors Handle() exactly: same lookup + default_say fallback +
+// best-effort Redis publish on aicity:npc_dialogue. Error code mapping is
+// identical (NPC_001/002).
+func (h *NPCTalkHandler) HandleByID(c *gin.Context) {
+	npcID := c.Param("id")
+	if npcID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":  "NPC_002",
+			"detail": "npc id is required in URL path",
+		})
+		return
+	}
+
+	var req struct {
+		PlayerID string `json:"player_id"`
+		ChoiceID string `json:"choice_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "NPC_002", "detail": err.Error()})
+		return
+	}
+	if req.PlayerID == "" || req.ChoiceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":  "NPC_002",
+			"detail": "player_id, choice_id are required",
+		})
+		return
+	}
+
+	tree, ok := h.Trees[npcID]
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":  "NPC_001",
+			"detail": "NPC not found: " + npcID,
+		})
+		return
+	}
+	node, ok := tree.Lookup(req.ChoiceID)
+	if !ok {
+		// 与 Handle() 同款：未知 choice → default_say 兜底（不打断对话）。
+		if tree.DefaultSay == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":  "NPC_002",
+				"detail": "unknown choice_id: " + req.ChoiceID,
+			})
+			return
+		}
+		node = npc.Node{Say: tree.DefaultSay}
+	}
+
+	opts := make([]dialogOptionDTO, len(node.Options))
+	for i, o := range node.Options {
+		opts[i] = dialogOptionDTO{ID: o.ID, Text: o.Text}
+	}
+
+	resp := npcTalkResp{
+		NpcID:           npcID,
+		PlayerID:        req.PlayerID,
+		TileID:          tree.HomeTile,
+		Say:             node.Say,
+		Options:         opts,
+		ReplyToChoiceID: req.ChoiceID,
+	}
+	c.JSON(http.StatusOK, resp)
+
+	// Best-effort publish — 与 Handle() 同款语义（详见上面 Handle 注释）。
+	innerPayload := map[string]any{
+		"npc_id":             resp.NpcID,
+		"player_id":          resp.PlayerID,
+		"tile_id":            resp.TileID,
+		"say":                resp.Say,
+		"options":            opts,
+		"reply_to_choice_id": resp.ReplyToChoiceID,
+		"ts_ms":              time.Now().UnixMilli(),
+		"trace_id":           c.GetHeader("X-Trace-ID"),
+	}
+	payload, _ := json.Marshal(innerPayload)
+	if err := h.Redis.Publish(c.Request.Context(), h.NPCChannel, string(payload)).Err(); err != nil {
+		h.Logger.Warn("npc publish failed (by-id)",
+			zap.String("npc_id", npcID),
+			zap.String("player_id", req.PlayerID),
+			zap.String("choice_id", req.ChoiceID),
+			zap.String("channel", h.NPCChannel),
+			zap.Error(err),
+		)
+	}
+}
+
 // npcInfoResp is the GET /v1/npcs/:id response: the NPC's first-turn (root)
 // say + options, so a client can seed a conversation without re-parsing the
 // talk_tree YAML (single source of truth stays in packages/npc-templates).
