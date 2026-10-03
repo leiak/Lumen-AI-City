@@ -27,19 +27,23 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
  && CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" \
       -o /out/http_smoke ./apps/a2a-gateway/cmd/http_smoke \
  && CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" \
-      -o /out/inbox_smoke ./apps/a2a-gateway/cmd/inbox_smoke
+      -o /out/inbox_smoke ./apps/a2a-gateway/cmd/inbox_smoke \
+ && CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" \
+      -o /out/acceptance_1_0 ./apps/a2a-gateway/cmd/acceptance_1_0
 
 FROM alpine:3.19
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=builder /out/a2a-gateway /app/a2a-gateway
 # E2E 冒烟二进制：原生工作流已废弃，这是唯一的验收手段
-# docker compose exec a2a-gateway /app/a2a_smoke  (12 检查)
-# docker compose exec a2a-gateway /app/http_smoke (8 检查)
-# docker compose exec a2a-gateway /app/inbox_smoke (6 检查)
+# docker compose exec a2a-gateway /app/a2a_smoke      (12 检查)
+# docker compose exec a2a-gateway /app/http_smoke     (8 检查)
+# docker compose exec a2a-gateway /app/inbox_smoke    (6 检查)
+# docker compose exec a2a-gateway /app/acceptance_1_0 (5 步 1.0 闭环验收)
 COPY --from=builder /out/a2a_smoke /app/a2a_smoke
 COPY --from=builder /out/http_smoke /app/http_smoke
 COPY --from=builder /out/inbox_smoke /app/inbox_smoke
+COPY --from=builder /out/acceptance_1_0 /app/acceptance_1_0
 
 EXPOSE 50061 8083
 ENTRYPOINT ["/app/a2a-gateway"]
