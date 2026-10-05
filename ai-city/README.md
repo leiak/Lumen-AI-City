@@ -23,6 +23,14 @@
 > - 🎬 [CHANGELOG-2.0](CHANGELOG-2.0.md)
 > - 🚀 [Quickstart](docs/1.0-ROADMAP.md)（1.0 仍主推，2.0 在 acceptance_2_0 验证后启用）
 > - ✅ `acceptance_2_0` binary：5/5 步骤 ~30s 通过
+>
+> ## 🔭 2.0 阶段 2 — LLM 流式 + emotion 已 GA
+>
+> - 5 enabled NPC 句子级流式输出（`aicity:npc:say_stream` Redis 频道 + WS 推送）
+> - 8 类 emotion 标签（😊 😢 😠 😲 🤔 😳 🤨 😐）随句子推送
+> - 离线评估 85% emotion 准确率
+> - 📐 设计：[`docs/superpowers/specs/2026-10-05-2.0-stage2-stream-emotion-design.md`](docs/superpowers/specs/2026-10-05-2.0-stage2-stream-emotion-design.md)
+> - ✅ `acceptance_2_1` binary：5/5 步骤通过
 
 ---
 
