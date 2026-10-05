@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   startWsBridge,
   NPC_DIALOGUE_EVENT,
+  NPC_SAY_STREAM_EVENT,
   PLAYER_MOVED_EVENT,
 } from './ws-events';
 import { ws } from './ws';
@@ -173,5 +174,203 @@ describe('startWsBridge - npc_dialogue (T03a)', () => {
     });
 
     expect(dispatchEvent).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 2.0 阶段 2 T19：isNpcSayStreamBeat / isNpcSayStreamDone type guard 间接测试。
+ *
+ * type guard 是 ws-events.ts 模块内私有函数（未 export）—— 公开契约只走
+ * startWsBridge 派发的 aicity:npc_say_stream CustomEvent。本测试断言：
+ *   - 合规信封 → bridge 派发 NPC_SAY_STREAM_EVENT
+ *   - 缺字段 / 外层 type 错 / payload.type 错 / 字段类型错 → 不派发
+ *
+ * 这样既验证 type guard 行为，又不需要为了测试把内部函数 export 出去。
+ */
+describe('startWsBridge - npc_say_stream type guards (T19)', () => {
+  let onMessageSpy: any;
+  let dispatchEvent: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.stubGlobal('WebSocket', MockWS);
+    dispatchEvent = vi.fn();
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: vi.fn((k: string) => (k === 'aicity_token' ? 'test-tkn' : null)),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      },
+      dispatchEvent,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+    onMessageSpy = vi.spyOn(ws, 'onMessage');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('test_is_npc_say_stream_beat_type_guard: accepts matching beat payload, rejects non-matching', () => {
+    startWsBridge();
+    const listener = onMessageSpy.mock.calls[0][0] as (msg: unknown) => void;
+
+    // 合规 beat —— 应派发
+    const validBeat = {
+      type: 'npc_say_stream',
+      trace_id: 't-beat-1',
+      ts_ms: 1700000000000,
+      payload: {
+        type: 'npc_say_stream',
+        npc_id: 'npc_wang_boss_001',
+        session_id: 's-1',
+        sentence_idx: 0,
+        text: '来了您嘞！',
+        emotion: 'happy',
+        ts_ms: 1700000000000,
+        trace_id: 't-beat-1',
+      },
+    };
+    listener(validBeat);
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
+    const event = dispatchEvent.mock.calls[0][0] as CustomEvent;
+    expect(event.type).toBe(NPC_SAY_STREAM_EVENT);
+    expect(event.detail).toEqual(validBeat);
+
+    // 拒绝 cases —— 应静默忽略
+    const rejects: Array<{ label: string; frame: unknown }> = [
+      {
+        label: '外层 type 错',
+        frame: { ...validBeat, type: 'npc_dialogue' },
+      },
+      {
+        label: '内层 payload.type 错（done 落到 beat 通道）',
+        frame: {
+          ...validBeat,
+          payload: { ...validBeat.payload, type: 'npc_say_stream_done' },
+        },
+      },
+      {
+        label: '缺 sentence_idx',
+        frame: {
+          ...validBeat,
+          payload: {
+            ...validBeat.payload,
+            sentence_idx: undefined as unknown as number,
+          },
+        },
+      },
+      {
+        label: 'sentence_idx 类型错（string 而非 number）',
+        frame: {
+          ...validBeat,
+          payload: {
+            ...validBeat.payload,
+            sentence_idx: '0' as unknown as number,
+          },
+        },
+      },
+      {
+        label: 'emotion 类型错（number 而非 string）',
+        frame: {
+          ...validBeat,
+          payload: {
+            ...validBeat.payload,
+            emotion: 42 as unknown as string,
+          },
+        },
+      },
+      {
+        label: 'payload 是 null',
+        frame: { ...validBeat, payload: null },
+      },
+      {
+        label: 'envelope 不是 object',
+        frame: 'oops',
+      },
+    ];
+
+    for (const r of rejects) {
+      listener(r.frame);
+    }
+    // 上面只放过 1 次（validBeat），其余 7 次拒绝
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('test_is_npc_say_stream_done_type_guard: accepts matching done payload, rejects non-matching', () => {
+    startWsBridge();
+    const listener = onMessageSpy.mock.calls[0][0] as (msg: unknown) => void;
+
+    // 合规 done —— 应派发
+    const validDone = {
+      type: 'npc_say_stream',
+      trace_id: 't-done-1',
+      ts_ms: 1700000000999,
+      payload: {
+        type: 'npc_say_stream_done',
+        npc_id: 'npc_wang_boss_001',
+        session_id: 's-1',
+        sentence_count: 2,
+        complete: true,
+        ts_ms: 1700000000999,
+        trace_id: 't-done-1',
+      },
+    };
+    listener(validDone);
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
+    const event = dispatchEvent.mock.calls[0][0] as CustomEvent;
+    expect(event.type).toBe(NPC_SAY_STREAM_EVENT);
+    expect(event.detail).toEqual(validDone);
+
+    // 拒绝 cases —— 应静默忽略
+    const rejects: Array<{ label: string; frame: unknown }> = [
+      {
+        label: '内层 payload.type 错（beat 落到 done 通道）',
+        frame: {
+          ...validDone,
+          payload: { ...validDone.payload, type: 'npc_say_stream' },
+        },
+      },
+      {
+        label: 'sentence_count 缺失',
+        frame: {
+          ...validDone,
+          payload: {
+            ...validDone.payload,
+            sentence_count: undefined as unknown as number,
+          },
+        },
+      },
+      {
+        label: 'complete 类型错（0/1 而非 boolean）',
+        frame: {
+          ...validDone,
+          payload: {
+            ...validDone.payload,
+            complete: 1 as unknown as boolean,
+          },
+        },
+      },
+      {
+        label: 'session_id 缺失',
+        frame: {
+          ...validDone,
+          payload: {
+            ...validDone.payload,
+            session_id: undefined as unknown as string,
+          },
+        },
+      },
+      {
+        label: 'payload 是 primitive',
+        frame: { ...validDone, payload: 'done' },
+      },
+    ];
+
+    for (const r of rejects) {
+      listener(r.frame);
+    }
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
   });
 });
