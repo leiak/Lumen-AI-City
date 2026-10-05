@@ -98,7 +98,12 @@ func main() {
 			os.Exit(2)
 		}
 		// 顺手验证 sentence_idx 是非负整数（JSON 数字解出来是 float64）。
+		// 仅检查 type=="npc_say_stream" 的句子事件；done 事件（type=="npc_say_stream_done"）
+		// 没有 sentence_idx 字段，由 step 4 单独验证。
 		for i, b := range beats {
+			if t, _ := b["type"].(string); t != "npc_say_stream" {
+				continue
+			}
 			idxFloat, ok := b["sentence_idx"].(float64)
 			if !ok || idxFloat < 0 || idxFloat != float64(int64(idxFloat)) {
 				fmt.Fprintf(os.Stderr, "FAIL step 2 %s: beat[%d] sentence_idx invalid: %v\n", npcID, i, b["sentence_idx"])
@@ -119,6 +124,9 @@ func main() {
 			os.Exit(3)
 		}
 		for i, b := range beats {
+			if t, _ := b["type"].(string); t != "npc_say_stream" {
+				continue
+			}
 			emo, _ := b["emotion"].(string)
 			if !allowedEmotions[emo] {
 				fmt.Fprintf(os.Stderr, "FAIL step 3 %s: beat[%d] invalid emotion %q\n", npcID, i, emo)
