@@ -1,7 +1,6 @@
-# ai-city/apps/agent-os/src/agent_os/llm/base.py
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Dict, Literal
+from typing import List, Dict, Literal, AsyncIterator, Any
 
 @dataclass
 class LLMRequest:
@@ -21,4 +20,4 @@ class LLMProvider(ABC):
     @abstractmethod
     async def complete(self, req: LLMRequest) -> LLMResponse: ...
     @abstractmethod
-    async def stream(self, req: LLMRequest): ...
+    def stream(self, req: LLMRequest) -> AsyncIterator[dict[str, Any]]: ...

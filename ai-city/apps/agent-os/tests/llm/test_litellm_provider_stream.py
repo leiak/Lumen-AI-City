@@ -1,8 +1,6 @@
 """LiteLLMProvider.stream() 单元测试（mock LiteLLM，不需要 API key）。"""
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from agent_os.llm.litellm_provider import LiteLLMProvider
 from agent_os.llm.types import LLMRequest
@@ -49,6 +47,51 @@ def test_stream_handles_empty_content():
     chunk.choices = [MagicMock()]
     chunk.choices[0].delta = MagicMock()
     chunk.choices[0].delta.content = None
+    chunk.choices[0].finish_reason = "stop"
+
+    async def fake_acompletion(*args, **kwargs):
+        yield chunk
+
+    with patch("agent_os.llm.litellm_provider.litellm.acompletion", fake_acompletion):
+        provider = LiteLLMProvider()
+        req = LLMRequest(prompt="hi")
+
+        async def run():
+            return [c async for c in provider.stream(req)]
+
+        chunks = asyncio.run(run())
+
+    assert chunks == [{"text": "", "finish_reason": "stop"}]
+
+
+def test_stream_skips_empty_choices():
+    """chunk.choices=[] → skip chunk，不 yield。"""
+    chunk_empty = MagicMock()
+    chunk_empty.choices = []
+    chunk_valid = _make_stream_chunk("hi", "stop")
+
+    async def fake_acompletion(*args, **kwargs):
+        yield chunk_empty
+        yield chunk_valid
+
+    with patch("agent_os.llm.litellm_provider.litellm.acompletion", fake_acompletion):
+        provider = LiteLLMProvider()
+        req = LLMRequest(prompt="hi")
+
+        async def run():
+            return [c async for c in provider.stream(req)]
+
+        chunks = asyncio.run(run())
+
+    assert chunks == [{"text": "hi", "finish_reason": "stop"}]
+
+
+def test_stream_handles_non_string_content():
+    """delta.content 是非 string（function call args）→ 视为空字符串。"""
+    chunk = MagicMock()
+    chunk.choices = [MagicMock()]
+    chunk.choices[0].delta = MagicMock()
+    chunk.choices[0].delta.content = {"function": "call"}  # dict, not string
     chunk.choices[0].finish_reason = "stop"
 
     async def fake_acompletion(*args, **kwargs):

@@ -21,15 +21,14 @@ async def test_claude_sonnet_real_call():
 
 
 @pytest.mark.skipif(
-    not os.getenv("ANTHROPIC_API_KEY"), reason="no API key"
+    not os.getenv("ANTHROPIC_API_KEY"),
+    reason="需要 ANTHROPIC_API_KEY",
 )
 @pytest.mark.asyncio
-async def test_real_stream_yields_tokens():
-    """LiteLLMProvider.stream() 真流式 token-by-token 测试。
-
-    需 ANTHROPIC_API_KEY + 网络（CI 默认跳过）。
-    也可由 ``--run-real-llm`` 选项启用（见 conftest.py）。
-    """
+async def test_real_stream_yields_tokens(request):
+    """LiteLLMProvider.stream() 真流式 token-by-token 测试（需 --run-real-llm + API key）。"""
+    if not request.config.getoption("--run-real-llm"):
+        pytest.skip("需要 --run-real-llm")
     import asyncio
 
     provider = LiteLLMProvider(model="claude-sonnet-4-6")
