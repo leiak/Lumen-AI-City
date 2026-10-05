@@ -53,3 +53,21 @@ def get_npc_prompt(npc_id: str) -> str:
         return NPC_PROMPTS.get(slug, NPC_PROMPTS["wang_boss"])
     # 兼容旧格式（如 wang_boss）
     return NPC_PROMPTS.get(npc_id, NPC_PROMPTS["wang_boss"])
+
+
+def get_npc_stream_prompt(npc_id: str, player_input: str, npc_context: list) -> str:
+    """NPC 流式 prompt 模板（T08 会基于 NPC 性格填充 5 NPC 个性化 prompt）。
+
+    当前是占位实现：构造一个最小可用的 prompt 字符串，要求 LLM 在每句末
+    输出 ``<emotion=...>...</emotion>`` tag，并以 ``<end>`` 收尾。T08 接管后会
+    改为基于 NPC slug 选人格化 system prompt + few-shot examples。
+    """
+    context_str = "\n".join(str(c) for c in npc_context)
+    return (
+        f"You are NPC {npc_id}. "
+        f"Use <emotion=happy|sad|angry|surprised|thinking|embarrassed|curious|neutral>"
+        f" tags at the end of each sentence. End with <end>.\n"
+        f"Context: {context_str}\n"
+        f"Player: {player_input}\n"
+        f"NPC:"
+    )
