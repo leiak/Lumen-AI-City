@@ -235,6 +235,9 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       REDIS_CHANNEL_NPC_DIALOGUE: aicity:npc_dialogue
+      # 2.0 stage 2：NpcSayPublisher 发流频道；与 ws-gateway 多频道订阅对齐。
+      # publisher.py 当前仍用常量 CHANNEL_SAY_STREAM，未来可在 settings 覆盖。
+      REDIS_CHANNEL_NPC_SAY_STREAM: aicity:npc:say_stream
       NPC_TEMPLATES_DIR: /etc/aicity/npc-templates
       HTTP_PORT: '8084'
       # 小写 OK —— main.py:13 已 normalize 为 'INFO' 给 stdlib logging，'info' 给 uvicorn
