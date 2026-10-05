@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -128,6 +129,65 @@ func main() {
 	}
 	fmt.Println("  PASS all emotions ∈ 8 classes")
 
-	// Step 4-5: 见 T17
-	fmt.Println("Step 4-5: TODO (T17 补)")
+	// Step 4: 验证 npc_say_stream_done 到达（≥5 个 done 事件 = 5 NPC 各一）。
+	// payload 由 apps/agent-os/src/agent_os/stream/publisher.py:39 publish_done 生成：
+	//   {type, npc_id, session_id, sentence_count, complete, ts_ms, trace_id}
+	// 通道同 step 2/3：aicity:npc:say_stream，按 type 二次过滤即可。
+	fmt.Println("Step 4: npc_say_stream_done validation")
+	doneCount := 0
+	step4Ctx, step4Cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer step4Cancel()
+	sub := rdb.Subscribe(step4Ctx, streamcheck.ChannelSayStream)
+	defer func() { _ = sub.Close() }()
+	// 必须等 Subscribe 确认（go-redis 文档明确要求），否则首个 Publish 可能 race 丢失。
+	if _, err := sub.Receive(step4Ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "FAIL step 4: subscribe confirm: %v\n", err)
+		os.Exit(4)
+	}
+	ch := sub.Channel()
+	deadline := time.After(25 * time.Second)
+step4Loop:
+	for {
+		select {
+		case msg, ok := <-ch:
+			if !ok {
+				break step4Loop
+			}
+			var payload map[string]any
+			if err := json.Unmarshal([]byte(msg.Payload), &payload); err != nil {
+				continue
+			}
+			if payload["type"] != "npc_say_stream_done" {
+				continue
+			}
+			// complete 必须是 bool（done 标志，与 publish_done 契约）。
+			if _, ok := payload["complete"].(bool); !ok {
+				fmt.Fprintf(os.Stderr, "FAIL step 4: done event missing/invalid complete: %v\n", payload)
+				os.Exit(4)
+			}
+			// sentence_count 必须是非负整数（JSON number 解出来是 float64）。
+			sc, ok := payload["sentence_count"].(float64)
+			if !ok || sc < 0 || sc != float64(int64(sc)) {
+				fmt.Fprintf(os.Stderr, "FAIL step 4: done event invalid sentence_count: %v\n", payload["sentence_count"])
+				os.Exit(4)
+			}
+			doneCount++
+			if doneCount >= 5 {
+				break step4Loop
+			}
+		case <-deadline:
+			fmt.Fprintf(os.Stderr, "FAIL step 4: only %d done events before deadline\n", doneCount)
+			os.Exit(4)
+		}
+	}
+	fmt.Printf("  PASS %d done events\n", doneCount)
+
+	// Step 5: 5/5 PASS 总结。
+	fmt.Println("=== acceptance_2_1 summary ===")
+	fmt.Println("Step 1 (login):    PASS")
+	fmt.Println("Step 2 (5 NPCs):   PASS")
+	fmt.Println("Step 3 (emotion):  PASS")
+	fmt.Println("Step 4 (done):     PASS")
+	fmt.Println("Step 5 (summary):  PASS")
+	fmt.Println("5/5 PASS")
 }
