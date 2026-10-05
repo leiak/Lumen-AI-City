@@ -16,6 +16,15 @@ const (
 	TypePlayerMoved = "player_moved"
 	TypeNpcDialogue = "npc_dialogue"
 	TypeNpcMoved    = "npc_moved"
+	// TypeNpcSayStream 是 2.0 阶段 2 新增的 NPC 流式推送包络 type。agent-os
+	// 的 SentenceSplitter 把 LLM 流式输出切成节拍包，通过 aicity:npc:say_stream
+	// 频道发到 Redis；ws-gateway 订阅后用本常量作为 Envelope.Type 包一层推给 web。
+	// 同一频道内还混发 npc_say_stream_done 结束标记，web 端按 payload.type 二次区分。
+	TypeNpcSayStream = "npc_say_stream"
+	// TypeNpcSayStreamDone 是 npc_say_stream_done 结束标记的常量名（spec §2.2）。
+	// 当前实现里 aicity:npc:say_stream 频道只用 TypeNpcSayStream 作包络 type，
+	// 本常量留作 future 拆分独立频道 / 调测时按名字引用。
+	TypeNpcSayStreamDone = "npc_say_stream_done"
 )
 
 // Envelope 是所有下行消息的外层结构。

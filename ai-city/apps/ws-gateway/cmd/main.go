@@ -84,6 +84,7 @@ func main() {
 			{Channel: cfg.ChannelMoved, Type: protocol.TypePlayerMoved, Filter: broadcastFilter},
 			{Channel: cfg.ChannelNpcDialogue, Type: protocol.TypeNpcDialogue, Filter: broadcastFilter},
 			{Channel: cfg.ChannelNpcMoved, Type: protocol.TypeNpcMoved, Filter: broadcastFilter},
+			{Channel: cfg.ChannelNpcSayStream, Type: protocol.TypeNpcSayStream, Filter: broadcastFilter},
 		}, logger); err != nil {
 			logger.Error("multi-subscriber failed", zap.Error(err))
 		}
@@ -109,6 +110,7 @@ func main() {
 			zap.String("channel_moved", cfg.ChannelMoved),
 			zap.String("channel_npc_dialogue", cfg.ChannelNpcDialogue),
 			zap.String("channel_npc_moved", cfg.ChannelNpcMoved),
+			zap.String("channel_npc_say_stream", cfg.ChannelNpcSayStream),
 			zap.Bool("allow_anon", cfg.AllowAnon),
 			zap.Bool("verify_origin", cfg.VerifyOrigin),
 			zap.Int("send_buffer", cfg.SendBuffer),
