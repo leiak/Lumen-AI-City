@@ -55,19 +55,49 @@ def get_npc_prompt(npc_id: str) -> str:
     return NPC_PROMPTS.get(npc_id, NPC_PROMPTS["wang_boss"])
 
 
-def get_npc_stream_prompt(npc_id: str, player_input: str, npc_context: list) -> str:
-    """NPC 流式 prompt 模板（T08 会基于 NPC 性格填充 5 NPC 个性化 prompt）。
+# T08 — 5 NPC 流式 prompt 模板（emotion tag 强制 + OCEAN personality）
+STREAM_NPC_IDS: frozenset[str] = frozenset({
+    "npc_wang_boss_001",
+    "npc_grace_healer_001",
+    "npc_snack_owner_001",
+    "npc_book_keeper_001",
+    "npc_dance_leader_001",
+})
 
-    当前是占位实现：构造一个最小可用的 prompt 字符串，要求 LLM 在每句末
-    输出 ``<emotion=...>...</emotion>`` tag，并以 ``<end>`` 收尾。T08 接管后会
-    改为基于 NPC slug 选人格化 system prompt + few-shot examples。
+
+_STREAM_SYSTEM_TEMPLATE = """你是 {npc_name}。{personality_desc}
+
+【输出格式严格约束】
+- 每句话用 <emotion=X>...</emotion> 包裹（X ∈ happy / sad / angry / surprised / thinking / embarrassed / curious / neutral）
+- 句末必须有标点（。！？~）
+- 全部输出结束后输出 <end> 标记
+- 最多 6 句话保持简短
+"""
+
+
+_PERSONALITY_DESC_MAP: dict[str, str] = {
+    "npc_wang_boss_001": "务实老练，说话直来直去。openness=0.3 / conscientiousness=0.85 / extraversion=0.7 / agreeableness=0.4 / neuroticism=0.3",
+    "npc_grace_healer_001": "温柔治愈，说话慢条斯理。openness=0.7 / conscientiousness=0.6 / extraversion=0.5 / agreeableness=0.9 / neuroticism=0.2",
+    "npc_snack_owner_001": "活泼俏皮，爱开玩笑。openness=0.8 / conscientiousness=0.4 / extraversion=0.85 / agreeableness=0.7 / neuroticism=0.3",
+    "npc_book_keeper_001": "博学严谨，引经据典。openness=0.9 / conscientiousness=0.95 / extraversion=0.3 / agreeableness=0.5 / neuroticism=0.4",
+    "npc_dance_leader_001": "热情洋溢，富有感染力。openness=0.7 / conscientiousness=0.6 / extraversion=0.95 / agreeableness=0.7 / neuroticism=0.2",
+}
+
+
+def get_npc_stream_prompt(npc_id: str, player_input: str, npc_context: list) -> str:
+    """5 NPC 个性化流式 prompt（emotion tag 强制 + OCEAN personality）。
+
+    T06 占位 stub 已被 T08 覆盖。
     """
-    context_str = "\n".join(str(c) for c in npc_context)
+    npc_name = npc_id.replace("npc_", "").replace("_001", "").replace("_", "")
+    personality_desc = _PERSONALITY_DESC_MAP.get(npc_id, "性格温和。")
+    system = _STREAM_SYSTEM_TEMPLATE.format(
+        npc_name=npc_name, personality_desc=personality_desc,
+    )
+    history = "\n".join(f"<{m['role']}>{m['content']}</{m['role']}>" for m in npc_context)
     return (
-        f"You are NPC {npc_id}. "
-        f"Use <emotion=happy|sad|angry|surprised|thinking|embarrassed|curious|neutral>"
-        f" tags at the end of each sentence. End with <end>.\n"
-        f"Context: {context_str}\n"
-        f"Player: {player_input}\n"
-        f"NPC:"
+        f"<system>{system}</system>\n"
+        f"{history}\n"
+        f"<user>{player_input}</user>\n"
+        f"Assistant:"
     )
