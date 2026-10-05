@@ -88,13 +88,18 @@ def get_npc_stream_prompt(npc_id: str, player_input: str, npc_context: list) -> 
     """5 NPC 个性化流式 prompt（emotion tag 强制 + OCEAN personality）。
 
     T06 占位 stub 已被 T08 覆盖。
+    npc_context 项预期为 dict（含 'role' + 'content'）。非 dict 项静默跳过。
     """
     npc_name = npc_id.replace("npc_", "").replace("_001", "").replace("_", "")
     personality_desc = _PERSONALITY_DESC_MAP.get(npc_id, "性格温和。")
     system = _STREAM_SYSTEM_TEMPLATE.format(
         npc_name=npc_name, personality_desc=personality_desc,
     )
-    history = "\n".join(f"<{m['role']}>{m['content']}</{m['role']}>" for m in npc_context)
+    history_lines = []
+    for m in npc_context:
+        if isinstance(m, dict) and "role" in m and "content" in m:
+            history_lines.append(f"<{m['role']}>{m['content']}</{m['role']}>")
+    history = "\n".join(history_lines)
     return (
         f"<system>{system}</system>\n"
         f"{history}\n"
