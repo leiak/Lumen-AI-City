@@ -2,4 +2,5 @@
 from agent_os.stream.sentence_splitter import SentenceSplitter
 from agent_os.stream.emotion_validator import EmotionValidator
 from agent_os.stream.session_store import SessionStore
-__all__ = ["SentenceSplitter", "EmotionValidator", "SessionStore"]
+from agent_os.stream.end_marker import EndMarker
+__all__ = ["SentenceSplitter", "EmotionValidator", "SessionStore", "EndMarker"]
