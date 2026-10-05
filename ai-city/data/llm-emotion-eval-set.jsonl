@@ -1,0 +1,200 @@
+{"id": 1, "npc_id": "npc_wang_boss_001", "input": "客官您来了！今天推荐红烧肉", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 2, "npc_id": "npc_wang_boss_001", "input": "行，这道菜今天给您打个八折", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 3, "npc_id": "npc_wang_boss_001", "input": "您尝了这道菜真是太识货了", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 4, "npc_id": "npc_wang_boss_001", "input": "恭喜恭喜，发大财啊！", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 5, "npc_id": "npc_wang_boss_001", "input": "哎呀，您太客气了", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 6, "npc_id": "npc_wang_boss_001", "input": "老主顾要走了，舍不得啊", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 7, "npc_id": "npc_wang_boss_001", "input": "这道菜食材用完了，挺遗憾", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 8, "npc_id": "npc_wang_boss_001", "input": "您脸色不好，节哀顺变吧", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 9, "npc_id": "npc_wang_boss_001", "input": "想当年这店多红火，现在冷清了", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 10, "npc_id": "npc_wang_boss_001", "input": "这事我做的不对，向您道歉", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 11, "npc_id": "npc_wang_boss_001", "input": "这价钱已经是最低了，不行就拉倒", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 12, "npc_id": "npc_wang_boss_001", "input": "谁砸我场子的，给我出来", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 13, "npc_id": "npc_wang_boss_001", "input": "这食材不能省，缺德！", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 14, "npc_id": "npc_wang_boss_001", "input": "你这种客人我见多了，恕不奉陪", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 15, "npc_id": "npc_wang_boss_001", "input": "说好付款又反悔，没信用！", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 16, "npc_id": "npc_wang_boss_001", "input": "什么？！您从东城连夜赶来的？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 17, "npc_id": "npc_wang_boss_001", "input": "哎哟，这菜里怎么有金子？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 18, "npc_id": "npc_wang_boss_001", "input": "嚯，今天店里突然来了这么多人！", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 19, "npc_id": "npc_wang_boss_001", "input": "真的假的？传说中那位大厨要来？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 20, "npc_id": "npc_wang_boss_001", "input": "哎呀妈呀，您手里这是什么稀罕物件？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 21, "npc_id": "npc_wang_boss_001", "input": "您点的这道菜嘛，让我想想做法", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 22, "npc_id": "npc_wang_boss_001", "input": "这单子我得好好算算成本", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 23, "npc_id": "npc_wang_boss_001", "input": "要把这口味调对，得琢磨一下火候", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 24, "npc_id": "npc_wang_boss_001", "input": "嗯，这事儿要从长计议", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 25, "npc_id": "npc_wang_boss_001", "input": "让我回忆一下当年师父怎么教的", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 26, "npc_id": "npc_wang_boss_001", "input": "咳咳，刚才失言了，多担待", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 27, "npc_id": "npc_wang_boss_001", "input": "哎，被您看穿了，有点不好意思", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 28, "npc_id": "npc_wang_boss_001", "input": "惭愧惭愧，招牌菜差点糊了", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 29, "npc_id": "npc_wang_boss_001", "input": "嘿嘿，被伙计偷听到我在吹牛", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 30, "npc_id": "npc_wang_boss_001", "input": "哪里哪里，您过奖了", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 31, "npc_id": "npc_wang_boss_001", "input": "这食材我从来没见过，哪儿弄的？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 32, "npc_id": "npc_wang_boss_001", "input": "您这口味挺特别啊，啥讲究？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 33, "npc_id": "npc_wang_boss_001", "input": "嗯？这种做法头一回听说", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 34, "npc_id": "npc_wang_boss_001", "input": "您那宝贝，能让我瞧瞧么？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 35, "npc_id": "npc_wang_boss_001", "input": "您从哪个城来的？有什么新鲜事？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 36, "npc_id": "npc_wang_boss_001", "input": "您好，请问几位？", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 37, "npc_id": "npc_wang_boss_001", "input": "您要的菜马上就好", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 38, "npc_id": "npc_wang_boss_001", "input": "嗯，记下了", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 39, "npc_id": "npc_wang_boss_001", "input": "慢慢吃，不急", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 40, "npc_id": "npc_wang_boss_001", "input": "好，账单在这儿", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 41, "npc_id": "npc_grace_healer_001", "input": "您气色好多了，真为您高兴", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 42, "npc_id": "npc_grace_healer_001", "input": "太好了，按时吃药果然有效", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 43, "npc_id": "npc_grace_healer_001", "input": "谢谢您的夸奖，我都不好意思了", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 44, "npc_id": "npc_grace_healer_001", "input": "嗯嗯，今天出院我帮您办手续", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 45, "npc_id": "npc_grace_healer_001", "input": "喜事临门呀，恭喜恭喜", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 46, "npc_id": "npc_grace_healer_001", "input": "节哀，您要保重身体啊", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 47, "npc_id": "npc_grace_healer_001", "input": "病人走了，我心里也不好受", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 48, "npc_id": "npc_grace_healer_001", "input": "您一个人在这儿，挺让人心疼的", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 49, "npc_id": "npc_grace_healer_001", "input": "这病治不好，我也很难过", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 50, "npc_id": "npc_grace_healer_001", "input": "想开些，时间会治愈一切的", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 51, "npc_id": "npc_grace_healer_001", "input": "怎么又不按时吃药？对自己负责点", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 52, "npc_id": "npc_grace_healer_001", "input": "这种偏方不能信，会害了您的", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 53, "npc_id": "npc_grace_healer_001", "input": "您怎么还抽烟？太过分了", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 54, "npc_id": "npc_grace_healer_001", "input": "不许再喝酒，听见没", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 55, "npc_id": "npc_grace_healer_001", "input": "那些黑心医院太可恶了！", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 56, "npc_id": "npc_grace_healer_001", "input": "哎呀，您的伤口怎么愈合得这么快？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 57, "npc_id": "npc_grace_healer_001", "input": "真的？这种病还能自愈？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 58, "npc_id": "npc_grace_healer_001", "input": "哇，您气色比昨天好太多了！", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 59, "npc_id": "npc_grace_healer_001", "input": "什么？您要出院了？还没到时间吧？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 60, "npc_id": "npc_grace_healer_001", "input": "嗯？这药方您从哪儿弄来的？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 61, "npc_id": "npc_grace_healer_001", "input": "您的症状，让我想想该换什么药", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 62, "npc_id": "npc_grace_healer_001", "input": "这种病例我得查查资料", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 63, "npc_id": "npc_grace_healer_001", "input": "嗯，这个指标有点反常", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 64, "npc_id": "npc_grace_healer_001", "input": "您这病根可能要从情绪入手", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 65, "npc_id": "npc_grace_healer_001", "input": "让我先给您把把脉", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 66, "npc_id": "npc_grace_healer_001", "input": "啊，我刚才说错话了，对不起", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 67, "npc_id": "npc_grace_healer_001", "input": "嗯...这事我不太擅长", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 68, "npc_id": "npc_grace_healer_001", "input": "哎，被您问住了", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 69, "npc_id": "npc_grace_healer_001", "input": "抱歉，我经验还不够", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 70, "npc_id": "npc_grace_healer_001", "input": "不好意思，让您在走廊等这么久", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 71, "npc_id": "npc_grace_healer_001", "input": "您这偏方是哪儿的？我想学学", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 72, "npc_id": "npc_grace_healer_001", "input": "嗯，您这体质挺特殊啊", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 73, "npc_id": "npc_grace_healer_001", "input": "您从外地来？那边的医生怎么说？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 74, "npc_id": "npc_grace_healer_001", "input": "听说您会养生？有什么诀窍？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 75, "npc_id": "npc_grace_healer_001", "input": "您这病家族史有什么特征么？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 76, "npc_id": "npc_grace_healer_001", "input": "请坐，先量个血压", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 77, "npc_id": "npc_grace_healer_001", "input": "嗯，按时吃药", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 78, "npc_id": "npc_grace_healer_001", "input": "好，下周二复查", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 79, "npc_id": "npc_grace_healer_001", "input": "您慢走", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 80, "npc_id": "npc_grace_healer_001", "input": "嗯，记下了", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 81, "npc_id": "npc_snack_owner_001", "input": "哈哈，您来啦！老规矩来一份？", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 82, "npc_id": "npc_snack_owner_001", "input": "哟呵，今天心情不错嘛！", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 83, "npc_id": "npc_snack_owner_001", "input": "好嘞，加蛋加肠！太香了！", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 84, "npc_id": "npc_snack_owner_001", "input": "恭喜您嘞，发大财！", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 85, "npc_id": "npc_snack_owner_001", "input": "嘿嘿，您夸得我都不好意思了", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 86, "npc_id": "npc_snack_owner_001", "input": "哎，这行越来越难做了", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 87, "npc_id": "npc_snack_owner_001", "input": "老顾客要回老家，挺舍不得", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 88, "npc_id": "npc_snack_owner_001", "input": "哟，您脸色不好，节哀", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 89, "npc_id": "npc_snack_owner_001", "input": "想当年我摆摊那会儿，多热闹", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 90, "npc_id": "npc_snack_owner_001", "input": "这事儿嘛，挺让人难过的", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 91, "npc_id": "npc_snack_owner_001", "input": "不给钱？想吃霸王餐啊！", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 92, "npc_id": "npc_snack_owner_001", "input": "嫌贵？嫌贵你别来啊！", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 93, "npc_id": "npc_snack_owner_001", "input": "谁让你插队的？排队去！", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 94, "npc_id": "npc_snack_owner_001", "input": "这种食物放地上？缺德不缺德！", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 95, "npc_id": "npc_snack_owner_001", "input": "找茬是吧？信不信我报警！", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 96, "npc_id": "npc_snack_owner_001", "input": "哎哟喂！您居然吃辣？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 97, "npc_id": "npc_snack_owner_001", "input": "真的假的？东城也有我们分店？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 98, "npc_id": "npc_snack_owner_001", "input": "嚯，今天生意咋这么好？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 99, "npc_id": "npc_snack_owner_001", "input": "啥？您要一百份？开玩笑吧！", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 100, "npc_id": "npc_snack_owner_001", "input": "哎呀，您这手真快，我都没看清", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 101, "npc_id": "npc_snack_owner_001", "input": "嗯，这配方得琢磨琢磨", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 102, "npc_id": "npc_snack_owner_001", "input": "让我想想今天备料够不够", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 103, "npc_id": "npc_snack_owner_001", "input": "您要加辣还是不加辣？", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 104, "npc_id": "npc_snack_owner_001", "input": "这味道嘛，得好好调调", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 105, "npc_id": "npc_snack_owner_001", "input": "嗯，让我算算成本", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 106, "npc_id": "npc_snack_owner_001", "input": "哎呀，刚才手抖多放盐了", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 107, "npc_id": "npc_snack_owner_001", "input": "咳咳，被您发现我偷偷吃东西", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 108, "npc_id": "npc_snack_owner_001", "input": "嘿嘿，被老婆抓到偷懒了", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 109, "npc_id": "npc_snack_owner_001", "input": "哎，刚才那个笑话讲砸了", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 110, "npc_id": "npc_snack_owner_001", "input": "哪里哪里，您过奖了", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 111, "npc_id": "npc_snack_owner_001", "input": "哟，您这口味挺特别啊", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 112, "npc_id": "npc_snack_owner_001", "input": "您从哪儿听说我这摊的？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 113, "npc_id": "npc_snack_owner_001", "input": "嗯？这种吃法头回见", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 114, "npc_id": "npc_snack_owner_001", "input": "您那手机啥型号？挺酷啊", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 115, "npc_id": "npc_snack_owner_001", "input": "您还会做什么新花样？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 116, "npc_id": "npc_snack_owner_001", "input": "您好，要点啥？", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 117, "npc_id": "npc_snack_owner_001", "input": "好嘞，稍等", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 118, "npc_id": "npc_snack_owner_001", "input": "嗯，这就做", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 119, "npc_id": "npc_snack_owner_001", "input": "您慢走", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 120, "npc_id": "npc_snack_owner_001", "input": "嗯，记下了", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 121, "npc_id": "npc_book_keeper_001", "input": "您挑的这本《边城》，好眼光！", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 122, "npc_id": "npc_book_keeper_001", "input": "哈哈，知音难觅啊", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 123, "npc_id": "npc_book_keeper_001", "input": "嗯，恭喜您读完这本", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 124, "npc_id": "npc_book_keeper_001", "input": "这书再版了，太好了！", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 125, "npc_id": "npc_book_keeper_001", "input": "承蒙夸奖，愧不敢当", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 126, "npc_id": "npc_book_keeper_001", "input": "这书绝版了，实在遗憾", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 127, "npc_id": "npc_book_keeper_001", "input": "老主顾要远行，舍不得啊", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 128, "npc_id": "npc_book_keeper_001", "input": "书店这行日渐式微，令人唏嘘", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 129, "npc_id": "npc_book_keeper_001", "input": "哎，又一本好书下架了", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 130, "npc_id": "npc_book_keeper_001", "input": "您提到的这位先生已经作古", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 131, "npc_id": "npc_book_keeper_001", "input": "请勿折损书页，多谢配合", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 132, "npc_id": "npc_book_keeper_001", "input": "偷书？读书人的事不能叫偷...但还是要罚", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 133, "npc_id": "npc_book_keeper_001", "input": "抱歉，本店概不赊账", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 134, "npc_id": "npc_book_keeper_001", "input": "您这问法有辱斯文", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 135, "npc_id": "npc_book_keeper_001", "input": "恕难奉陪，本店不欢迎不尊重书的客人", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 136, "npc_id": "npc_book_keeper_001", "input": "哦？您居然知道这本书？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 137, "npc_id": "npc_book_keeper_001", "input": "哎呀，这版本我有十多年没见了", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 138, "npc_id": "npc_book_keeper_001", "input": "真的？这位作者居然还在世？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 139, "npc_id": "npc_book_keeper_001", "input": "嗯？这种解读角度真新颖", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 140, "npc_id": "npc_book_keeper_001", "input": "嚯，您读书量真惊人！", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 141, "npc_id": "npc_book_keeper_001", "input": "您要的这种版本，让我想想库存", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 142, "npc_id": "npc_book_keeper_001", "input": "这本书的脉络，得理一理", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 143, "npc_id": "npc_book_keeper_001", "input": "嗯，作者本意可能要从这里说起", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 144, "npc_id": "npc_book_keeper_001", "input": "这段话的意思嘛，见仁见智", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 145, "npc_id": "npc_book_keeper_001", "input": "容我查查目录", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 146, "npc_id": "npc_book_keeper_001", "input": "咳咳，方才口误，见谅", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 147, "npc_id": "npc_book_keeper_001", "input": "惭愧，这本书我还没读完", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 148, "npc_id": "npc_book_keeper_001", "input": "嗯，被您问住了", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 149, "npc_id": "npc_book_keeper_001", "input": "哎，老了记性不好", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 150, "npc_id": "npc_book_keeper_001", "input": "抱歉，这本我放错位置了", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 151, "npc_id": "npc_book_keeper_001", "input": "您对哪类书感兴趣？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 152, "npc_id": "npc_book_keeper_001", "input": "嗯？这位作者您也读过？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 153, "npc_id": "npc_book_keeper_001", "input": "您从何处听闻这位老先生？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 154, "npc_id": "npc_book_keeper_001", "input": "您那本藏书，能借阅否？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 155, "npc_id": "npc_book_keeper_001", "input": "还有什么冷门佳作推荐？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 156, "npc_id": "npc_book_keeper_001", "input": "您好，请随意翻阅", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 157, "npc_id": "npc_book_keeper_001", "input": "这本五两银子", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 158, "npc_id": "npc_book_keeper_001", "input": "嗯，那本在二楼", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 159, "npc_id": "npc_book_keeper_001", "input": "您慢走", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 160, "npc_id": "npc_book_keeper_001", "input": "好，记下了", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 161, "npc_id": "npc_dance_leader_001", "input": "哈哈，来跳舞吧！今天跳个新舞！", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 162, "npc_id": "npc_dance_leader_001", "input": "太好了，又多一位舞友！", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 163, "npc_id": "npc_dance_leader_001", "input": "您跳得真棒，恭喜出师！", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 164, "npc_id": "npc_dance_leader_001", "input": "哇，今天广场真热闹！", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 165, "npc_id": "npc_dance_leader_001", "input": "嘿嘿，您夸得我都不好意思", "expected_emotion": "happy", "expected_text_pattern": ".*(?:欢迎|您来了|好|真为您|谢|恭喜|太好|哈哈|嘿嘿|哟呵).*", "scenario": "greeting", "context": []}
+{"id": 166, "npc_id": "npc_dance_leader_001", "input": "哎，老舞伴要搬走了", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 167, "npc_id": "npc_dance_leader_001", "input": "这广场不让跳舞了，挺难过", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 168, "npc_id": "npc_dance_leader_001", "input": "您身体不舒服？节哀顺变", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 169, "npc_id": "npc_dance_leader_001", "input": "想起当年一起跳舞的姐妹们", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": []}
+{"id": 170, "npc_id": "npc_dance_leader_001", "input": "这事儿让人心里酸酸的", "expected_emotion": "sad", "expected_text_pattern": ".*(?:节哀|舍不得|遗憾|难过|想念|抱歉).*", "scenario": "farewell", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 171, "npc_id": "npc_dance_leader_001", "input": "谁把音箱弄坏了？太过分了！", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 172, "npc_id": "npc_dance_leader_001", "input": "不许抢舞伴位置，按顺序！", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 173, "npc_id": "npc_dance_leader_001", "input": "跳舞请穿运动鞋，禁止穿拖鞋！", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 174, "npc_id": "npc_dance_leader_001", "input": "谁扔的香蕉皮？找事儿是吧？", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 175, "npc_id": "npc_dance_leader_001", "input": "别推搡，排队去！", "expected_emotion": "angry", "expected_text_pattern": ".*(?:太过分|不行|不允许|不能|不许|恕不).*", "scenario": "refusal", "context": []}
+{"id": 176, "npc_id": "npc_dance_leader_001", "input": "哇哦，您居然会跳这种舞？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 177, "npc_id": "npc_dance_leader_001", "input": "真的？北城也跳这种广场舞？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 178, "npc_id": "npc_dance_leader_001", "input": "啥？这么多人来围观？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 179, "npc_id": "npc_dance_leader_001", "input": "哎哟，您这舞步真特别！", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": []}
+{"id": 180, "npc_id": "npc_dance_leader_001", "input": "嗯？这位大爷也来凑热闹？", "expected_emotion": "surprised", "expected_text_pattern": ".*(?:什么|真的|哎呀|哇|嚯|哎哟|哎).*", "scenario": "surprise", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 181, "npc_id": "npc_dance_leader_001", "input": "嗯，新舞步得编排一下", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 182, "npc_id": "npc_dance_leader_001", "input": "这段配乐得想想怎么踩点", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 183, "npc_id": "npc_dance_leader_001", "input": "让我想想明天跳什么", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 184, "npc_id": "npc_dance_leader_001", "input": "这队形得重新排一下", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 185, "npc_id": "npc_dance_leader_001", "input": "嗯，节拍我得数清楚", "expected_emotion": "thinking", "expected_text_pattern": ".*(?:想想|琢磨|回忆|考虑|让我).*", "scenario": "storytelling", "context": []}
+{"id": 186, "npc_id": "npc_dance_leader_001", "input": "哎呀，刚才踩您脚了，对不起", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 187, "npc_id": "npc_dance_leader_001", "input": "咳咳，舞步乱了", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 188, "npc_id": "npc_dance_leader_001", "input": "嘿嘿，被徒弟超过了好丢人", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 189, "npc_id": "npc_dance_leader_001", "input": "哎，刚才音乐放错了", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": []}
+{"id": 190, "npc_id": "npc_dance_leader_001", "input": "哪里哪里，您过奖了", "expected_emotion": "embarrassed", "expected_text_pattern": ".*(?:抱歉|不好意思|惭愧|哎|咳咳|哪里).*", "scenario": "embarrassed", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}
+{"id": 191, "npc_id": "npc_dance_leader_001", "input": "您从哪儿来的？跳什么舞？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 192, "npc_id": "npc_dance_leader_001", "input": "哟，您这舞服挺漂亮啊", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 193, "npc_id": "npc_dance_leader_001", "input": "嗯？这种舞步我没见过", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 194, "npc_id": "npc_dance_leader_001", "input": "您那音响啥牌子的？音质真好", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 195, "npc_id": "npc_dance_leader_001", "input": "您还会什么舞种？", "expected_emotion": "curious", "expected_text_pattern": ".*(?:哪儿|什么|哪类|听说|您从|如何).*", "scenario": "curious", "context": []}
+{"id": 196, "npc_id": "npc_dance_leader_001", "input": "您好，加入我们吗？", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 197, "npc_id": "npc_dance_leader_001", "input": "好嘞，下一首", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 198, "npc_id": "npc_dance_leader_001", "input": "嗯，这边站", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 199, "npc_id": "npc_dance_leader_001", "input": "您慢走", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": []}
+{"id": 200, "npc_id": "npc_dance_leader_001", "input": "嗯，记下了", "expected_emotion": "neutral", "expected_text_pattern": ".*", "scenario": "neutral", "context": [{"role": "user", "content": "您好"}, {"role": "assistant", "content": "您好，欢迎光临"}]}

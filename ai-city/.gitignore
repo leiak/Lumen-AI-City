@@ -69,9 +69,11 @@ docker-compose.override.yml
 *.tfstate.*
 .terraform.lock.hcl
 
-# Local data（除项目共享配置外）
+# Local data（除项目共享配置 + 离线评估集外）
 data/*
 !data/*.yaml
+!data/*.jsonl
+!data/*.py
 *.sqlite
 *.db
 
@@ -82,3 +84,6 @@ packages/proto/gen/
 test-results/
 playwright-report/
 playwright/.cache/
+
+# Visual companion mockups (superpowers:brainstorming sessions)
+.superpowers/
