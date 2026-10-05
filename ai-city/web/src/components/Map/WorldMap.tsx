@@ -46,6 +46,22 @@ const BUILDING_FILL: Record<string, string> = {
   Office: '#1e40af',
 };
 
+/** 2.0 阶段 1：NPC 头像 fallback emoji —— 见 packages/npc-templates/*.yaml 的 avatar_url。
+ *  - 桶 2 P1：5 个新 NPC + lihua（共 6 个）
+ *  - 优先用 avatar_url（来自 /v1/npc/{id} 的扩展字段或模板），无则用此 emoji
+ *  - 导出供测试与 NPCDialog 共享
+ */
+export const NPC_EMOJI: Record<string, string> = {
+  npc_wang_boss_001: '🍺',
+  npc_grace_healer_001: '💊',
+  npc_snack_owner_001: '🍢',
+  npc_book_keeper_001: '📚',
+  npc_dance_leader_001: '💃',
+  npc_lihua_001: '👨‍💻',
+};
+
+export const NPC_EMOJI_DEFAULT = '👤';
+
 /** SVG 客户端坐标 → world 坐标（用 CTM 反推 + y 翻转） */
 function screenToWorld(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } {
   const pt = svg.createSVGPoint();
@@ -293,27 +309,48 @@ export function WorldMap() {
           ))}
 
           {/* NPC 圆点（用所在 tile 中心）—— T03d：onClick 直接触发 NPCDialog,
-              stopPropagation 防冒泡到 svg 触发 move 逻辑；svg 层有 closest 兜底 */}
+              stopPropagation 防冒泡到 svg 触发 move 逻辑；svg 层有 closest 兜底。
+              2.0 阶段 1：在圆点旁画 emoji label 作为头像 fallback（avatar 优先，无则 emoji） */}
           {state.tiles.flatMap((t) =>
-            t.npc_ids.map((nid) => (
-              <circle
-                key={nid}
-                cx={npcPos[nid]?.x ?? t.center_x}
-                cy={npcPos[nid]?.y ?? t.center_y}
-                r={3}
-                fill="#fbbf24"
-                stroke="#78350f"
-                strokeWidth={0.5}
-                data-npc-id={nid}
-                style={{ cursor: 'pointer' }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  dispatchNpcGreeting(nid);
-                }}
-              >
-                <title>{nid}</title>
-              </circle>
-            )),
+            t.npc_ids.map((nid) => {
+              const cx = npcPos[nid]?.x ?? t.center_x;
+              const cy = npcPos[nid]?.y ?? t.center_y;
+              const emoji = NPC_EMOJI[nid] ?? NPC_EMOJI_DEFAULT;
+              return (
+                <g key={nid} data-npc-group={nid}>
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={3}
+                    fill="#fbbf24"
+                    stroke="#78350f"
+                    strokeWidth={0.5}
+                    data-npc-id={nid}
+                    className="npc-marker"
+                    style={{ cursor: 'pointer' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dispatchNpcGreeting(nid);
+                    }}
+                  >
+                    <title>{nid}</title>
+                  </circle>
+                  {/* emoji 标签：NPC 上方偏移 5 单位；落在 <g transform="scale(1,-1)"> 里，
+                      text 也会被翻倒，所以单独一个 <g> 再 scale -1 抵消 */}
+                  <g transform={`translate(${cx} ${cy + 5}) scale(1,-1)`}>
+                    <text
+                      textAnchor="middle"
+                      fontSize={6}
+                      className="emoji-fallback"
+                      data-npc-emoji={nid}
+                      style={{ pointerEvents: 'none', userSelect: 'none' }}
+                    >
+                      {emoji}
+                    </text>
+                  </g>
+                </g>
+              );
+            }),
           )}
 
           {/* 其它玩家（不含自己）：所在 tile 中心；自己单独画在 myPos */}

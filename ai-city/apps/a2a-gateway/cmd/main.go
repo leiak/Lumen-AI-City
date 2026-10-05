@@ -16,6 +16,7 @@
 //   A2A_REPLAY_WINDOW_SEC            ed25519 重放窗口秒数，默认 300
 //   A2A_INBOX_TTL_HOURS              inbox 行 TTL 小时数，默认 168（7 天）；0 = 用 PG DEFAULT 兜底
 //   A2A_INBOX_CLEANUP_INTERVAL_SEC   cleanup cron 间隔秒数，默认 300；0 = 禁用
+//   A2A_ROUTING_TABLE                跨城 NPC 路由表 yaml 路径，默认 data/a2a-routing-table.yaml
 //   DATABASE_URL                     PG 连接串（默认 postgresql://aicity:aicity_dev@localhost:5432/aicity）
 package main
 
@@ -32,7 +33,9 @@ import (
 	"time"
 
 	"github.com/aicity/a2a-gateway/internal/a2asrv"
+	"github.com/aicity/a2a-gateway/internal/handlers"
 	"github.com/aicity/a2a-gateway/internal/httpgw"
+	"github.com/aicity/a2a-gateway/internal/router"
 	"github.com/jackc/pgx/v5/pgxpool"
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
 	"google.golang.org/grpc"
@@ -46,9 +49,16 @@ func main() {
 	inboxTTL := parseInboxTTL()
 	cleanupInterval := parseCleanupInterval()
 	dbURL := getEnv("DATABASE_URL", "postgresql://aicity:aicity_dev@localhost:5432/aicity")
+	routingTablePath := getEnv("A2A_ROUTING_TABLE", "data/a2a-routing-table.yaml")
 
-	log.Printf("a2a-gateway starting: grpc=%s http=%s (replay_window=%ds api_key=%s db=%s inbox_ttl=%s cleanup_interval=%s)",
-		grpcAddr, httpAddr, int(replaySec.Seconds()), redactKey(apiKey), redactDSN(dbURL), inboxTTL, cleanupInterval)
+	log.Printf("a2a-gateway starting: grpc=%s http=%s (replay_window=%ds api_key=%s db=%s inbox_ttl=%s cleanup_interval=%s routing_table=%s)",
+		grpcAddr, httpAddr, int(replaySec.Seconds()), redactKey(apiKey), redactDSN(dbURL), inboxTTL, cleanupInterval, routingTablePath)
+
+	// 跨城 NPC 路由表：启动期 fail-fast 加载；空表 = 联邦投递瘫痪。
+	if err := router.LoadRoutes(routingTablePath); err != nil {
+		log.Fatalf("load routing table: %v", err)
+	}
+	log.Printf("a2a-gateway: routing table loaded (size=%d)", len(router.GlobalTable.All()))
 
 	// PG 连接（启动期 10s ctx；仿 api-gateway cmd/main.go:34）
 	bootCtx, bootCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -95,6 +105,11 @@ func main() {
 
 	// HTTP server
 	httpHandler := httpgw.New(svc, apiKey)
+	// Task 54：跨城 NPC 对话路由（POST /v1/cross_city/talk/:npc_id）
+	// 走 GlobalTable + crosscity.Dial(mTLS) 转发到远端 world-engine。
+	// 直接挂到 httpgw 暴露的 gin.Engine 上，与其它路由共用中间件链（trace_id /
+	// recovery / logging / 可选 Bearer auth）。
+	httpHandler.Engine().POST("/v1/cross_city/talk/:npc_id", handlers.CrossCityTalkHandler(router.GlobalTable))
 	httpSrv := &http.Server{
 		Addr:              httpAddr,
 		Handler:           httpHandler.Handler(),

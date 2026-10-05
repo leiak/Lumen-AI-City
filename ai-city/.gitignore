@@ -45,6 +45,14 @@ Thumbs.db
 *.pem
 *.key
 *.crt
+# mTLS certs（commit e58f663 提供 gen-ca.sh + issue-cert.sh 脚本，
+# 本地跑后产物不入仓；certs/.gitkeep 保留目录结构）
+*.cnf
+*.csr
+*.fingerprint
+*.srl
+certs/*
+!certs/.gitkeep
 
 # Build artifacts
 *.log
@@ -61,8 +69,9 @@ docker-compose.override.yml
 *.tfstate.*
 .terraform.lock.hcl
 
-# Local data
-data/
+# Local data（除项目共享配置外）
+data/*
+!data/*.yaml
 *.sqlite
 *.db
 

@@ -13,6 +13,7 @@ pub mod rest;
 pub mod metrics;
 pub mod grpc;
 pub mod pathfinding;
+pub mod heartbeat;
 
 pub use tile::Tile;
 pub use movement::Movement;

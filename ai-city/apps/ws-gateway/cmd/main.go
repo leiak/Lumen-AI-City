@@ -26,6 +26,7 @@ import (
 	"github.com/aicity/ws-gateway/internal/auth"
 	"github.com/aicity/ws-gateway/internal/config"
 	"github.com/aicity/ws-gateway/internal/cors"
+	"github.com/aicity/ws-gateway/internal/handlers"
 	"github.com/aicity/ws-gateway/internal/hub"
 	"github.com/aicity/ws-gateway/internal/protocol"
 	wsredis "github.com/aicity/ws-gateway/internal/redis"
@@ -62,6 +63,11 @@ func main() {
 
 	h := hub.New(logger)
 	go h.Run(appCtx)
+
+	// Task 55：跨城 Kafka fanout —— 订阅 a2a.cross_city.event 并把远端事件
+	// 通过本城 Hub 扇出到所有 WS 客户端。当前 consumer 是 stub（无 kafka-go
+	// 依赖）；真客户端接入后即可生效。
+	handlers.StartCrossCityFanout(h)
 
 	// 多频道订阅（Sprint 11+ T02c）：player_moved + npc_dialogue 共用同一
 	// hub.Broadcast 出口。每条消息到 hub 后再扇出到所有 WS 客户端。

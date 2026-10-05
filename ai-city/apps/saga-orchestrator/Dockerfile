@@ -1,8 +1,8 @@
-FROM python:3.12-slim
-WORKDIR /app
-RUN pip install uv
-COPY pyproject.toml ./
-COPY src/ ./src/
-RUN uv pip install --system .
-EXPOSE 8002
-CMD ["uvicorn", "saga_orchestrator.app:app", "--host", "0.0.0.0", "--port", "8002"]
+FROM golang:1.23-alpine
+WORKDIR /src
+COPY go.mod go.sum* ./
+RUN go mod download
+COPY . .
+RUN go build -o /app/saga-orchestrator ./cmd
+EXPOSE 9100
+CMD ["/app/saga-orchestrator"]

@@ -1,0 +1,23 @@
+# ai-city/packages/saga-scripts/welcome_3npc.yaml
+saga_id: welcome_3npc
+description: 3 NPC 协作欢迎新玩家
+steps:
+  - worker_id: worker_a
+    npc_id: npc_a_wang_boss
+    action: say
+    payload: { text: "欢迎来到 A 城！" }
+  - worker_id: worker_b
+    npc_id: npc_b_grace_healer
+    action: say
+    payload: { text: "我是护士 grace，欢迎你！" }
+  - worker_id: worker_c
+    npc_id: npc_a_book_keeper
+    action: say
+    payload: { text: "书店在城东，随时来坐坐。" }
+compensation:
+  - worker_id: worker_a
+    action: revert_say
+  - worker_id: worker_b
+    action: revert_say
+  - worker_id: worker_c
+    action: revert_say

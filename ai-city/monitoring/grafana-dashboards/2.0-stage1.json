@@ -1,0 +1,69 @@
+{
+  "title": "2.0 Stage 1 MVP",
+  "uid": "ai-city-2.0-stage1",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "agent_os_uptime_days",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "agent_os_uptime_days", "refId": "A" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "a2a_inbox_received_total",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        { "expr": "rate(a2a_inbox_received_total[5m])", "refId": "A" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "milvus_recall_accuracy",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 6 },
+      "targets": [
+        { "expr": "milvus_recall_accuracy", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "green", "value": 0.7 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "saga_compensation_total",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "targets": [
+        { "expr": "rate(saga_compensation_total[5m])", "refId": "A" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "llm_monthly_cost_usd",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 14 },
+      "targets": [
+        { "expr": "llm_monthly_cost_usd", "refId": "A" }
+      ]
+    }
+  ]
+}

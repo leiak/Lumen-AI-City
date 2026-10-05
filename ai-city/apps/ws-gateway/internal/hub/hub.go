@@ -213,6 +213,15 @@ func (h *Hub) SendToPlayer(playerID string, msg []byte) {
 	}
 }
 
+// BroadcastToAll 是 Broadcast 的语义别名（跨城 fanout 与本地广播用同一个出口，
+// 这样 city_a / city_b 两个 Hub 实例共享一份消息生命周期）。
+//
+// Task 55：跨城 Kafka 消费者调用本方法，把 a2a.cross_city.event 投递给所有
+// 本地 WS 客户端。非阻塞：与 Broadcast 同样丢队尾并告警。
+func (h *Hub) BroadcastToAll(msg []byte) {
+	h.Broadcast(msg)
+}
+
 func (h *Hub) Stats() Stats {
 	return Stats{
 		Connected: h.connected.Load(),

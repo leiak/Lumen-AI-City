@@ -1,0 +1,56 @@
+# 小吃摊老板（§15.5）
+# 桶 2 P1: enabled + avatar_url
+
+npc_id: npc_snack_owner_001
+enabled: true
+name: 小吃摊老板
+home_tile_id: tile_1_1
+avatar_url: /static/npc/snack_owner.png
+
+walk:
+  enabled: true
+  tiles: [tile_1_1, tile_1_0, tile_0_1]
+
+personality:
+  openness: 0.4
+  conscientiousness: 0.7
+  extraversion: 0.8
+  agreeableness: 0.7
+  neuroticism: 0.3
+
+say:
+  greeting:
+    - "来来来，刚出锅的，热乎着呢！"
+    - "今儿个有烤串，要不要来几串？"
+    - "十块三串，便宜实惠！"
+  welcome: []
+  default_reply: "稍等哈，给您做着呢。"
+
+talk_tree:
+  initial: root
+  default_say: "欢迎光临！小吃菜单最实在！"
+  nodes:
+    root:
+      say: "来点什么？我们这的烤串最香了！"
+      options:
+        - {id: ask_food, text: "有什么好吃的？"}
+        - {id: ask_price, text: "多少钱一份？"}
+        - {id: leave, text: "下次再来。"}
+    ask_food:
+      say: "烤串、煎饼、麻辣烫，啥都有！"
+      options:
+        - {id: ask_price, text: "那来点烤串，多少钱？"}
+        - {id: leave, text: "行，给我来一份。"}
+    ask_price:
+      say: "烤串十块三串，煎饼五块，麻辣烫十五管够。"
+      options:
+        - {id: leave, text: "好嘞，先来十块的。"}
+    leave:
+      say: "好嘞，下次再来！"
+      options: []
+
+prompt_hints:
+  - "你是小吃摊老板"
+  - "性格随和、推荐本地小吃"
+  - "价格实惠"
+  - "说话带点吆喝感"

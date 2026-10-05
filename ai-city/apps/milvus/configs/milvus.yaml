@@ -1,0 +1,23 @@
+# Milvus 2.4 standalone config
+# 2.0 阶段 1: memory-service long-term recall (Milvus 永久记忆层)
+# ADR-0007 锁定 Milvus 2.4 standalone + 独立 etcd + 独立 minio
+# 详细字段参考 https://milvus.io/docs/v2.4.x/configure_milvus.md
+
+milvus:
+  standalone:
+    enable: true
+  dataCoord:
+    enable: true
+  dataNode:
+    enable: true
+  queryCoord:
+    enable: true
+  queryNode:
+    enable: true
+  indexCoord:
+    enable: true
+  indexNode:
+    enable: true
+  common:
+    storageType: minio
+    storageAddr: minio:9000

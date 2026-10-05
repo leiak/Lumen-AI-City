@@ -27,6 +27,13 @@ tower-http = { version = "0.5", features = ["trace", "cors"] }
 # Redis Pub/Sub: 用 tokio TCP 直写 RESP，避免 redis-rs 拉入大依赖链
 # 仅支持 PUBLISH；订阅由 api-gateway 用 go-redis 处理
 
+# Sprint 12 (2.0 stage 1) — Task 49: world-engine mTLS（rustls + tonic）
+# 注意：rustls 默认 features 含 aws-lc-rs（native）。Windows GNU 编译由 CI 验证，
+# 本地编译失败可改用 `default-features = false, features = ["ring", "logging", "std", "tls12"]`。
+rustls = "0.23"
+rustls-pemfile = "2.0"
+tokio-rustls = "0.26"
+
 [dev-dependencies]
 tokio-test = "0.4"
 # Sprint 3: 从 proto 生成 Rust gRPC 代码（build.rs 用）

@@ -1,8 +1,9 @@
 FROM python:3.12-slim
 WORKDIR /app
-RUN pip install uv
-COPY pyproject.toml ./
+RUN pip install --no-cache-dir uv
+COPY pyproject.toml .
+RUN uv pip install --system --no-cache .
 COPY src/ ./src/
-RUN uv pip install --system .
-EXPOSE 8001
-CMD ["uvicorn", "memory_service.app:app", "--host", "0.0.0.0", "--port", "8001"]
+ENV PYTHONPATH=/app/src
+EXPOSE 9200
+CMD ["uvicorn", "memory_service.main:app", "--host", "0.0.0.0", "--port", "9200"]

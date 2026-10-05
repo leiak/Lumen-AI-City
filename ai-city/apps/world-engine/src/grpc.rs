@@ -18,6 +18,87 @@ use crate::redis_pub::RedisPub;
 use crate::redis_sub::RedisSub;
 use crate::world_grid::{PlayerPosition, WorldGrid};
 
+// ─── Sprint 12 (2.0 stage 1) — Task 49: mTLS 配置 ────────────────────────
+// 跨城联邦 gRPC 走 mTLS。`load_tls_config()` 从 env 指定的 PEM 文件加载 server cert +
+// private key + CA trust pool，构造带 **client cert verification** 的 rustls ServerConfig。
+//
+// 当前仅暴露函数本身；wiring 进 `tonic::transport::Server::builder().tls_config(...)`
+// 由后续 Task（联邦路由 + 跨城 dial-in）补齐。
+
+/// mTLS server config 加载入口。
+///
+/// 读取 env：
+/// - `GRPC_TLS_CERT` —— server cert（PEM）
+/// - `GRPC_TLS_KEY`  —— server private key（PKCS#8 PEM）
+/// - `GRPC_TLS_CA`   —— CA cert bundle（PEM），用于校验 client cert（mutual auth）
+///
+/// 返回的 `ServerConfig` 启用了 `WebPkiClientVerifier`：远端必须出示由 CA 签发的 client cert，
+/// 否则 handshake 失败。这正是 mTLS 的"双向"语义。
+///
+/// 用法（后续 Task 接入）：
+/// ```ignore
+/// let tls = load_tls_config()?;
+/// tonic::transport::Server::builder()
+///     .tls_config(tls)?
+///     .add_service(svc.into_server())
+///     .serve(grpc_addr).await?;
+/// ```
+pub fn load_tls_config() -> Result<rustls::ServerConfig, Box<dyn std::error::Error>> {
+    use std::fs::File;
+    use std::io::BufReader;
+
+    let cert_path = std::env::var("GRPC_TLS_CERT")
+        .map_err(|_| "GRPC_TLS_CERT env var required for mTLS")?;
+    let key_path = std::env::var("GRPC_TLS_KEY")
+        .map_err(|_| "GRPC_TLS_KEY env var required for mTLS")?;
+    let ca_path = std::env::var("GRPC_TLS_CA")
+        .map_err(|_| "GRPC_TLS_CA env var required for mTLS")?;
+
+    let cert_file = File::open(&cert_path)
+        .map_err(|e| format!("open GRPC_TLS_CERT {}: {}", cert_path, e))?;
+    let key_file = File::open(&key_path)
+        .map_err(|e| format!("open GRPC_TLS_KEY {}: {}", key_path, e))?;
+    let ca_file = File::open(&ca_path)
+        .map_err(|e| format!("open GRPC_TLS_CA {}: {}", ca_path, e))?;
+
+    let certs = rustls_pemfile::certs(&mut BufReader::new(cert_file))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("parse server certs: {}", e))?;
+    let mut keys = rustls_pemfile::pkcs8_private_keys(&mut BufReader::new(key_file))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("parse server private key: {}", e))?;
+    let ca_certs = rustls_pemfile::certs(&mut BufReader::new(ca_file))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("parse CA certs: {}", e))?;
+
+    if certs.is_empty() {
+        return Err("no server certs found in GRPC_TLS_CERT".into());
+    }
+    if keys.is_empty() {
+        return Err("no server private key found in GRPC_TLS_KEY".into());
+    }
+    if ca_certs.is_empty() {
+        return Err("no CA certs found in GRPC_TLS_CA".into());
+    }
+
+    // CA 信任池 —— 用于校验 client cert（mutual auth 关键步骤）
+    let mut roots = rustls::RootCertStore::empty();
+    for ca in ca_certs {
+        roots.add(ca).map_err(|e| format!("add CA to trust store: {}", e))?;
+    }
+
+    let verifier = rustls::server::WebPkiClientVerifier::builder(roots)
+        .build()
+        .map_err(|e| format!("build client cert verifier: {}", e))?;
+
+    let config = rustls::ServerConfig::builder()
+        .with_client_cert_verifier(verifier)
+        .with_single_cert(certs, keys.remove(0))
+        .map_err(|e| format!("build server TLS config: {}", e))?;
+
+    Ok(config)
+}
+
 // tonic-build 编译 world.proto 后生成的包路径
 pub mod world_proto {
     tonic::include_proto!("aicity.world.v1");

@@ -28,6 +28,8 @@ services:
       # 按文件名字母序执行：02 依赖 01 建的 npc / tile 表
       - ./packages/proto/pg-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./scripts/seed-npcs.sql:/docker-entrypoint-initdb.d/02-seed-npcs.sql:ro
+      # 2.0：跨城联邦路由表 + 心跳表 + memory player_session 表
+      - ./packages/proto/pg-schema-2.0.sql:/docker-entrypoint-initdb.d/03-schema-2.0.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U aicity']
       interval: 5s
@@ -59,6 +61,14 @@ services:
       REDIS_CHANNEL_MOVED: aicity:player:moved
       RUST_LOG: info
       # WORLD_GRPC_ADDR / WORLD_BIND_ADDR 默认已是 0.0.0.0，不覆盖
+      # 2.0 阶段 1：mTLS 路径，scripts/gen-mtls-certs.sh 生成；
+      # city_a 实例用 -a 证书；city_b 留给 Task 54。
+      GRPC_TLS_CERT: /etc/world-engine/certs/world-engine-a.crt
+      GRPC_TLS_KEY: /etc/world-engine/certs/world-engine-a.key
+      GRPC_TLS_CA: /etc/world-engine/certs/aicity-ca.crt
+    volumes:
+      # 2.0：mTLS 证书只读挂载；:ro 防止容器内误改 host 上的私钥
+      - ./certs:/etc/world-engine/certs:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,9 +107,16 @@ services:
       # Sprint 12：与 agent-os 保持同一频道名（main.go:117 写死，但留 env
       # 槽位便于以后从 env 取）。当前 agent-os 默认值 = aicity:npc_dialogue。
       REDIS_CHANNEL_NPC_DIALOGUE: aicity:npc_dialogue
+      # 2.0 阶段 1：mTLS 路径，scripts/gen-mtls-certs.sh 生成；
+      # city_a 用 -a 证书；city_b 留给 Task 54 跨城联邦轨道。
+      GRPC_TLS_CERT: /etc/api-gateway/certs/api-gateway-a.crt
+      GRPC_TLS_KEY: /etc/api-gateway/certs/api-gateway-a.key
+      GRPC_TLS_CA: /etc/api-gateway/certs/aicity-ca.crt
     volumes:
       # 同一份模板 mount 进 agent-os 和 api-gateway；:ro 防容器内误改 host。
       - ./packages/npc-templates:/etc/aicity/npc-templates:ro
+      # 2.0：mTLS 证书只读挂载；私钥在 host 上不归容器写。
+      - ./certs:/etc/api-gateway/certs:ro
     depends_on:
       # 启动期硬依赖：worldgrpc.NewClient 用 grpc.WithBlock() + 5s 超时，
       # 失败即 logger.Fatal（cmd/main.go:81）。PG / Redis ping 同样 fatal。
@@ -133,6 +150,20 @@ services:
       A2A_REPLAY_WINDOW_SEC: '300'
       A2A_INBOX_TTL_HOURS: '168'
       A2A_INBOX_CLEANUP_INTERVAL_SEC: '300'
+      # 2.0 阶段 1：mTLS 路径，scripts/gen-mtls-certs.sh 生成。
+      # a2a 联邦需要服务端证书 + 验客户端证书，所以分 TLS_CA / CLIENT_CA 两槽位。
+      TLS_CERT: /etc/a2a/certs/a2a-gateway.crt
+      TLS_KEY: /etc/a2a/certs/a2a-gateway.key
+      TLS_CA: /etc/a2a/certs/aicity-ca.crt
+      CLIENT_CA: /etc/a2a/certs/aicity-ca.crt
+      # 2.0 阶段 1：跨城 NPC 路由表（cmd/main.go:52 默认 data/a2a-routing-table.yaml，
+      # 必须用 env 显式覆盖 + mount 到 /app/data/，否则容器内启动直接 fatal）
+      A2A_ROUTING_TABLE: /app/data/a2a-routing-table.yaml
+    volumes:
+      # 2.0：mTLS 证书只读挂载；私钥不在容器内落盘，host 上也不归容器写。
+      - ./certs:/etc/a2a/certs:ro
+      # 2.0：跨城路由表只读挂载（10 NPC = city_a × 5 + city_b × 5）
+      - ./data/a2a-routing-table.yaml:/app/data/a2a-routing-table.yaml:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -210,9 +241,16 @@ services:
       LOG_LEVEL: info
       SERVICE_NAME: agent-os
       SAY_TICK_SECONDS: '5.0'
+      # 2.0 阶段 1：mTLS 路径，scripts/gen-mtls-certs.sh 生成；
+      # city_a 用 -a 证书；city_b 留给 Task 54。
+      GRPC_TLS_CERT: /etc/agent-os/certs/agent-os-a.crt
+      GRPC_TLS_KEY: /etc/agent-os/certs/agent-os-a.key
+      GRPC_TLS_CA: /etc/agent-os/certs/aicity-ca.crt
     volumes:
       # 与 api-gateway 共用同一份 bind mount；:ro 保护 host 源文件。
       - ./packages/npc-templates:/etc/aicity/npc-templates:ro
+      # 2.0：mTLS 证书只读挂载；私钥在 host 上不归容器写。
+      - ./certs:/etc/agent-os/certs:ro
     depends_on:
       # SayScheduler 启动后第一轮 tick 就会 publish，没 redis 就直接抛。
       # Redis ping 仅 best-effort（app.py:62），但 publish 是 hot path。
@@ -231,5 +269,144 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # 2.0 阶段 1：向量数据库（memory-service long-term recall 用）。
+  # standalone 模式 = Milvus 主 + 独立 etcd（meta）+ 独立 minio（blob）。
+  # ADR-0007 锁定 Milvus 2.4；端口 19530（gRPC）/ 9091（metrics+health）。
+  milvus:
+    image: milvusdb/milvus:v2.4.0
+    container_name: milvus
+    command: ['milvus', 'run', 'standalone']
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    ports:
+      - '19530:19530'
+      - '9091:9091'
+    depends_on:
+      - etcd
+      - minio
+    healthcheck:
+      # milvusdb/milvus 镜像基于 Ubuntu，自带 curl（不同于本仓库 alpine busybox）。
+      # 9091/health 端点由 milvus 内置；返回 body 含 "OK"。
+      test: ['CMD', 'curl', '-f', 'http://localhost:9091/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - ./apps/milvus/configs/milvus.yaml:/milvus/configs/milvus.yaml
+      - milvus_data:/var/lib/milvus
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: milvus-etcd
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: '1000'
+      ETCD_QUOTA_BACKEND_BYTES: '4294967296'
+    volumes:
+      - etcd_data:/etcd
+    command: ['etcd', '-advertise-client-urls=http://etcd:2379', '-listen-client-urls=http://0.0.0.0:2379', '--data-dir=/etcd']
+
+  minio:
+    image: minio/minio:RELEASE.2023-09-20T20-32-50Z
+    container_name: milvus-minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - minio_data:/minio_data
+    command: ['minio', 'server', '/minio_data']
+
+  # 2.0 阶段 1：Kafka 3.7 Kraft 模式（无 Zookeeper）
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    ports:
+      - "9092:9092"
+    restart: unless-stopped
+
+  # 2.0 阶段 1：memory-service 骨架（FastAPI + /healthz）。
+  # 后续 week 1 day 4 接 Milvus + PG，加 /readyz 真实探针。
+  memory-service:
+    build: ./apps/memory-service
+    container_name: memory-service
+    ports:
+      - "9200:9200"
+    environment:
+      MILVUS_HOST: milvus
+      MILVUS_PORT: "19530"
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: aicity
+      POSTGRES_USER: aicity
+      POSTGRES_PASSWORD: aicity_dev
+    depends_on:
+      - milvus
+      - postgres
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9200/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # 2.0 阶段 1：saga-orchestrator 骨架（Gin + /healthz）。
+  # 后续接入 Kafka 事件流 + 状态机。
+  saga-orchestrator:
+    build: ./apps/saga-orchestrator
+    container_name: saga-orchestrator
+    ports:
+      - "9100:9100"
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      LOG_LEVEL: info
+    depends_on:
+      - kafka
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9100/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # 2.0 阶段 1：saga-worker 骨架（FastAPI + /healthz + Kafka topic 订阅配置）。
+  # 后续 Phase 4 Task 34 接入 Kafka 消费者循环。
+  saga-worker:
+    build: ./apps/saga-worker
+    container_name: saga-worker
+    ports:
+      - "9101:9101"
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC: saga.npc.action
+      KAFKA_GROUP: saga-worker-group
+      SAGA_ORCHESTRATOR_URL: http://saga-orchestrator:9100
+      WORKER_ID: worker-1
+    depends_on:
+      - kafka
+      - saga-orchestrator
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9101/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
 volumes:
   pg_data:
+  milvus_data:
+  etcd_data:
+  minio_data:
