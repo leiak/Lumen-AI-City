@@ -1,4 +1,14 @@
-"""60min TTL 内存 session map + 重连补帧 buffer。"""
+"""60min TTL 内存 session map + 重连补帧 buffer。
+
+Stage 2 状态（C2 T31 决议）：可用但未在 ``dispatcher.say_stream()`` 里 wire。
+原计划用于断线补帧（spec §6 "Redis 消息丢失" 缓解：buffer + 重试 + 重连补帧），
+但 stage 2 没有断线重连 HTTP 端点，SessionStore 暂时是基础设施。等 stage 3 引入
+"GET /v1/npc/sessions/{sid}/buffer?from_idx=N" 端点（玩家 WS 断线重连时拉帧）
+时再 wire。
+
+测试 ``tests/stream/test_session_store.py`` 保留 — 验证 TTL 过期 / buffer 过滤 /
+session 隔离等不变量，避免 stage 3 wire 时 API 漂移。
+"""
 from __future__ import annotations
 
 import time

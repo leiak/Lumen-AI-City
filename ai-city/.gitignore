@@ -17,6 +17,10 @@ venv/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
 
 # Rust
 target/
@@ -58,6 +62,8 @@ certs/*
 *.log
 logs/
 tmp/
+# Go acceptance binaries (build via `go build -o acceptance_2_1.exe ./cmd/acceptance_2_1`)
+acceptance_*.exe
 
 # Docker
 .docker/
