@@ -15,3 +15,20 @@ body {
   position: absolute;
   inset: 0;
 }
+
+/*
+ * 2.0 阶段 2 (T18) —— NPC 流式句子 fade-in 动画。
+ * NPCDialog 在每句 <p> 上用 `animation: 'npc-sentence-fade-in 200ms ease-out'`
+ * 引用；定义在 globals.css 而非 component 内联，避免 Tailwind JIT 漏扫。
+ * 200ms 时长对齐 plan T18 CSS 节（spec §6 减弱视觉冲击）。
+ */
+@keyframes npc-sentence-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

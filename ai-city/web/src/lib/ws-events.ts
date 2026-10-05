@@ -26,6 +26,16 @@ export const PLAYER_MOVED_EVENT = 'aicity:player_moved';
 export const NPC_DIALOGUE_EVENT = 'aicity:npc_dialogue';
 export const NPC_MOVED_EVENT = 'aicity:npc_moved';
 
+/**
+ * NPCDialog 组件监听的事件名（2.0 阶段 2 引入）—— NPC 流式 sentence-by-sentence
+ * + 句末 emotion chip。detail 用完整信封，消费方按 `e.detail.payload.{npc_id,
+ * sentence_idx, text, emotion, session_id}` 取值。
+ *
+ * 信封 type 恒为 "npc_say_stream"（ws-gateway 包络）；payload 内层 type 区分
+ * "npc_say_stream"（单句节拍）和 "npc_say_stream_done"（流结束）。
+ */
+export const NPC_SAY_STREAM_EVENT = 'aicity:npc_say_stream';
+
 /** 与 apps/ws-gateway/internal/protocol/message.go::Envelope 一致 */
 interface WsEnvelope<T> {
   type: string;
@@ -77,6 +87,68 @@ export interface NpcDialoguePayload {
   reply_to_choice_id: string | null;
 }
 
+/**
+ * 与 apps/agent-os/src/agent_os/stream/publisher.py::publish_beat 输出对齐。
+ *
+ * 字段名 (snake_case) 必须与 agent-os Publisher.publish_beat 一致；
+ * web 端按 JSON key 直接取值。
+ *
+ * emotion 必须是 8 类之一 (EmotionValidator 已在 agent-os 端降级)，但前端
+ * 做白名单兜底防 validator 漏网。
+ */
+export interface NpcSayStreamBeat {
+  type: 'npc_say_stream';
+  npc_id: string;
+  session_id: string;
+  sentence_idx: number;
+  text: string;
+  emotion: string;
+  ts_ms: number;
+  trace_id: string;
+}
+
+/**
+ * 与 apps/agent-os/src/agent_os/stream/publisher.py::publish_done 输出对齐。
+ * sentence_count 是本会话已发出的句子数（npc_say_stream 包数）；complete 是
+ * 是否完整收尾（false = EndMarker 超时降级，详见 spec §3 风险 1）。
+ */
+export interface NpcSayStreamDone {
+  type: 'npc_say_stream_done';
+  npc_id: string;
+  session_id: string;
+  sentence_count: number;
+  complete: boolean;
+  ts_ms: number;
+  trace_id: string;
+}
+
+/**
+ * 8 类 emotion 白名单（apps/agent-os/.../emotion_validator.py::ALLOWED_EMOTIONS
+ * 镜像）。web 端做兜底渲染 —— 不在表内的 emotion 一律回退 neutral emoji。
+ */
+export const NPC_EMOTIONS = [
+  'happy',
+  'sad',
+  'angry',
+  'surprised',
+  'thinking',
+  'embarrassed',
+  'curious',
+  'neutral',
+] as const;
+export type NpcEmotion = (typeof NPC_EMOTIONS)[number];
+
+export const NPC_EMOTION_EMOJI: Record<NpcEmotion, string> = {
+  happy: '😊',
+  sad: '😢',
+  angry: '😠',
+  surprised: '😲',
+  thinking: '🤔',
+  embarrassed: '😳',
+  curious: '🤨',
+  neutral: '😐',
+};
+
 function isPlayerMoved(msg: unknown): msg is WsEnvelope<PlayerMovedPayload> {
   if (typeof msg !== 'object' || msg === null) return false;
   const m = msg as Record<string, unknown>;
@@ -115,6 +187,48 @@ function isNpcDialogue(msg: unknown): msg is WsEnvelope<NpcDialoguePayload> {
     p !== null &&
     typeof p.npc_id === 'string' &&
     typeof p.say === 'string'
+  );
+}
+
+/**
+ * 校验 npc_say_stream 节拍包。信包外层 (msg.type) 是 ws-gateway 包络的
+ * "npc_say_stream"；内层 payload.type 也是 "npc_say_stream"。两者相等
+ * 是双保险 —— 防 ws-gateway 透传错包 / 防 payload 丢字段后 type guard 漏过。
+ */
+function isNpcSayStreamBeat(msg: unknown): msg is WsEnvelope<NpcSayStreamBeat> {
+  if (typeof msg !== 'object' || msg === null) return false;
+  const m = msg as Record<string, unknown>;
+  if (m.type !== 'npc_say_stream') return false;
+  const p = m.payload as Record<string, unknown> | undefined;
+  return (
+    typeof p === 'object' &&
+    p !== null &&
+    p.type === 'npc_say_stream' &&
+    typeof p.npc_id === 'string' &&
+    typeof p.session_id === 'string' &&
+    typeof p.sentence_idx === 'number' &&
+    typeof p.text === 'string' &&
+    typeof p.emotion === 'string'
+  );
+}
+
+/**
+ * 校验 npc_say_stream_done 结束标记 —— 内层 payload.type === "npc_say_stream_done"。
+ * 外层 type 仍然是 ws-gateway 信封 type "npc_say_stream"（同一频道复用同一包络）。
+ */
+function isNpcSayStreamDone(msg: unknown): msg is WsEnvelope<NpcSayStreamDone> {
+  if (typeof msg !== 'object' || msg === null) return false;
+  const m = msg as Record<string, unknown>;
+  if (m.type !== 'npc_say_stream') return false;
+  const p = m.payload as Record<string, unknown> | undefined;
+  return (
+    typeof p === 'object' &&
+    p !== null &&
+    p.type === 'npc_say_stream_done' &&
+    typeof p.npc_id === 'string' &&
+    typeof p.session_id === 'string' &&
+    typeof p.sentence_count === 'number' &&
+    typeof p.complete === 'boolean'
   );
 }
 
@@ -159,6 +273,31 @@ export function startWsBridge(): () => void {
       // Sprint 13：NPC 移动事件广播给所有连接；WorldMap 按 npc_id 覆盖圆点坐标。
       window.dispatchEvent(
         new CustomEvent<NpcMovedPayload>(NPC_MOVED_EVENT, { detail: msg.payload })
+      );
+      return;
+    }
+
+    if (isNpcSayStreamBeat(msg)) {
+      // 2.0 阶段 2：NPC 逐句流式推送。NPCDialog 组件订阅 → 累加 beats →
+      // 切头像旁 emotion emoji。同 session 同 sentence_idx 视为重发（断连重连
+      // 补帧），按 (session_id, sentence_idx) 复合键去重。
+      window.dispatchEvent(
+        new CustomEvent<WsEnvelope<NpcSayStreamBeat>>(
+          NPC_SAY_STREAM_EVENT,
+          { detail: msg }
+        )
+      );
+      return;
+    }
+
+    if (isNpcSayStreamDone(msg)) {
+      // 流结束标记（spec §2.2）—— 复用 NPC_SAY_STREAM_EVENT 频道，detail 内层
+      // type 区分 beat / done。消费方按 detail.payload.type 二次分支。
+      window.dispatchEvent(
+        new CustomEvent<WsEnvelope<NpcSayStreamDone>>(
+          NPC_SAY_STREAM_EVENT,
+          { detail: msg }
+        )
       );
       return;
     }
