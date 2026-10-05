@@ -5,7 +5,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
-from agent_os.errors import R_015
+from agent_os.errors import R015SessionNotFound
 
 
 @dataclass
@@ -46,7 +46,7 @@ class SessionStore:
     def _require(self, sid: str) -> None:
         sess = self._sessions.get(sid)
         if sess is None:
-            raise R_015
+            raise R015SessionNotFound
         if time.time() - sess.created_at > self._ttl:
             del self._sessions[sid]
-            raise R_015
+            raise R015SessionNotFound

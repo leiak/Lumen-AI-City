@@ -34,9 +34,9 @@ def test_get_buffer_from_idx():
 
 
 def test_get_unknown_session_raises():
-    from agent_os.errors import R_015
+    from agent_os.errors import R015SessionNotFound
     s = SessionStore()
-    with pytest.raises(R_015):
+    with pytest.raises(R015SessionNotFound):
         s.get_buffer("sess-unknown")
 
 
@@ -47,6 +47,6 @@ def test_ttl_eviction(monkeypatch):
     # 模拟时间过去 61 分钟 — 捕获原始 time.time 避免 lambda 递归
     real_time = time.time
     monkeypatch.setattr(time, "time", lambda: real_time() + 61 * 60)
-    from agent_os.errors import R_015
-    with pytest.raises(R_015):
+    from agent_os.errors import R015SessionNotFound
+    with pytest.raises(R015SessionNotFound):
         s.get_buffer(sid)
