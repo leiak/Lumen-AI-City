@@ -64,8 +64,17 @@ class Publisher:
         raise last_exc
 
     def _flush_buffer(self) -> None:
-        """pub 成功时尝试 flush buffer（异步 fire-and-forget）。"""
+        """pub 成功时尝试 flush buffer（异步 fire-and-forget）。
+
+        注意：必须在 running asyncio event loop 中调用（即 async 上下文）。
+        如果从 sync 上下文调用，函数会静默 return（不创建 task）。
+        """
         if not self._buffer:
+            return
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # sync context — 跳过 flush（避免 RuntimeError: no running event loop）
             return
         pending = self._buffer[:]
         self._buffer.clear()
@@ -75,8 +84,8 @@ class Publisher:
                 try:
                     await self._redis.publish(CHANNEL_SAY_STREAM, p)
                 except Exception:
-                    self._buffer.append(p)
                     if len(self._buffer) >= self._max_buffer:
                         break
+                    self._buffer.append(p)
 
         asyncio.create_task(_flush())
