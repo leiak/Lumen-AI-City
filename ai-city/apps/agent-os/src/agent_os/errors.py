@@ -42,3 +42,12 @@ class R009InvalidInput(AgentOSError):
 
 class R010UpstreamDown(AgentOSError):
     code = "R_010"; http_status = 502; message = "上游服务不可用"
+
+
+class R015SessionNotFound(AgentOSError):
+    code = "R_015"; http_status = 400; message = "session 不存在或已过期"
+
+
+class R_015(Exception):
+    """SESSION_NOT_FOUND (400)."""
+    pass
