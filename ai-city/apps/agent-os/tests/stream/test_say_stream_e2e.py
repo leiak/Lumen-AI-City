@@ -76,19 +76,21 @@ def test_say_stream_emits_at_least_one_sentence():
     dispatcher = _build_dispatcher(pub)
 
     async def run():
-        beats = []
-        async for ev in dispatcher.say_stream(
-            npc_id="npc_wang_boss_001",
-            player_input="老板，今天有什么推荐菜？",
-            npc_context=[],
-            session_id="sess-e2e-1",
-            trace_id="tr-e2e-1",
-        ):
-            # Wait for each event with hard timeout (防止 LLM 卡死)
-            await asyncio.wait_for(asyncio.sleep(0), timeout=EVENT_TIMEOUT_S)
-            if not ev.complete:  # 排除 done 事件
-                beats.append(ev)
-        return beats
+        async def collect_events():
+            beats = []
+            async for ev in dispatcher.say_stream(
+                npc_id="npc_wang_boss_001",
+                player_input="老板，今天有什么推荐菜？",
+                npc_context=[],
+                session_id="sess-e2e-1",
+                trace_id="tr-e2e-1",
+            ):
+                if not ev.complete:  # 排除 done 事件
+                    beats.append(ev)
+            return beats
+
+        # 真实外层 wait_for：防止 LLM 卡死（CI 必超时退出）
+        return await asyncio.wait_for(collect_events(), timeout=EVENT_TIMEOUT_S)
 
     beats = asyncio.run(run())
     # LLM 1-6 句不定；最少 1 句

@@ -147,6 +147,8 @@ class ActionDispatcher:
         npc_context: list,
         session_id: str,
         trace_id: str | None,
+        model: str = "claude-haiku-4-5",
+        max_tokens: int = 200,
     ) -> AsyncIterator[DispatcherSayStreamEvent]:
         """LLM token 流 → 句子节拍事件流 → Publisher.publish_beat/done。
 
@@ -157,6 +159,12 @@ class ActionDispatcher:
           4. 构造 DispatcherSayStreamEvent → publisher.publish_beat → yield
           5. EOF：splitter.flush() 残余句 → beat；最后发 publish_done → yield done
           6. 异常：发 publish_done(complete=False) 并 raise（R_011 fallback）
+
+        Args:
+            model: LLM model id forwarded to ``LLMRequest`` (default ``claude-haiku-4-5``
+                for cost — tests pass ``claude-haiku-4-5``; prod callers may upgrade to
+                sonnet for richer responses).
+            max_tokens: Hard cap on LLM output tokens (default 200).
         """
         if trace_id is None:
             trace_id = f"tr-{uuid.uuid4().hex[:12]}"
@@ -166,7 +174,7 @@ class ActionDispatcher:
         sentence_idx = 0
 
         prompt = get_npc_stream_prompt(npc_id, player_input, npc_context)
-        req = LLMRequest(prompt=prompt, model="claude-sonnet-4-6", max_tokens=512)
+        req = LLMRequest(prompt=prompt, model=model, max_tokens=max_tokens)
 
         async def _emit(
             text: str, raw_emotion: str, is_done: bool = False
