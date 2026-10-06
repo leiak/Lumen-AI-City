@@ -129,8 +129,7 @@ func (h *NPCTalkHandler) Handle(c *gin.Context) {
 	}
 
 	// B1-T07: 跨城 NPC（id 含 `_b_`）转发到 a2a-gateway /v1/federation/say_stream
-	// （SSE 透传）。替代旧的 forwardCrossCity（POST /v1/cross_city/talk 整段）。
-	// 降级路径：SSE 不可达 → 502 R_016 → web 端改走整段（a2a-gateway 仍保留）。
+	// （SSE 透传）。降级路径：SSE 不可达 → 502 R_016。
 	if strings.Contains(req.NpcID, "_b_") {
 		h.forwardCrossCityStream(c, req.NpcID, rawBody)
 		return
@@ -239,7 +238,7 @@ func (h *NPCTalkHandler) HandleByID(c *gin.Context) {
 		return
 	}
 
-	// B1-T07: 跨城 NPC → forwardCrossCityStream（SSE 透传），替换 forwardCrossCity。
+	// B1-T07: 跨城 NPC → forwardCrossCityStream（SSE 透传）。
 	if strings.Contains(npcID, "_b_") {
 		h.forwardCrossCityStream(c, npcID, rawBody)
 		return
@@ -351,68 +350,9 @@ func (h *NPCTalkHandler) HandleInfo(c *gin.Context) {
 	})
 }
 
-// forwardCrossCity 把跨城 NPC 对话请求转发到 a2a-gateway。
-//
-// 触发条件：npcID 含 "_b_"（跨城 NPC 命名约定：npc_<city>_<slug>）。
-// 转发目标：A2A_HUB_URL env（默认 http://a2a-gateway:8083）+/v1/cross_city/talk。
-//
-// 错误码（与 a2a F_xxx 对齐）：
-//   - 502 + F_010：a2a-gateway 不可达（网络错误）
-//   - 透传 a2a-gateway 自身的 HTTP 状态码与响应体（包括 503+F_011 路由未命中）
-//
-// 不做本地 Redis publish：跨城 NPC 的 dialogue 由 a2a-gateway 端 publish 到
-// 对应频道，ws-gateway 跨城 fanout 订阅 a2a.cross_city.event 再扇出给本城客户端。
-//
-// B1-T07 状态：仅保留方法以备作 fallback（plan 6 主路径已切到 forwardCrossCityStream
-// SSE 透传）；当前 Handle/HandleByID 都不再调用它。如果 web 端 SSE 入口拒拿再考虑
-// S 整段 fallback 路由。
-func (h *NPCTalkHandler) forwardCrossCity(c *gin.Context, npcID string, body map[string]any) {
-	a2aURL := os.Getenv("A2A_HUB_URL")
-	if a2aURL == "" {
-		a2aURL = "http://a2a-gateway:8083"
-	}
-	payload, err := json.Marshal(body)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":  "NPC_003",
-			"detail": "marshal cross-city payload: " + err.Error(),
-		})
-		return
-	}
-	resp, err := http.Post(a2aURL+"/v1/cross_city/talk", "application/json", bytes.NewReader(payload))
-	if err != nil {
-		h.Logger.Warn("cross-city forward failed",
-			zap.String("npc_id", npcID),
-			zap.String("a2a_url", a2aURL),
-			zap.Error(err),
-		)
-		c.JSON(http.StatusBadGateway, gin.H{
-			"code":    "F_010",
-			"message": "a2a-gateway 不可达",
-		})
-		return
-	}
-	defer resp.Body.Close()
-
-	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		h.Logger.Warn("cross-city decode failed",
-			zap.String("npc_id", npcID),
-			zap.Int("status", resp.StatusCode),
-			zap.Error(err),
-		)
-		c.JSON(http.StatusBadGateway, gin.H{
-			"code":    "F_010",
-			"message": "a2a-gateway 响应解析失败",
-		})
-		return
-	}
-	c.JSON(resp.StatusCode, result)
-}
-
 // forwardCrossCityStream 把跨城 NPC 对话请求以 SSE 形式透传到 a2a-gateway。
 //
-// B1-T07：替换 forwardCrossCity（Sint 整段）→ forwardCrossCityStream（SSE）。
+// B1-T07：跨城 NPC 主路径。
 // 调用方：Handle/HandleByID 当 npcID 含 `_b_` 时调用。处理流程：
 //  1. npcID 必填校验（缺 → 400 R_009，不发上游请求）
 //  2. body 必填校验：JSON 可解；缺 session_id 由本层 mint 一个（spec §3.5

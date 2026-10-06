@@ -115,6 +115,12 @@ func (s *MirrorStore) Buffer(sid string, fromIdx uint32) ([]Beat, bool, error) {
 	return sess.Beats[fromIdx:], sess.Done, nil
 }
 
+// Get 返回 sid 对应的 MirrorSession（不修改任何状态），过期或不存在返 ErrSessionNotFound。
+// 用于 session_replay 等需要在返回 metadata（npc_id / player_id）时不副作用读路径的场景。
+func (s *MirrorStore) Get(sid string) (*MirrorSession, error) {
+	return s.get(sid)
+}
+
 // IsComplete session 是否正常结束（非 timeout / error）。不存在或过期返 ErrSessionNotFound。
 func (s *MirrorStore) IsComplete(sid string) (bool, error) {
 	sess, err := s.get(sid)

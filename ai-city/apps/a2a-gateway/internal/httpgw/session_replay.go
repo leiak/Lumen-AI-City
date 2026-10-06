@@ -24,7 +24,7 @@ import (
 //
 //	{
 //	  "session_id": "sess-...",
-//	  "npc_id":     "npc_b_wu",    // MirrorStore 不直接暴露 NPCID，留空字符串
+//	  "npc_id":     "npc_b_wu",    // MirrorStore.Get 暴露 NPCID，handler 填充
 //	  "complete":   false,
 //	  "from_idx":   2,
 //	  "beats": [
@@ -123,12 +123,15 @@ func (h *SessionReplayHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	// 6. 构造响应。
 	resp := ReplayResponse{
 		SessionID: sid,
-		// MirrorStore 当前未暴露 NPCID accessor，故留空。
-		// 客户端若需 npc_id，可从首次 say_stream 响应缓存或关联查询。
+		// MirrorStore.Get 暴露 NPCID accessor；填充便于首次缓冲就拿到 npc_id。
+		// 若 Get 失败（理论上 buffer 已成功则 Get 也会成功），保持空字符串。
 		NPCID:    "",
 		Complete: done,
 		FromIdx:  fromIdx,
 		Beats:    make([]BeatFrame, 0, len(beats)),
+	}
+	if sess, gErr := h.Mirror.Get(sid); gErr == nil && sess != nil {
+		resp.NPCID = sess.NPCID
 	}
 	for _, b := range beats {
 		resp.Beats = append(resp.Beats, BeatFrame{

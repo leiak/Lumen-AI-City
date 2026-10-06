@@ -13,6 +13,7 @@
 package crosscity
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -148,5 +149,38 @@ func TestCount(t *testing.T) {
 	store.Create("b", "n", "p")
 	if store.Count() != 2 {
 		t.Fatal("expected 2")
+	}
+}
+
+func TestGetReturnsSession(t *testing.T) {
+	store := NewMirrorStore(time.Minute)
+	store.Create("s1", "npc_b_wu", "p1")
+	sess, err := store.Get("s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.NPCID != "npc_b_wu" {
+		t.Fatalf("npc_id=%s", sess.NPCID)
+	}
+	if sess.PlayerID != "p1" {
+		t.Fatalf("player_id=%s", sess.PlayerID)
+	}
+}
+
+func TestGetMissingReturnsErr(t *testing.T) {
+	store := NewMirrorStore(time.Minute)
+	_, err := store.Get("missing")
+	if !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestGetExpiredReturnsErr(t *testing.T) {
+	store := NewMirrorStore(30 * time.Millisecond)
+	store.Create("s1", "npc", "p")
+	time.Sleep(60 * time.Millisecond)
+	_, err := store.Get("s1")
+	if !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("got %v", err)
 	}
 }

@@ -224,6 +224,10 @@ func triggerSSEAndDisconnect(ctx context.Context, token string) (string, int, er
 			break
 		}
 	}
+	// 主动断流后再确认 scanner 没把"读到一半连接被关"误判为正常 EOF。
+	if err := scanner.Err(); err != nil {
+		log.Printf("scanner err after %d beats: %v", beatCount, err)
+	}
 	// 拿到 beat 后 streamCancel 会 defer 时跑；这里也显式触发一次以尽快释放 TCP。
 	streamCancel()
 
@@ -334,10 +338,3 @@ func redactKey(k string) string {
 	return "set"
 }
 
-// min 简易版（Go 1.21+ 才有内置）。
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
