@@ -73,3 +73,10 @@ class PurchaseRequest(BaseModel):
     currency: Currency
     idempotency_key: str = Field(min_length=8, max_length=64)
     trace_id: str | None = None
+
+
+class SinkRequest(BaseModel):
+    """Admin central-bank sink body."""
+    user_id: str = Field(min_length=1)
+    amount: int = Field(gt=0)
+    reason: str = "admin"
