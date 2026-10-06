@@ -44,7 +44,7 @@ class SimulateState(BaseModel):
     player_position: list[int] | None = None
     npc_state: dict = Field(default_factory=dict)
     time_of_day: str = "noon"
-    max_ticks: int = 100
+    max_ticks: int = Field(default=100, ge=1, le=1000)
 
 
 class SimulateRequest(BaseModel):
@@ -52,7 +52,7 @@ class SimulateRequest(BaseModel):
 
     tree_json: dict
     state: SimulateState = Field(default_factory=SimulateState)
-    tick_limit: int = 100
+    tick_limit: int = Field(default=100, ge=1, le=1000)
 
 
 class SimulateTraceEntry(BaseModel):

@@ -30,6 +30,8 @@ services:
       - ./scripts/seed-npcs.sql:/docker-entrypoint-initdb.d/02-seed-npcs.sql:ro
       # 2.0：跨城联邦路由表 + 心跳表 + memory player_session 表
       - ./packages/proto/pg-schema-2.0.sql:/docker-entrypoint-initdb.d/03-schema-2.0.sql:ro
+      # Phase C.2：BT editor 后端持久化（bt_tree 表 + version bump 触发器）
+      - ./packages/proto/pg-schema-2.0-bt-editor.sql:/docker-entrypoint-initdb.d/04-bt-editor.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U aicity']
       interval: 5s

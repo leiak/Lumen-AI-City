@@ -276,3 +276,115 @@ def test_simulate_tick_limit_caps_loop(mock_pool, client):
     body = resp.json()
     assert body["status"] == "running"
     assert len(body["trace"]) == 3  # capped at tick_limit
+
+
+# ---- R_020 contract (Phase C.2 review Fix #5) -----------------------------
+
+
+def test_simulate_subtree_missing_registry_returns_500(mock_pool, client):
+    """Spec: /simulate returns 500 / R_020 on fatal eval errors.
+
+    A ``subtree`` node in the tree asks the C.1 evaluator to look up the
+    referenced ``tree_id`` via ``BTState.registry``. The endpoint never
+    sets a registry, so the evaluator raises ``BTError`` ("subtree ...
+    requires BTState.registry to be set"). The endpoint must surface
+    that as 500 + R_020 — NOT 200 with ``status="error"``.
+    """
+    tree = {
+        "id": "root",
+        "type": "sequence",
+        "children": [
+            {"id": "ref", "type": "subtree", "tree_id": "greet_player"},
+        ],
+    }
+    resp = client.post(
+        "/api/v1/bt/npc_alpha/composite/simulate",
+        json={
+            "tree_json": tree,
+            "state": {
+                "player_position": [0, 0],
+                "npc_state": {},
+                "time_of_day": "noon",
+                "max_ticks": 100,
+            },
+            "tick_limit": 5,
+        },
+    )
+    assert resp.status_code == 500
+    detail = resp.json()["detail"]
+    assert detail["code"] == "R_020"
+    assert "BT_EVAL_FAIL" in detail["msg"]
+
+
+# ---- Path validation (Phase C.2 review Fix #4) ---------------------------
+
+
+def test_list_trees_rejects_invalid_npc_id(client):
+    """Path-param validation: slashes / non-word chars → 422, no DB call."""
+    # 422 is FastAPI's default for Path() validation failures.
+    resp = client.get("/api/v1/bt/bad..npc")
+    assert resp.status_code == 422
+
+
+def test_get_tree_rejects_invalid_tree_name(client):
+    """Path-param validation: tree_name with special chars → 422."""
+    # Path component with spaces — URL-encoded as %20 — must be rejected.
+    resp = client.get("/api/v1/bt/npc_alpha/bad%20name")
+    assert resp.status_code == 422
+
+
+def test_save_tree_rejects_oversized_npc_id(client):
+    """Path-param validation: npc_id longer than 64 chars → 422."""
+    long_npc = "npc_" + ("x" * 70)  # 73 chars, well over the 64-char cap
+    resp = client.post(
+        f"/api/v1/bt/{long_npc}/tree",
+        json={"tree_json": {"id": "root", "type": "action", "name": "noop", "args": []}},
+    )
+    assert resp.status_code == 422
+
+
+# ---- tick_limit clamp (Phase C.2 review Fix #2) ---------------------------
+
+
+def test_simulate_tick_limit_over_1000_rejected(mock_pool, client):
+    """tick_limit > 1000 → 422 (Pydantic Field(le=1000)). No DB hits required."""
+    resp = client.post(
+        "/api/v1/bt/npc_alpha/runaway/simulate",
+        json={
+            "tree_json": {"id": "root", "type": "action", "name": "noop", "args": []},
+            "state": {"player_position": [0, 0], "npc_state": {}, "time_of_day": "noon", "max_ticks": 100},
+            "tick_limit": 5000,
+        },
+    )
+    assert resp.status_code == 422  # Pydantic validation error
+
+
+def test_simulate_tick_limit_zero_rejected(mock_pool, client):
+    """tick_limit == 0 → 422 (Pydantic Field(ge=1))."""
+    resp = client.post(
+        "/api/v1/bt/npc_alpha/runaway/simulate",
+        json={
+            "tree_json": {"id": "root", "type": "action", "name": "noop", "args": []},
+            "state": {"player_position": [0, 0], "npc_state": {}, "time_of_day": "noon", "max_ticks": 100},
+            "tick_limit": 0,
+        },
+    )
+    assert resp.status_code == 422
+
+
+# ---- Body size limit (Phase C.2 review Fix #3) -----------------------------
+
+
+def test_oversized_body_rejected_with_413(client):
+    """Content-Length > 256 KB → 413 / R_021 before any handler runs."""
+    big = "x" * (300 * 1024)  # 300 KB — well over the 256 KB cap.
+    # Wrap it in a valid-looking BT JSON; the middleware should fire
+    # BEFORE Pydantic sees the payload.
+    payload = '{"tree_json": {"id": "root", "type": "action", "name": "noop", "args": ["' + big + '"]}}'
+    resp = client.post(
+        "/api/v1/bt/npc_alpha/big/simulate",
+        content=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 413
+    assert resp.json()["detail"]["code"] == "R_021"

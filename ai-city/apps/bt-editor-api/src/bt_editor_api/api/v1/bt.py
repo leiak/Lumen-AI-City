@@ -18,7 +18,7 @@ from typing import Any
 from agent_os.bt.errors import BTError
 from agent_os.bt.evaluator import tick
 from agent_os.bt.schema import Status
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Path
 
 from bt_editor_api import db as db_mod
 from bt_editor_api.schemas import (
@@ -99,12 +99,18 @@ def _row_to_full(row: dict) -> TreeFull:
 
 
 @router.get("/{npc_id}", response_model=list[TreeSummary])
-async def list_trees(npc_id: str) -> list[TreeSummary]:
+async def list_trees(
+    npc_id: str = Path(..., max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
+) -> list[TreeSummary]:
     """List all BT trees for an NPC, newest-updated first.
 
     Empty list when the NPC has no saved trees — matches the
     ``admin-portal /bt-editor`` UI expectation of "empty state with a
     'create' button".
+
+    ``npc_id`` is bounded to 64 chars and ``[A-Za-z0-9_-]+`` so path
+    traversal / injection attempts (e.g. ``../etc/passwd``) are rejected
+    by FastAPI with 422 before any DB call runs.
     """
     pool = await db_mod.get_pool()
     rows = await pool.fetch(_LIST_SQL, npc_id)
@@ -119,7 +125,10 @@ async def list_trees(npc_id: str) -> list[TreeSummary]:
 
 
 @router.get("/{npc_id}/{tree_name}", response_model=TreeFull)
-async def get_tree(npc_id: str, tree_name: str) -> TreeFull:
+async def get_tree(
+    npc_id: str = Path(..., max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
+    tree_name: str = Path(..., max_length=128, pattern=r"^[A-Za-z0-9_-]+$"),
+) -> TreeFull:
     """Fetch one BT tree. 404 if not found."""
     pool = await db_mod.get_pool()
     row = await pool.fetchrow(_GET_SQL, npc_id, tree_name)
@@ -129,7 +138,11 @@ async def get_tree(npc_id: str, tree_name: str) -> TreeFull:
 
 
 @router.post("/{npc_id}/{tree_name}", response_model=TreeFull)
-async def save_tree(npc_id: str, tree_name: str, body: SaveTreeRequest) -> TreeFull:
+async def save_tree(
+    npc_id: str = Path(..., max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
+    tree_name: str = Path(..., max_length=128, pattern=r"^[A-Za-z0-9_-]+$"),
+    body: SaveTreeRequest = ...,
+) -> TreeFull:
     """Upsert a BT tree.
 
     Validates ``tree_json`` via ``db.validate_tree`` (which reuses the
@@ -154,17 +167,21 @@ async def save_tree(npc_id: str, tree_name: str, body: SaveTreeRequest) -> TreeF
 
 @router.post("/{npc_id}/{tree_name}/simulate", response_model=SimulateResponse)
 async def simulate_tree(
-    npc_id: str,
-    tree_name: str,
-    body: SimulateRequest,
+    npc_id: str = Path(..., max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
+    tree_name: str = Path(..., max_length=128, pattern=r"^[A-Za-z0-9_-]+$"),
+    body: SimulateRequest = ...,
 ) -> SimulateResponse:
     """Dry-run a BT tree against a synthetic state and return a tick trace.
 
-    Loops ``tick(tree, state)`` up to ``tick_limit`` times (default 100),
-    stopping early on terminal status (success / failure). Errors from
-    the C.1 evaluator (e.g. ``max_ticks`` exceeded) surface as
-    ``status="error"`` with the partial trace preserved — the endpoint
-    does NOT raise so the UI can render the failure inline.
+    Loops ``tick(tree, state)`` up to ``tick_limit`` times (default 100,
+    clamped to [1, 1000] by ``SimulateRequest.tick_limit``), stopping
+    early on terminal status (success / failure).
+
+    **Fatal eval errors** (e.g. ``max_ticks`` exceeded, subtree lookup
+    with no registry) raise ``BTError``; per the spec this surfaces as
+    **HTTP 500 / R_020** so the client sees a clear failure mode
+    instead of a 200 with ``status="error"``. Non-fatal ticks keep the
+    trace-driven 200 response.
     """
     tree = db_mod.validate_tree(
         body.tree_json,
@@ -173,46 +190,45 @@ async def simulate_tree(
     )
 
     state = db_mod.build_bt_state(body.state.model_dump())
-    # Per-tick budget: allow each outer tick to consume up to tick_limit
-    # inner ticks before bailing. Resets state.tick_count each iteration
-    # so a deep but valid tree still fits within tick_limit outer calls.
-    state.max_ticks = body.tick_limit
+    # state.max_ticks already honours [1, 1000] via SimulateState's Field
+    # constraints; no need to overwrite it from body.tick_limit (which
+    # controls how many OUTER iterations we run, not the per-tick
+    # budget).
 
-    trace: list[SimulateTraceEntry] = []
-    final_status: str = "running"
-    for _ in range(body.tick_limit):
-        state.tick_count = 0
-        try:
+    try:
+        trace: list[SimulateTraceEntry] = []
+        final_status: str = "running"
+        for _ in range(body.tick_limit):
+            state.tick_count = 0
+            # Spec: any BTError here is a fatal eval failure → 500 / R_020.
+            # Non-fatal ticks never raise, so a clean trace path stays 200.
             status: Status = tick(tree, state)
-        except BTError:
+
             trace.append(
                 SimulateTraceEntry(
                     node_id=tree.root.id,
-                    status="error",
+                    status=status.value,
                     tick_count=state.tick_count,
                 )
             )
-            return SimulateResponse(
-                status="error",
-                trace=trace,
-                final_state=db_mod.state_to_dict(state),
-            )
 
-        trace.append(
-            SimulateTraceEntry(
-                node_id=tree.root.id,
-                status=status.value,
-                tick_count=state.tick_count,
-            )
-        )
-
-        if status in (Status.SUCCESS, Status.FAILURE):
-            final_status = status.value
-            break
-    else:
-        # tick_limit reached while still RUNNING — preserve "running" so
-        # the UI knows the tree didn't terminate (vs "error").
-        final_status = "running"
+            if status in (Status.SUCCESS, Status.FAILURE):
+                final_status = status.value
+                break
+        else:
+            # tick_limit reached while still RUNNING — preserve "running" so
+            # the UI knows the tree didn't terminate (vs "error").
+            final_status = "running"
+    except BTError as e:
+        # Spec: simulate returns 500 / R_020 on fatal eval errors
+        # (subtree registry absent, infinite recursion hit, etc.). The
+        # partial trace is intentionally dropped — the spec is silent on
+        # exposing it in the 500 path, and clients should retry with a
+        # smaller tree rather than try to render a half-built trace.
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "R_020", "msg": f"BT_EVAL_FAIL: {e}"},
+        ) from e
 
     return SimulateResponse(
         status=final_status,
