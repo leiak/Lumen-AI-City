@@ -1,0 +1,1 @@
+"""External client wrappers (Kafka producer, Redis cache)."""

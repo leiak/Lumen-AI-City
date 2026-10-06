@@ -2,9 +2,25 @@
 """NPC 商品购买 — 原子扣款 + stock 减一. Sink 留给 W3."""
 from __future__ import annotations
 import asyncpg
+from economy_service.clients.kafka_producer import KafkaProducer, TOPIC_TX_COMPLETED
+from economy_service.clients.redis_client import RedisClient
 from economy_service.errors import (
     InsufficientBalance, ProductNotFound, ProductOutOfStock,
 )
+
+# Module-level clients (injected via set_clients()).
+_kafka: KafkaProducer | None = None
+_redis: RedisClient | None = None
+
+
+def set_clients(
+    kafka: KafkaProducer | None = None,
+    redis: RedisClient | None = None,
+) -> None:
+    """Inject kafka + redis clients (used in app lifespan + tests)."""
+    global _kafka, _redis
+    _kafka = kafka
+    _redis = redis
 
 
 class PurchaseService:
@@ -88,7 +104,7 @@ class PurchaseService:
                     user_id, currency, -price, new_bal, product_id, trace_id,
                 )
 
-                return {
+                result = {
                     "user_id": user_id,
                     "product_id": product_id,
                     "currency": currency,
@@ -96,3 +112,18 @@ class PurchaseService:
                     "balance_after": new_bal,
                     "sink_amount": 0,  # W3 will compute + persist
                 }
+
+        # Post-commit: fire-and-forget event + cache write
+        # (outside the `async with` so we don't keep the conn alive past return)
+        if _kafka is not None:
+            await _kafka.send(TOPIC_TX_COMPLETED, {
+                "user_id": user_id,
+                "product_id": product_id,
+                "currency": currency,
+                "amount": -price,
+                "balance_after": new_bal,
+                "tx_type": "npc_purchase",
+            })
+        if _redis is not None:
+            await _redis.cache_balance(user_id, new_bal, 0)
+        return result

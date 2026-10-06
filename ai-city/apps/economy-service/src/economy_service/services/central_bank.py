@@ -2,6 +2,24 @@
 """中央银行: emit formula + manual sink."""
 from __future__ import annotations
 import asyncpg
+from economy_service.clients.kafka_producer import (
+    KafkaProducer, TOPIC_GOLD_EMITTED, TOPIC_GOLD_SUNK,
+)
+from economy_service.clients.redis_client import RedisClient
+
+# Module-level clients (injected via set_clients()).
+_kafka: KafkaProducer | None = None
+_redis: RedisClient | None = None
+
+
+def set_clients(
+    kafka: KafkaProducer | None = None,
+    redis: RedisClient | None = None,
+) -> None:
+    """Inject kafka + redis clients (used in app lifespan + tests)."""
+    global _kafka, _redis
+    _kafka = kafka
+    _redis = redis
 
 
 class CentralBankService:
@@ -56,11 +74,21 @@ class CentralBankService:
                     per_player, reason,
                 )
 
-        return {
+        result = {
             "emitted": per_player,
             "active_players": active_count,
             "total_distributed": per_player * active_count,
         }
+
+        # Post-commit: fire-and-forget event (outside the with block)
+        if _kafka is not None:
+            await _kafka.send(TOPIC_GOLD_EMITTED, {
+                "per_player": per_player,
+                "active_players": active_count,
+                "total_distributed": per_player * active_count,
+                "reason": reason,
+            })
+        return result
 
     async def sink(self, user_id: str, amount: int, reason: str = "admin") -> dict:
         """Manual sink: 销毁 user_id 的 gold_balance amount。"""
@@ -90,4 +118,16 @@ class CentralBankService:
                     amount, reason, user_id,
                 )
 
-        return {"user_id": user_id, "sunk": amount, "balance_after": new_bal}
+        result = {"user_id": user_id, "sunk": amount, "balance_after": new_bal}
+
+        # Post-commit: fire-and-forget event + cache invalidate
+        if _kafka is not None:
+            await _kafka.send(TOPIC_GOLD_SUNK, {
+                "user_id": user_id,
+                "amount": amount,
+                "balance_after": new_bal,
+                "reason": reason,
+            })
+        if _redis is not None:
+            await _redis.cache_balance(user_id, new_bal, 0)
+        return result

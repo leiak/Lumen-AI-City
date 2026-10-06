@@ -8,6 +8,22 @@ import pytest
 import pytest_asyncio
 
 
+@pytest.fixture(autouse=True)
+def mock_clients():
+    """Inject None for kafka/redis so wallet_service + purchase_service + central_bank
+    don't try real clients during unit/integration tests.
+    """
+    from economy_service.services import central_bank, purchase_service, wallet_service
+    wallet_service.set_clients(kafka=None, redis=None)
+    purchase_service.set_clients(kafka=None, redis=None)
+    central_bank.set_clients(kafka=None, redis=None)
+    yield
+    # Reset back to None on teardown (defensive: a previous test may have injected mocks)
+    wallet_service.set_clients(kafka=None, redis=None)
+    purchase_service.set_clients(kafka=None, redis=None)
+    central_bank.set_clients(kafka=None, redis=None)
+
+
 @pytest_asyncio.fixture
 async def pool():
     """Provide mocked asyncpg pool backed by in-memory dicts.

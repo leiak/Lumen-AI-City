@@ -4,8 +4,25 @@ from __future__ import annotations
 
 import asyncpg
 
+from economy_service.clients.kafka_producer import KafkaProducer, TOPIC_TX_COMPLETED
+from economy_service.clients.redis_client import RedisClient
 from economy_service.errors import InsufficientBalance, TransferSelf, WalletNotFound
 from economy_service.schemas import Currency
+
+# Module-level clients (injected via set_clients() during lifespan / tests).
+# None = no-op (test/early-boot safe).
+_kafka: KafkaProducer | None = None
+_redis: RedisClient | None = None
+
+
+def set_clients(
+    kafka: KafkaProducer | None = None,
+    redis: RedisClient | None = None,
+) -> None:
+    """Inject kafka + redis clients (used in app lifespan + tests)."""
+    global _kafka, _redis
+    _kafka = kafka
+    _redis = redis
 
 
 class WalletService:
@@ -84,7 +101,32 @@ class WalletService:
                 to_user_id, from_user_id, currency.value, amount, new_to, trace_id,
             )
 
-            return (
+            result = (
                 {"user_id": from_user_id, currency.value + "_balance": new_from},
                 {"user_id": to_user_id, currency.value + "_balance": new_to},
             )
+
+        # Post-commit: fire-and-forget events + cache write
+        # (outside the `async with` so we don't keep the conn alive past return)
+        if _kafka is not None:
+            await _kafka.send(TOPIC_TX_COMPLETED, {
+                "user_id": from_user_id,
+                "counterparty_id": to_user_id,
+                "currency": currency.value,
+                "amount": -amount,
+                "balance_after": new_from,
+                "tx_type": "player_transfer",
+            })
+            await _kafka.send(TOPIC_TX_COMPLETED, {
+                "user_id": to_user_id,
+                "counterparty_id": from_user_id,
+                "currency": currency.value,
+                "amount": amount,
+                "balance_after": new_to,
+                "tx_type": "player_transfer",
+            })
+        if _redis is not None:
+            # Best-effort: need both balances for cache. If one unknown, write 0.
+            await _redis.cache_balance(from_user_id, new_from, 0)
+            await _redis.cache_balance(to_user_id, new_to, 0)
+        return result
