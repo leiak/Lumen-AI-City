@@ -1,8 +1,10 @@
 """aiokafka fire-and-forget producer for econ.{tx.completed, gold.emitted, gold.sunk}.
 
-Fire-and-forget: 生产失败不阻塞事务 (observability hook 后面接).
+send() schedules the broker write as a background task and returns
+immediately; failures are logged but never raised to the caller.
 """
 from __future__ import annotations
+import asyncio
 import json
 import os
 import logging
@@ -17,7 +19,10 @@ TOPIC_GOLD_SUNK = "econ.gold.sunk"
 
 
 class KafkaProducer:
-    """aiokafka 异步 producer 包装; start() 在 lifespan 内调一次."""
+    """aiokafka 异步 producer 包装; start() 在 lifespan 内调一次.
+
+    send() 是真异步 — 后台任务执行 broker write; 不阻塞调用方.
+    """
 
     def __init__(self, bootstrap: str = KAFKA_BOOTSTRAP) -> None:
         self.bootstrap = bootstrap
@@ -46,12 +51,20 @@ class KafkaProducer:
                 logger.warning("kafka_producer.stop failed: %s", e)
             self._producer = None
 
-    async def send(self, topic: str, payload: dict[str, Any]) -> None:
-        """Fire-and-forget; 失败仅记日志."""
-        if self._producer is None:
-            logger.debug("kafka_producer.send skipped (no producer): topic=%s", topic)
-            return
+    async def _send_one(self, topic: str, payload: dict[str, Any]) -> None:
+        """后台执行实际 broker write — 失败仅记日志."""
         try:
             await self._producer.send_and_wait(topic, payload, timeout=2.0)
         except Exception as e:
             logger.warning("kafka_producer.send failed topic=%s: %s", topic, e)
+
+    async def send(self, topic: str, payload: dict[str, Any]) -> None:
+        """Fire-and-forget; 后台调度, 立刻返回. 失败仅记日志.
+
+        不阻塞调用方 — 单次 send < 1ms (只 schedule task). 实际 broker write
+        在 _send_one 后台协程里跑, 2s timeout 兜底.
+        """
+        if self._producer is None:
+            logger.debug("kafka_producer.send skipped (no producer): topic=%s", topic)
+            return
+        asyncio.create_task(self._send_one(topic, payload))

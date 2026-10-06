@@ -125,5 +125,7 @@ class PurchaseService:
                 "tx_type": "npc_purchase",
             })
         if _redis is not None:
-            await _redis.cache_balance(user_id, new_bal, 0)
+            # 只更新付款维度 (gold 或 token) — 不要把另一个维度覆盖成 0
+            cache_kwargs = {currency: new_bal}
+            await _redis.cache_balance(user_id, **cache_kwargs)
         return result

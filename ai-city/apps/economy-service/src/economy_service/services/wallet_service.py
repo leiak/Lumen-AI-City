@@ -126,7 +126,9 @@ class WalletService:
                 "tx_type": "player_transfer",
             })
         if _redis is not None:
-            # Best-effort: need both balances for cache. If one unknown, write 0.
-            await _redis.cache_balance(from_user_id, new_from, 0)
-            await _redis.cache_balance(to_user_id, new_to, 0)
+            # 只更新发生变化的维度 (gold 或 token) — 不要把另一个维度覆盖成 0
+            cache_kwargs = {currency.value: new_from}
+            await _redis.cache_balance(from_user_id, **cache_kwargs)
+            cache_kwargs_to = {currency.value: new_to}
+            await _redis.cache_balance(to_user_id, **cache_kwargs_to)
         return result

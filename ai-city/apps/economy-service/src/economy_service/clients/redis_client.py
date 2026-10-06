@@ -36,13 +36,21 @@ class RedisClient:
                 logger.warning("redis_client.stop failed: %s", e)
             self._redis = None
 
-    async def cache_balance(self, user_id: str, gold: int, token: int) -> None:
-        """写时双写缓存."""
+    async def cache_balance(
+        self, user_id: str, *, gold: int | None = None, token: int | None = None,
+    ) -> None:
+        """写时缓存; 只更新显式传入的维度.
+
+        传 gold=X 只更新 gold；传 token=Y 只更新 token；都传则两个都更新；
+        None = 不写. 防止 `cache_balance(uid, X, 0)` 把另一个维度静默覆盖成 0.
+        """
         if self._redis is None:
             return
         try:
-            await self._redis.set(GOLD_KEY.format(user_id=user_id), gold, ex=DEFAULT_TTL)
-            await self._redis.set(TOKEN_KEY.format(user_id=user_id), token, ex=DEFAULT_TTL)
+            if gold is not None:
+                await self._redis.set(GOLD_KEY.format(user_id=user_id), gold, ex=DEFAULT_TTL)
+            if token is not None:
+                await self._redis.set(TOKEN_KEY.format(user_id=user_id), token, ex=DEFAULT_TTL)
         except Exception as e:
             logger.warning("redis.cache_balance failed: %s", e)
 

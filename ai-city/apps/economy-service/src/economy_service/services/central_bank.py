@@ -129,5 +129,6 @@ class CentralBankService:
                 "reason": reason,
             })
         if _redis is not None:
-            await _redis.cache_balance(user_id, new_bal, 0)
+            # sink 只动 gold — 不要覆盖 token
+            await _redis.cache_balance(user_id, gold=new_bal)
         return result
