@@ -47,6 +47,29 @@
 > - 5 env vars 含 `EMOTION_INJECT_ENABLED` kill switch；best-effort 写不阻塞流
 > - 📐 设计：[`docs/superpowers/specs/2026-10-06-2.0-emotion-persistence-design.md`](docs/superpowers/specs/2026-10-06-2.0-emotion-persistence-design.md)
 > - ✅ `acceptance_emotion_v0` binary：6/6 步骤通过
+>
+> ## 🧬 2.0 阶段 3 / Phase A — OCEAN → emotion 偏好 已 GA
+>
+> - NPC OCEAN 5 维度人格（开放/尽责/外向/宜人/神经质）→ 8 类 emotion 偏好概率派生（线性加性模型）
+> - 启动期一次性派生 `NpcTemplate.baseline_emotion_distribution`；dispatcher 注入 `【人格基线情绪】` 段到 system prompt
+> - 新 env var `OCEAN_BIAS_ENABLED`（kill switch，default true）；`false` 时 prompt byte-identical pre-A
+> - 7 commits（722960f + 53cee2c + 51d9aa9 + ca99519 + 4f190bf + 287397c）GA
+> - ✅ `acceptance_emotion_v1` binary：6/6 步骤通过
+>
+> ## 🎭 2.0 阶段 3 / Phase B — Saga DSL React Flow 只读可视化 已 GA
+>
+> - admin-portal `/saga-viz` 路由；JS-yaml 解析 + React Flow + dagre 自动布局；forward 绿 / compensation 橙
+> - dropdown 切换 saga 脚本 + 元数据面板（节点数 / forward / compensation count）
+> - 1 Playwright E2E smoke（mock API）+ 12 vitest 单测；3 commits GA（a330953 + 6b97dfd + B.3）
+
+> ## 🌳 2.0 阶段 3 / Phase C — BT 编辑器 + admin auth 已 GA
+>
+> - **BT 编辑器 3-piece set**：C.1 BT runtime（7 节点 + 5 action + 3 condition + 3 decorator）+ C.2 bt-editor-api FastAPI 4 端点 + C.3 admin-portal `/bt-editor` UI（React Flow + Monaco + dagre）
+> - **C.4 admin auth**：`player.role` 列 + HS256 JWT cookie-session（手写 `node:crypto`，无新依赖）+ middleware 守卫 `/bt-editor` + `/api/bt/*` + `/login` 表单 + `/api/auth/login|logout`
+> - 默认账号 `admin / adminpass`（pgcrypto bcrypt seed；env `ADMIN_USERNAME` / `ADMIN_PASSWORD` 覆盖）
+> - acceptance_bt_editor 7 步 E2E：list / get-missing / save-valid / save-invalid (R_019 400) / save-oversize (R_019 422) / get-after-save / simulate
+> - admin-portal vitest **64/64**（C.3 阶段 50 → C.4 阶段 +14）；3 commits GA
+> - **🎉 3-phase backlog（OCEAN→emotion / Saga viz / BT editor）全部关闭**
 
 ---
 

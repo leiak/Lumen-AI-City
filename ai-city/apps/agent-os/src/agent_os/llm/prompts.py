@@ -115,6 +115,7 @@ def get_npc_stream_prompt(
     *,
     recent_distribution: "EmotionDistribution | None" = None,
     global_distribution: "EmotionDistribution | None" = None,
+    baseline_distribution: "EmotionDistribution | None" = None,  # A.4: OCEAN baseline
 ) -> str:
     """5 NPC 个性化流式 prompt（emotion tag 强制 + OCEAN personality）。
 
@@ -124,6 +125,10 @@ def get_npc_stream_prompt(
     B2-T07: optional ``recent_distribution`` + ``global_distribution`` inject a
     【最近情绪氛围】 section between system and history. Both kwargs default to
     None — backward-compatible with pre-B2 callers.
+
+    A.4: ``baseline_distribution`` injects a 【人格基线情绪】 section between
+    【最近情绪氛围】 and history. Defaults to None — backward-compatible with
+    pre-A.4 callers (prompt byte-identical when omitted).
     """
     npc_name = npc_id.replace("npc_", "").replace("_001", "").replace("_", "")
     personality_desc = _PERSONALITY_DESC_MAP.get(npc_id, "性格温和。")
@@ -135,6 +140,8 @@ def get_npc_stream_prompt(
     emotion_section = _render_emotion_section(
         recent_distribution, global_distribution,
     )
+    # A.4: OCEAN baseline injection (empty string when no baseline → backward-compat)
+    baseline_section = _render_baseline_section(baseline_distribution)
 
     history_lines = []
     for m in npc_context:
@@ -143,14 +150,43 @@ def get_npc_stream_prompt(
     history = "\n".join(history_lines)
     # T07 fix: emit no trailing newline when emotion_section is empty, so
     # backward-compat callers (both kwargs None) get a byte-identical prompt.
+    # A.4: same trick for baseline_section — pre-A.4 callers still see
+    # byte-identical prompt when no kwargs are passed.
     emotion_block = f"{emotion_section}\n" if emotion_section else ""
+    baseline_block = f"{baseline_section}\n" if baseline_section else ""
     return (
         f"<system>{system}</system>\n"
         f"{emotion_block}"
+        f"{baseline_block}"
         f"{history}\n"
         f"<user>{player_input}</user>\n"
         f"Assistant:"
     )
+
+
+def _render_baseline_section(
+    baseline: "EmotionDistribution | None",
+) -> str:
+    """Render A.4 【人格基线情绪】 section. Empty string if no baseline.
+
+    Caller passes:
+    - None → "" (no injection, pre-A.4 shape preserved)
+    - EmotionDistribution with empty weights → "" (no baseline configured)
+    - EmotionDistribution with populated weights → render 【人格基线情绪】
+
+    Note: OCEAN-derived baselines always have total_rows=0 (baseline ≠ history),
+    so we test `not baseline.weights` instead of `total_rows == 0` (which would
+    erroneously suppress all OCEAN-driven injections).
+    """
+    if baseline is None or not baseline.weights:
+        return ""
+    # Reuse format_distribution_for_prompt for style consistency
+    from agent_os.emotion.aggregate import format_distribution_for_prompt
+    lines = [
+        "【人格基线情绪 — 仅供参考，勿强烈压制当前场景】",
+        f"OCEAN → 偏好：{format_distribution_for_prompt(baseline)}",
+    ]
+    return "\n".join(lines)
 
 
 def _render_emotion_section(

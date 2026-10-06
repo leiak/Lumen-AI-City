@@ -50,6 +50,7 @@ def fake_settings_enabled():
         player_limit=50,
         global_limit=100,
         inject_enabled=True,
+        ocean_bias_enabled=True,
     )
 
 
@@ -64,6 +65,7 @@ def fake_settings_disabled():
         player_limit=50,
         global_limit=100,
         inject_enabled=False,
+        ocean_bias_enabled=True,
     )
 
 

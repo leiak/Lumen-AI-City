@@ -1,3 +1,133 @@
+# 2.0.6-stage3-phase-c-bt-editor-admin-auth (2026-10-06)
+
+## [Phase C] BT 编辑器 + admin auth — 2026-10-06
+
+3-piece set 最后一块落子：BT 编辑器运行时 + 后端 + UI + admin 鉴权。
+3-phase backlog (OCEAN→emotion / Saga viz / BT editor) 全部关闭。
+
+### C.4 — admin auth（新增）
+- **PG migration** `packages/proto/pg-schema-2.0-bt-auth.sql`：`ALTER TABLE player ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'player'` + 部分索引 + `CREATE EXTENSION IF NOT EXISTS pgcrypto`。Mount slot 05（idempotent）。
+- **Seed** `db/seed/seed-admin.sql`：bcrypt(`adminpass`, gen_salt('bf')) + role='admin'；ON CONFLICT 更新密码。Mount slot 06。
+- **`auth.ts`**：手写 HS256 JWT（仅 `node:crypto`，无新依赖）— `signToken` / `decodeToken`（alg pinning 拒 `alg=none`、timing-safe HMAC、30s clock skew、role 白名单）；导出 `COOKIE_NAME='aicity_token'` + `SESSION_MAX_AGE_SEC=7d`。
+- **`middleware.ts`**：Edge runtime 守卫 `/bt-editor/:path*` + `/api/bt/:path*`；无 cookie → API 401 JSON `{detail:{code:'R_401'}}` / UI 303 → `/login?next=…`。
+- **`/login` 页** + **`/api/auth/login`**（JSON + form 双模）+ **`/api/auth/logout`**；默认 `admin/adminpass`，env `ADMIN_USERNAME`/`ADMIN_PASSWORD` 覆盖；复用 `JWT_SECRET`（与 api-gateway/ws-gateway 一致）。
+- **`/bt-editor` server component**：cookie 通过后再做 `decodeToken + isAdmin` 二次校验；非 admin 渲染友好 403。
+- **主页 `/` nav**：登录态显示 username + 退出按钮；未登录显示「管理员登录」链接。
+
+### C.4 — acceptance_bt_editor.py（新增）
+- `apps/agent-os/scripts/acceptance_bt_editor.py` 7 步 E2E：list / get-missing / save-valid / save-invalid (R_019 400) / save-oversize (R_019 422 depth 12 > 10) / get-after-save / simulate。
+- `--smoke` 模式：API 不通时 SKIP exit 0（CI 友好）。
+- 零第三方依赖（urllib stdlib only）。
+
+### 测试
+- admin-portal vitest：**64/64 PASS**（含 14 auth 新增；C.3 阶段 50 → C.4 阶段 64）
+- agent-os acceptance_bt_editor：**7/7**（docker compose up 时）
+- 1 新 PG migration + 1 新 seed，全部 idempotent
+
+### 关键变更
+- `docker-compose.yml`：postgres initdb 多挂 2 个文件（slot 05/06）
+- 8 个 admin-portal 新/改文件：`auth.ts` / `auth.test.ts` / `middleware.ts` / `login/page.tsx` / `api/auth/login/route.ts` / `api/auth/logout/route.ts` / `page.tsx` (nav) / `bt-editor/page.tsx` (server-side role check)
+- 1 个 agent-os 新脚本：`acceptance_bt_editor.py`
+- 2 个 PG SQL：migration + seed
+- docs：`docs/2.0-ROADMAP.md` 新增 Phase C 章节 + status 行加 Phase C GA
+
+### 影响
+- **性能**：middleware 是 Edge runtime O(1) cookie 检查；server-side decode 仅在受保护路由首次访问时执行；登录是单次 bcrypt 比对（cost 10，~100ms） + 1 HMAC-SHA256 sign（<1ms）。
+- **向后兼容**：现有 `demo/demo123` 玩家不受影响（role 默认 'player'）；`pgcrypto` 已在 `pg-schema.sql` 创建；C.1/C.2/C.3 代码冻结未改。
+- **零回归**：C.3 阶段 50 vitest tests 全部 PASS；BT editor C.3 UI 不变，仅多了服务端 role 校验。
+
+### 已知限制
+- v0 登录是 env-常量校验（admin/adminpass）。生产部署应：
+  1. 设 `ADMIN_USERNAME` + `ADMIN_PASSWORD` env
+  2. 或挂 PG bcrypt 查询（admin-portal 起 pg 连接 + 验 player 表）
+- 无 2FA / 无密码重置 / 无 audit log（YAGNI，阶段 4 backlog）
+- middleware 在 Edge runtime 仅做 cookie 存在性检查，完整 JWT 验签在 Node runtime server component 里（防止 Edge crypto 不兼容）。
+
+### Stats
+- 3 commits：`(1) feat(admin-portal): Phase C.4 admin auth` + `(2) feat(agent-os): acceptance_bt_editor` + `(3) docs(2.0): Phase C GA`（本文）
+- 0 pre-existing tests broken
+- admin-portal tests：50 → 64（+14）
+- agent-os acceptance steps：6 (emotion) → 13 (emotion + bt_editor)
+- Spec & Plan: `docs/superpowers/plans/synthetic-jumping-jellyfish.md` §Phase C.4
+- **3-phase backlog 关闭**（OCEAN→emotion + Saga viz + BT editor）
+
+---
+
+# 2.0.5-stage3-phase-b-saga-viz (2026-10-06)
+
+## [Phase B] Saga DSL React Flow 只读可视化 — 2026-10-06
+
+Saga DSL YAML → React Flow 流程图只读可视化：admin-portal `/saga-viz` 路由 +
+dropdown 选 saga + React Flow 渲染 + dagre 自动布局 + 元数据面板。JS-yaml 解析
+YAML；自定义 SagaStepNode 按 type 着色（forward 绿 / compensation 橙 /
+start-end 靛蓝）。只读，无编辑器。
+
+### 关键变更
+- 新增 admin-portal `/saga-viz` 路由（dropdown + graph + 元数据面板）
+- `saga_loader.ts` — `parseSagaToGraph()` + 4 types（js-yaml 驱动）
+- `saga_layout.ts` — `@dagrejs/dagre` TB 自动布局
+- `SagaStepNode.tsx` — custom node（type 配色 + handles 上下对）
+- `SagaGraph.tsx` — React Flow wrapper（节点应用 layout 坐标）
+- `SagaStepNode` 含 `data-testid="saga-node-${label}"`（E2E 可断言）
+- API routes：GET `/api/sagas`（list + sort）+ GET `/api/sagas/[name]`（detail + safeName）
+- 主页 `/` 加 nav link 到 `/saga-viz`
+- 1 Playwright E2E smoke（mock API + 验证 8 节点 + 元数据）
+- 3 新 deps：`js-yaml@^4.1.0`、`@dagrejs/dagre@^1.1.0`、`@playwright/test@^1.49.0`
+- 3 测试文件：`saga_loader.test.ts` (8)、`saga_layout.test.ts` (4)、`saga-viz.spec.ts` (1)
+
+### 影响
+- **性能**: layout 计算纯内存 O(n+m)（n=nodes, m=edges），welcome_3npc 8 节点 <5ms；渲染受 React Flow 虚拟化保护
+- **向后兼容**: 仅新增 `/saga-viz` 路由 + nav；YAML 格式不变；0 impact on 现有 saga-orchestrator 加载流程
+- **零回归**: pre-existing 12 vitest tests + 新增 1 E2E 全部 PASS
+
+### 已知限制
+- 无 auth（仅 dev 工具；YAGNI 推迟 admin auth gate）
+- YAGNI 编辑器（spec §7 阶段 2 推迟）：当前只读，编辑出图/DSL lint 留待 backlog
+- E2E 测试使用 mock API（不依赖文件系统）；真实 saga-scripts 渲染留待后续 acceptance binary
+
+### Stats
+- 3 commits ahead of pre-Phase-B origin: `a330953` + `6b97dfd` + B.3
+- 0 pre-existing tests broken
+- Loader: 8 单测；Layout: 4 单测；E2E: 1 — 合计 13 测试
+- New routes: `GET /saga-viz`（page）+ `GET /api/sagas` + `GET /api/sagas/[name]`
+- Spec & Plan: `docs/superpowers/plans/synthetic-jumping-jellyfish.md` §Phase B
+
+---
+
+# 2.0.4-stage3-phase-a-ocean-bias (2026-10-06)
+
+## [Phase A] OCEAN → emotion 偏好 — 2026-10-06
+
+OCEAN 5 维度人格 → 8 类 emotion 偏好概率派生（线性加性模型），注入
+【人格基线情绪】段到 system prompt。改 NPC OCEAN 配置后 baseline 分布
+会按预期偏移。
+
+### 关键变更
+- 新增 `agent_os/ocean/` 包（bias.py + coefficients.py + __init__.py）
+- `NpcTemplate.baseline_emotion_distribution` 字段 + 启动期派生
+- `get_npc_stream_prompt` 加 `baseline_distribution` kwarg + `_render_baseline_section()`
+- `dispatcher.say_stream` 拉 baseline (best-effort)
+- 新 env var `OCEAN_BIAS_ENABLED` (kill switch, default true)
+- 6 子任务 A.1-A.6，47 个测试通过
+- acceptance binary `acceptance_emotion_v1.py` 6/6 PASS
+
+### 影响
+- **性能**: dispatch 路径增加 1 次同步 dict lookup（O(1)）+ 1 次字符串拼接，<1ms
+- **向后兼容**: `OCEAN_BIAS_ENABLED=false` 时 prompt byte-identical pre-A
+- **零回归**: pre-existing 2 failures (`tests/llm/test_claude_real.py` + `test_integration.py`) 保留
+
+### 已知限制
+- 系数（OCEAN_BIAS_BASE + COEFFICIENTS）经验值；后续可用 stage 2 离线评估集做自动化调优
+- 5 维 OCEAN YAML 已存在 6 NPC；YAGNI 推迟 logit 采样调制（spec §10）
+
+### Stats
+- 7 commits ahead of pre-A origin: `722960f` + `53cee2c` + `51d9aa9` + `ca99519` + `4f190bf` + `287397c`
+- 0 pre-existing tests broken (pre-existing 2 failures 保留)
+- Coefficients: 14；NpcTemplate baseline: 4；Settings ocean: 5；Prompts ocean: 9；Dispatcher ocean: 4；Acceptance: 6 — 合计 42 单测 + 5 acceptance binary 步骤
+- Acceptance binary: `apps/agent-os/scripts/acceptance_emotion_v1.py`
+
+---
+
 # 2.0.3-stage3-b2-emotion-persistence (2026-10-06)
 
 ## [B2] Emotion 持久化 — 2026-10-06
