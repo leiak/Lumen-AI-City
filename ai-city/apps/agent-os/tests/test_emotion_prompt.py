@@ -48,3 +48,17 @@ def test_prompt_no_injection_when_distributions_none():
     prompt = get_npc_stream_prompt("npc_wang_boss_001", "你好", [])
     assert "【最近情绪氛围" not in prompt  # no section injected
     assert "happy=0.600" not in prompt
+
+
+def test_prompt_byte_identical_when_both_none():
+    """With both distributions None, prompt must be byte-identical to pre-B2 shape."""
+    # Use a non-empty history so </system>\n{history}\n is unambiguous (the
+    # empty-history case naturally has </system>\n\n due to f"{history}\n").
+    history = [{"role": "user", "content": "hi"}]
+    prompt = get_npc_stream_prompt("npc_wang_boss_001", "你好", history)
+    # Pre-B2 shape: <system>...</system>\n{history}\n<user>...</user>\nAssistant:
+    assert prompt.startswith("<system>")
+    assert "</system>\n" in prompt
+    # No double newline (no blank line) immediately after </system>.
+    # Pre-fix bug: emotion_section="" still emitted \n → </system>\n\n\n<history>
+    assert "</system>\n\n" not in prompt

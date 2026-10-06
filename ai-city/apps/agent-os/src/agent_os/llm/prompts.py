@@ -143,9 +143,12 @@ def get_npc_stream_prompt(
         if isinstance(m, dict) and "role" in m and "content" in m:
             history_lines.append(f"<{m['role']}>{m['content']}</{m['role']}>")
     history = "\n".join(history_lines)
+    # T07 fix: emit no trailing newline when emotion_section is empty, so
+    # backward-compat callers (both kwargs None) get a byte-identical prompt.
+    emotion_block = f"{emotion_section}\n" if emotion_section else ""
     return (
         f"<system>{system}</system>\n"
-        f"{emotion_section}\n"
+        f"{emotion_block}"
         f"{history}\n"
         f"<user>{player_input}</user>\n"
         f"Assistant:"
