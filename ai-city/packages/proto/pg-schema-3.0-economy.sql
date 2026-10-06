@@ -89,3 +89,16 @@ CREATE TABLE IF NOT EXISTS product (
 );
 
 CREATE INDEX IF NOT EXISTS idx_product_npc ON product(npc_id) WHERE enabled;
+
+-- W3.1: 中央银行审计账本
+CREATE TABLE IF NOT EXISTS central_bank_ledger (
+    id              BIGSERIAL PRIMARY KEY,
+    event_type      TEXT NOT NULL CHECK (event_type IN ('emit','sink')),
+    currency        TEXT NOT NULL CHECK (currency IN ('gold','token')),
+    amount          BIGINT NOT NULL CHECK (amount > 0),
+    reason          TEXT,
+    trigger_user_id TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cbl_created ON central_bank_ledger(created_at DESC);
