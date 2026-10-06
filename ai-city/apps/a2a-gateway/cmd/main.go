@@ -150,6 +150,15 @@ func main() {
 		APIKey: apiKey,
 		Client: forwarder,
 	}))
+
+	// B1-T08：挂载 GET /v1/federation/sessions/:sid/buffer。
+	// 客户端断线 / 重连后可调用此 endpoint 从 MirrorStore 拉 from_idx 起的
+	// beats 实现 replay。SessionReplayHandler 内置 Bearer 鉴权 + 手动 URL
+	// 切片（fallback for gin.WrapH 不写 PathValue 的限制）。
+	httpHandler.Engine().GET("/v1/federation/sessions/:sid/buffer", gin.WrapH(&httpgw.SessionReplayHandler{
+		APIKey: apiKey,
+		Mirror: mirrorStore,
+	}))
 	httpSrv := &http.Server{
 		Addr:              httpAddr,
 		Handler:           httpHandler.Handler(),
