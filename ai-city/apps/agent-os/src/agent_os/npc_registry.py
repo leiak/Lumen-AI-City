@@ -11,6 +11,8 @@ from pathlib import Path
 
 import yaml
 
+from agent_os.emotion.aggregate import EmotionDistribution
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,6 +73,7 @@ class NpcTemplate:
     say: Say = field(default_factory=Say)
     talk_tree: TalkTree = field(default_factory=TalkTree)
     personality: OceanPersonality | None = None  # 可选；旧 YAML 没填则 None
+    baseline_emotion_distribution: EmotionDistribution | None = None  # A.2: 由 personality 一次派生；None 当 personality 缺
     walk: Walk | None = None  # 可选；旧 YAML 没填则随机邻格
 
 
@@ -128,6 +131,20 @@ def _load_one(path: Path) -> NpcTemplate:
         except KeyError as e:
             raise ValueError(f"{path.name}: personality missing field {e}")
 
+    # A.2 — 启动期一次性算 emotion baseline（OCEAN → 8 类偏好）
+    # personality 为 None 时 baseline 留 None（兜底：dispatcher 不注入人格段）
+    # 局部 import 避开 npc_registry ↔ ocean.bias 的循环依赖（bias 顶部 import OceanPersonality）
+    baseline: EmotionDistribution | None = None
+    if personality is not None:
+        try:
+            from agent_os.ocean.bias import ocean_to_emotion_baseline
+            baseline = ocean_to_emotion_baseline(personality)
+        except Exception as e:  # noqa: BLE001 — 容错加载：坏的 OCEAN 配置不崩
+            logger.warning(
+                "OCEAN baseline derivation failed (file=%s): %s",
+                path.name, e,
+            )
+
     walk = None
     if "walk" in data and data["walk"] is not None:
         w = data["walk"]
@@ -146,6 +163,7 @@ def _load_one(path: Path) -> NpcTemplate:
         talk_tree=tree,
         personality=personality,
         walk=walk,
+        baseline_emotion_distribution=baseline,  # A.2
     )
 
 
