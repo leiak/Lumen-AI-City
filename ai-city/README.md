@@ -47,6 +47,14 @@
 > - 5 env vars 含 `EMOTION_INJECT_ENABLED` kill switch；best-effort 写不阻塞流
 > - 📐 设计：[`docs/superpowers/specs/2026-10-06-2.0-emotion-persistence-design.md`](docs/superpowers/specs/2026-10-06-2.0-emotion-persistence-design.md)
 > - ✅ `acceptance_emotion_v0` binary：6/6 步骤通过
+>
+> ## 🧬 2.0 阶段 3 / Phase A — OCEAN → emotion 偏好 已 GA
+>
+> - NPC OCEAN 5 维度人格（开放/尽责/外向/宜人/神经质）→ 8 类 emotion 偏好概率派生（线性加性模型）
+> - 启动期一次性派生 `NpcTemplate.baseline_emotion_distribution`；dispatcher 注入 `【人格基线情绪】` 段到 system prompt
+> - 新 env var `OCEAN_BIAS_ENABLED`（kill switch，default true）；`false` 时 prompt byte-identical pre-A
+> - 7 commits（722960f + 53cee2c + 51d9aa9 + ca99519 + 4f190bf + 287397c）GA
+> - ✅ `acceptance_emotion_v1` binary：6/6 步骤通过
 
 ---
 

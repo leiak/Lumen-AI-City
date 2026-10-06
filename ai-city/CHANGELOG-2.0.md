@@ -1,3 +1,37 @@
+# 2.0.4-stage3-phase-a-ocean-bias (2026-10-06)
+
+## [Phase A] OCEAN → emotion 偏好 — 2026-10-06
+
+OCEAN 5 维度人格 → 8 类 emotion 偏好概率派生（线性加性模型），注入
+【人格基线情绪】段到 system prompt。改 NPC OCEAN 配置后 baseline 分布
+会按预期偏移。
+
+### 关键变更
+- 新增 `agent_os/ocean/` 包（bias.py + coefficients.py + __init__.py）
+- `NpcTemplate.baseline_emotion_distribution` 字段 + 启动期派生
+- `get_npc_stream_prompt` 加 `baseline_distribution` kwarg + `_render_baseline_section()`
+- `dispatcher.say_stream` 拉 baseline (best-effort)
+- 新 env var `OCEAN_BIAS_ENABLED` (kill switch, default true)
+- 6 子任务 A.1-A.6，47 个测试通过
+- acceptance binary `acceptance_emotion_v1.py` 6/6 PASS
+
+### 影响
+- **性能**: dispatch 路径增加 1 次同步 dict lookup（O(1)）+ 1 次字符串拼接，<1ms
+- **向后兼容**: `OCEAN_BIAS_ENABLED=false` 时 prompt byte-identical pre-A
+- **零回归**: pre-existing 2 failures (`tests/llm/test_claude_real.py` + `test_integration.py`) 保留
+
+### 已知限制
+- 系数（OCEAN_BIAS_BASE + COEFFICIENTS）经验值；后续可用 stage 2 离线评估集做自动化调优
+- 5 维 OCEAN YAML 已存在 6 NPC；YAGNI 推迟 logit 采样调制（spec §10）
+
+### Stats
+- 7 commits ahead of pre-A origin: `722960f` + `53cee2c` + `51d9aa9` + `ca99519` + `4f190bf` + `287397c`
+- 0 pre-existing tests broken (pre-existing 2 failures 保留)
+- Coefficients: 14；NpcTemplate baseline: 4；Settings ocean: 5；Prompts ocean: 9；Dispatcher ocean: 4；Acceptance: 6 — 合计 42 单测 + 5 acceptance binary 步骤
+- Acceptance binary: `apps/agent-os/scripts/acceptance_emotion_v1.py`
+
+---
+
 # 2.0.3-stage3-b2-emotion-persistence (2026-10-06)
 
 ## [B2] Emotion 持久化 — 2026-10-06
