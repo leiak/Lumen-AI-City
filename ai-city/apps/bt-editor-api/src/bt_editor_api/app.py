@@ -1,27 +1,44 @@
-"""BT Editor FastAPI 入口。"""
+"""BT Editor API — FastAPI application entrypoint.
+
+Phase C.2: replaces the 4-line Phase-1 stub with a real backend
+(4 endpoints under ``/api/v1/bt``) backed by ``apps/agent-os/src/agent_os/bt/``
+(C.1 GA) for validation + simulate, and asyncpg for PG persistence.
+
+Lifespan: opens the asyncpg pool on startup so production hits a
+warm pool; tests inject a mock via ``bt_editor_api.db.set_pool()`` and
+do not run the lifespan (FastAPI's ``TestClient`` only triggers lifespan
+when used as a context manager — we use it bare).
+"""
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
-app = FastAPI(title="AI City - BT Editor API")
+from bt_editor_api import db as db_mod
+from bt_editor_api.api.v1.bt import router as bt_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Open the asyncpg pool on startup; close it on shutdown."""
+    pool = await db_mod.get_pool()
+    app.state.pool = pool
+    try:
+        yield
+    finally:
+        await pool.close()
+
+
+app = FastAPI(
+    title="AI City - BT Editor API",
+    version="2.0.0",
+    lifespan=lifespan,
+)
+app.include_router(bt_router)
 
 
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
-
-
-@app.post("/v1/bt/validate")
-async def validate(tree: dict) -> dict:
-    """校验 BT JSON Schema。"""
-    return {"valid": True, "errors": []}
-
-
-@app.post("/v1/bt/save")
-async def save(tree: dict, version: str = "v1") -> dict:
-    """保存 BT（带版本号）。"""
-    return {"bt_id": "stub", "version": version}
-
-
-@app.post("/v1/bt/{bt_id}/simulate")
-async def simulate(bt_id: str, scenario: dict) -> dict:
-    """沙箱模拟执行。"""
-    return {"bt_id": bt_id, "trace": []}

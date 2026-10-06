@@ -11,7 +11,22 @@ dependencies = [
     "asyncpg>=0.30",
     "jsonschema>=4.23",
     "httpx>=0.27",
+    # Phase C.2 — reuse the C.1 BT runtime (load_tree, evaluator.tick,
+    # Pydantic discriminated union) instead of re-implementing the schema.
+    "agent-os",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28.1",
+]
+
+[tool.uv.sources]
+# Workspace member: same monorepo, so the C.1 BT runtime we depend on
+# for validation + simulate is the local editable install, not PyPI.
+agent-os = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
