@@ -62,3 +62,11 @@ class R014RedisPublishFail(AgentOSError):
 
 class R015SessionNotFound(AgentOSError):
     code = "R_015"; http_status = 400; message = "session_id 过期或不存在"
+
+
+class R016CrossCityStreamFail(AgentOSError):
+    code = "R_016"; http_status = 502; message = "跨城流式 RPC 失败"
+
+
+class R017CrossCityStreamTimeout(AgentOSError):
+    code = "R_017"; http_status = 504; message = "跨城流式 RPC 超时"
