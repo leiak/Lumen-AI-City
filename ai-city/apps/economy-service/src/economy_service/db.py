@@ -12,7 +12,7 @@ async def get_pool() -> asyncpg.Pool:
     if _pool is None:
         _pool = await asyncpg.create_pool(
             os.environ.get("DATABASE_URL",
-                "postgresql://aicity:aicity@postgres:5432/aicity"),
+                "postgresql://aicity:aicity_dev@postgres:5432/aicity"),
             min_size=1,
             max_size=10,
         )
