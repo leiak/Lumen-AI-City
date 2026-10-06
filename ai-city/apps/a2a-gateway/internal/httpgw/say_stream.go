@@ -2,6 +2,7 @@ package httpgw
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,14 +10,18 @@ import (
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
 )
 
-// SayStreamClient is the A-city client interface to the remote B-city gRPC server.
+// SayStreamClient is the A-city client to remote B-city gRPC server.
+// T04 declares the interface; T06 provides the concrete implementation.
 //
-// T04 declares this interface only; T06 provides the concrete implementation that
-// dials B-city a2a-gateway over mTLS (see apps/a2a-gateway/internal/crosscity).
-//
-// Channels close semantics:
-//   - beats: closed when the server closes the gRPC stream (EOF or RST).
-//   - errs:  buffered (size 1); receives the terminal error if any, then is closed.
+// CONTRACT:
+//   - The concrete impl MUST close BOTH channels when ctx is cancelled,
+//     so the HTTP handler can return without leaking producer goroutines.
+//   - beats channel carries SayBeat frames; on stream end it MUST be closed
+//     BEFORE errs channel is closed.
+//   - errs channel is buffered (size >= 1) and carries terminal errors.
+//     It MUST be closed exactly once when the stream terminates.
+//   - The initial error (dial/handshake) is returned via the third return;
+//     channel errors are for mid-stream failures only.
 type SayStreamClient interface {
 	SayStreamForward(ctx context.Context, init *a2av1.SayRequestInit) (
 		beats <-chan *a2av1.SayBeat, errs <-chan error, err error)
@@ -75,13 +80,18 @@ type SSEFrame struct {
 func (h *SayStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 1. Bearer auth (skipped when APIKey is empty — development mode).
 	if h.APIKey != "" {
-		if r.Header.Get("Authorization") != "Bearer "+h.APIKey {
+		expected := "Bearer " + h.APIKey
+		auth := r.Header.Get("Authorization")
+		// subtle.ConstantTimeCompare returns 1 iff length and content match
+		if subtle.ConstantTimeCompare([]byte(auth), []byte(expected)) != 1 {
 			http.Error(w, `{"code":"R_001","message":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 	}
 
-	// 2. Parse SayRequestInit JSON body.
+	// 2. Parse SayRequestInit JSON body (bounded to DoS-prevent oversized requests).
+	const maxBodyBytes = 64 * 1024 // 64 KiB; SayRequestInit fields are small
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	var init a2av1.SayRequestInit
 	if err := json.NewDecoder(r.Body).Decode(&init); err != nil {
 		http.Error(w,
@@ -140,13 +150,11 @@ func (h *SayStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				writeSSEFrame(w, flusher, SSEFrame{Type: "end"})
 				return
 			}
-			data, _ := json.Marshal(SSEFrame{
+			writeSSEFrame(w, flusher, SSEFrame{
 				Type:    "error",
 				Code:    "R_016",
 				Message: err.Error(),
 			})
-			fmt.Fprintf(w, "data: %s\n\n", data)
-			flusher.Flush()
 			return
 		case <-r.Context().Done():
 			// Client disconnected. Returning here cancels the gRPC stream
@@ -156,16 +164,25 @@ func (h *SayStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// writeSSEFrame serialises a frame to `data: <json>\n\n` and flushes.
-func writeSSEFrame(w http.ResponseWriter, flusher http.Flusher, f SSEFrame) {
-	data, err := json.Marshal(f)
+// writeSSEFrame marshals v to JSON and writes as one SSE event.
+// Returns false if writing the frame failed; callers should treat that as a
+// signal to exit the stream loop.
+func writeSSEFrame(w http.ResponseWriter, flusher http.Flusher, v any) bool {
+	data, err := json.Marshal(v)
 	if err != nil {
-		// Should not happen for our DTO shape; fall back to an empty frame
-		// so the client still sees a `data:` line.
-		data = []byte(`{"type":"error","code":"R_INTERNAL","message":"marshal failed"}`)
+		// fallback: emit error frame so the client knows we couldn't serialize
+		fallback := fmt.Sprintf(`{"type":"error","code":"R_011","message":"marshal fail: %s"}`, err)
+		if _, werr := fmt.Fprintf(w, "data: %s\n\n", fallback); werr != nil {
+			return false
+		}
+		flusher.Flush()
+		return true
 	}
-	fmt.Fprintf(w, "data: %s\n\n", data)
+	if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+		return false
+	}
 	flusher.Flush()
+	return true
 }
 
 // beatToFrame converts a proto SayBeat into our SSE wire format.

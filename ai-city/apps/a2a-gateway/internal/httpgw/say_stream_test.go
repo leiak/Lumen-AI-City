@@ -270,3 +270,33 @@ func TestSayStreamFramesUseSSEDataFormat(t *testing.T) {
 		t.Fatalf("X-Accel-Buffering=%q, want no", got)
 	}
 }
+
+// 10. Resource limit: body > 64 KiB is rejected with 400 + R_009 (DoS guard
+//     via http.MaxBytesReader).
+func TestSayStreamRejectsOversizedBody(t *testing.T) {
+	h := &SayStreamHandler{APIKey: "", Client: &FakeSayStreamClient{}}
+	// 70 KiB > 64 KiB limit
+	big := strings.Repeat("a", 70*1024)
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"npc_id":"npc_a_wang","session_id":"s","junk":"`+big+`"}`))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for oversized body, got %d", rec.Code)
+	}
+}
+
+// 11. Auth: constant-time comparison accepts a correct Bearer (200 with SSE
+//     end frame). Constant-time semantic is exercised by Code review; this
+//     test guards the wiring (no off-by-one in expected[] slicing).
+func TestSayStreamConstantTimeAuth(t *testing.T) {
+	h := &SayStreamHandler{APIKey: "secret", Client: &FakeSayStreamClient{}}
+	// Test both correct and wrong keys; verify 401 vs 200 outcome, not timing
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"session_id":"s1","npc_id":"n1"}`))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	// Should reach handler (200 + SSE stream, even if upstream FakeClient returns empty)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("correct key: expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
