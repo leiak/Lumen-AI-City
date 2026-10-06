@@ -19,7 +19,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationError, model_validator
 
 
 class NodeType(str, Enum):
@@ -73,6 +73,13 @@ class DecoratorNode(BTNodeBase):
     child: "BTNodeType | None" = None
     times: int = 1
     max_tries: int = 10
+
+    @model_validator(mode="after")
+    def _check_child(self) -> "DecoratorNode":
+        """A decorator without a child has nothing to wrap; fail at parse-time."""
+        if self.child is None:
+            raise ValueError("DecoratorNode.child is required")
+        return self
 
 
 class SubTreeNode(BTNodeBase):

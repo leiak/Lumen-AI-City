@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from agent_os.bt.actions import dispatch_action
 from agent_os.bt.conditions import dispatch_condition
-from agent_os.bt.decorators import apply_decorator
+from agent_os.bt.decorators import tick_decorator
 from agent_os.bt.errors import BTError
 from agent_os.bt.registry import BTTreeRegistry
 from agent_os.bt.schema import (
@@ -79,16 +79,9 @@ def _tick_node(node: object, state: BTState) -> Status:
         return Status.SUCCESS if result else Status.FAILURE
 
     if isinstance(node, DecoratorNode):
-        if node.child is None:
-            raise BTError(f"decorator node {node.id!r} missing child")
-        child_status = tick_child(node.child, state)
-        return apply_decorator(
-            node.kind,
-            child_status,
-            state,
-            times=node.times,
-            max_tries=node.max_tries,
-        )
+        # Schema validation ensures node.child is not None at parse-time;
+        # tick_decorator also defensively re-checks for safety.
+        return tick_decorator(node, state, tick_child)
 
     if isinstance(node, SubTreeNode):
         if state.registry is None:
@@ -96,7 +89,16 @@ def _tick_node(node: object, state: BTState) -> Status:
                 f"subtree {node.tree_id!r} requires BTState.registry to be set"
             )
         sub = state.registry.get(node.tree_id)
-        return tick(sub, state)
+        # SubTreeNode is a routing hop — the parent's tick_child(SubTreeNode)
+        # already accounted for one tick. Recurse into the subtree's root via
+        # _tick_node (no extra increment) so the subtree's root + its
+        # children consume ticks just like any leaf sibling at the parent
+        # level. Routing through ``tick`` or ``tick_child`` here would add
+        # a phantom +1 that makes SubTreeNode cost 2 vs leaf's 1.
+        # max_ticks is still enforced because the subtree's own children are
+        # ticked via ``tick_child`` (sequence / selector children) and any
+        # nested SubTreeNode re-enters this same routing branch.
+        return _tick_node(sub.root, state)
 
     if isinstance(node, LLMNode):
         return _llm_stub(node)

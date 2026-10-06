@@ -163,3 +163,23 @@ def test_schema_rootmodel_serializes_roundtrip():
 def test_schema_bt_node_alias_compatible():
     """BTNode alias must point to the root model."""
     assert BTNode is BTTree
+
+
+# ---- DecoratorNode required child (Finding 4 fix) -------------------------
+
+
+def test_decorator_without_child_raises_validation_error():
+    """DecoratorNode.child must be present at parse-time, not tick-time."""
+    # Build a decorator without ``child`` — Pydantic must reject this.
+    with pytest.raises(ValidationError):
+        DecoratorNode(id="d1", kind="inverter")
+
+    # Same through BTTree.model_validate (loader path)
+    with pytest.raises(ValidationError):
+        BTTree.model_validate({"id": "d1", "type": "decorator", "kind": "inverter"})
+
+
+def test_decorator_with_explicit_none_child_raises_validation_error():
+    """Explicit child=null must also fail validation."""
+    with pytest.raises(ValidationError):
+        DecoratorNode(id="d1", kind="inverter", child=None)

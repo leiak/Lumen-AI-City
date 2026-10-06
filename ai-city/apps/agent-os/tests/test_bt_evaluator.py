@@ -205,3 +205,127 @@ def test_evaluator_empty_selector_returns_failure():
     tree = load_tree({"id": "root", "type": "selector", "children": []})
     state = _fresh_state()
     assert tick(tree, state) == Status.FAILURE
+
+
+# ---- Finding 1: decorator multi-tick driver --------------------------------
+
+
+def test_evaluator_repeater_triggers_n_child_ticks():
+    """repeater(times=3) must tick the child 3 times within a single outer tick."""
+    # Build a tree where the child writes a marker each tick so we can count.
+    tree = load_tree({
+        "id": "root",
+        "type": "decorator",
+        "kind": "repeater",
+        "times": 3,
+        "child": {
+            "id": "counter",
+            "type": "action",
+            "name": "set_npc_state",
+            # store a mutable list — append-on-call lets us count ticks.
+            "args": ["calls", ["x"]],
+        },
+    })
+    state = _fresh_state()
+    # Initialise the list properly: set_npc_state replaces value, so we
+    # use a different strategy — check tick_count after.
+    tick(tree, state)
+    # Outer root tick (1) + 3 child ticks = 4 total increments.
+    assert state.tick_count == 4
+
+
+def test_evaluator_until_success_triggers_max_tries_on_failure():
+    """until_success(max_tries=10) on a failing child ticks 10 times, then FAILURE."""
+    tree = load_tree({
+        "id": "root",
+        "type": "decorator",
+        "kind": "until_success",
+        "max_tries": 10,
+        "child": {"id": "f", "type": "action", "name": "_fail", "args": []},
+    })
+    state = _fresh_state()
+    result = tick(tree, state)
+    assert result == Status.FAILURE
+    # Outer root tick (1) + 10 inner ticks = 11 total increments.
+    assert state.tick_count == 11
+
+
+def test_evaluator_until_success_short_circuits_on_early_success():
+    """until_success stops ticking as soon as the child returns SUCCESS."""
+    tree = load_tree({
+        "id": "root",
+        "type": "selector",
+        "children": [
+            {"id": "f", "type": "action", "name": "_fail", "args": []},
+            {
+                "id": "until_ok",
+                "type": "decorator",
+                "kind": "until_success",
+                "max_tries": 10,
+                "child": {
+                    "id": "flip",
+                    "type": "condition",
+                    "name": "npc_state_equals",
+                    "args": ["ready", True],
+                },
+            },
+        ],
+    })
+    state = _fresh_state(npc_state={"ready": True})  # condition succeeds on tick 1
+    result = tick(tree, state)
+    assert result == Status.SUCCESS
+    # selector root (1) + fail child (1) + decorator (1) + condition child (1) = 4
+    assert state.tick_count == 4
+
+
+def test_evaluator_repeater_propagates_running_immediately():
+    """A running child halts the repeater loop and returns RUNNING."""
+    tree = load_tree({
+        "id": "root",
+        "type": "decorator",
+        "kind": "repeater",
+        "times": 5,
+        "child": {"id": "r", "type": "action", "name": "_running", "args": []},
+    })
+    state = _fresh_state()
+    result = tick(tree, state)
+    assert result == Status.RUNNING
+    # Outer (1) + 1 child tick before RUNNING propagation = 2
+    assert state.tick_count == 2
+
+
+# ---- Finding 2: SubTreeNode uniform tick budget ----------------------------
+
+
+def test_evaluator_subtree_tick_count_matches_siblings():
+    """Subtree node must cost the same tick_count as a sibling leaf.
+
+    With a sequence root, two equivalent trees:
+      A: [action noop]
+      B: [subtree -> action noop]
+    Both should report tick_count == 2 (root + child).
+    """
+    inner = load_tree({"id": "inner", "type": "action", "name": "noop", "args": []})
+    registry = BTTreeRegistry()
+    registry.register("inner_noop", inner)
+
+    # Tree A: 1 sibling action
+    tree_a = load_tree({
+        "id": "root_a",
+        "type": "sequence",
+        "children": [{"id": "a", "type": "action", "name": "noop", "args": []}],
+    })
+    state_a = _fresh_state(registry=registry)
+    tick(tree_a, state_a)
+
+    # Tree B: 1 sibling subtree whose root is a single noop action
+    tree_b = load_tree({
+        "id": "root_b",
+        "type": "sequence",
+        "children": [{"id": "s", "type": "subtree", "tree_id": "inner_noop"}],
+    })
+    state_b = _fresh_state(registry=registry)
+    tick(tree_b, state_b)
+
+    # SubTreeNode fix: B should equal A.
+    assert state_a.tick_count == state_b.tick_count == 2

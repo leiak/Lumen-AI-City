@@ -50,6 +50,45 @@ def test_action_wait_returns_running():
     assert state.wait_until >= time.time() + 2.0  # roughly 2.5s in future
 
 
+# 3a. wait — bounds checking (Finding 3 fix)
+def test_action_wait_zero_returns_running():
+    """wait(0.0) is on the boundary and must remain RUNNING with wait_until set."""
+    state = BTState()
+    status = wait(0.0, state)
+    assert status == Status.RUNNING
+    assert state.wait_until is not None
+
+
+def test_action_wait_negative_seconds_returns_failure():
+    """Negative seconds would silently rewind wait_until; reject as FAILURE."""
+    state = BTState()
+    status = wait(-1.0, state)
+    assert status == Status.FAILURE
+    # wait_until must NOT be touched on failure (no partial side-effects).
+    assert state.wait_until is None
+
+
+def test_action_wait_huge_seconds_returns_failure():
+    """Seconds > MAX_WAIT_SECONDS (1h) overflows / silently hangs; reject."""
+    from agent_os.bt.actions import MAX_WAIT_SECONDS
+
+    state = BTState()
+    # Just over the cap
+    status = wait(MAX_WAIT_SECONDS + 1.0, state)
+    assert status == Status.FAILURE
+    assert state.wait_until is None
+
+
+def test_action_wait_max_boundary_returns_running():
+    """Exactly at MAX_WAIT_SECONDS is allowed."""
+    from agent_os.bt.actions import MAX_WAIT_SECONDS
+
+    state = BTState()
+    status = wait(MAX_WAIT_SECONDS, state)
+    assert status == Status.RUNNING
+    assert state.wait_until is not None
+
+
 # 4. set_npc_state
 def test_action_set_npc_state():
     state = BTState()

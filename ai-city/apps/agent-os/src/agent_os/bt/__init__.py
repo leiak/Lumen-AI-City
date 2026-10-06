@@ -28,12 +28,12 @@ from agent_os.bt.decorators import (
     apply_decorator,
     inverter,
     repeater,
+    tick_decorator,
     until_success,
 )
 from agent_os.bt.errors import BTError
 from agent_os.bt.evaluator import BTTreeRegistry, tick, tick_child
 from agent_os.bt.loader import load_tree, loads_tree
-from agent_os.bt.registry import BTTreeRegistry as _BTTreeRegistry  # noqa: F401
 from agent_os.bt.schema import (
     BTNode,
     BTNodeBase,
@@ -72,6 +72,7 @@ __all__ = [
     "set_npc_state",
     "tick",
     "tick_child",
+    "tick_decorator",
     "time_of_day_in",
     "until_success",
     "wait",

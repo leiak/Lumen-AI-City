@@ -18,6 +18,12 @@ from typing import Any, Callable
 from agent_os.bt.schema import Status
 from agent_os.bt.state import BTState
 
+# Maximum wait duration in seconds (1 hour). Prevents silent time-travel and
+# overflow when BT configs supply negative or unbounded ``seconds`` values.
+# Out-of-range inputs return FAILURE per BT convention so the parent
+# composite (selector / sequence) can recover gracefully.
+MAX_WAIT_SECONDS: float = 3600.0
+
 
 def move_to_tile(x: int, y: int, state: BTState) -> Status:
     state.npc_move_target = (x, y)
@@ -30,6 +36,8 @@ def say_to_player(text: str, emotion: str, state: BTState) -> Status:
 
 
 def wait(seconds: float, state: BTState) -> Status:
+    if seconds < 0.0 or seconds > MAX_WAIT_SECONDS:
+        return Status.FAILURE
     state.wait_until = time.time() + seconds
     return Status.RUNNING
 
@@ -88,6 +96,7 @@ def dispatch_action(name: str, args: list[Any], state: BTState) -> Status:
 
 __all__ = [
     "ACTION_REGISTRY",
+    "MAX_WAIT_SECONDS",
     "TEST_ACTIONS",
     "dispatch_action",
     "move_to_tile",
