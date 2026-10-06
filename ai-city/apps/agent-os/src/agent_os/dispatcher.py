@@ -17,24 +17,41 @@ Spec ref:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 import time
 import uuid
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import AsyncIterator
+from typing import TYPE_CHECKING, Any
 
+from agent_os.errors import R015SessionNotFound
 from agent_os.llm.base import LLMRequest as _BaseLLMRequest  # for say_with_llm
-from agent_os.llm.prompts import get_npc_prompt
-from agent_os.llm.prompts import get_npc_stream_prompt
+from agent_os.llm.prompts import get_npc_prompt, get_npc_stream_prompt
 from agent_os.llm.rules import ChatTurnRule
 from agent_os.llm.short_circuit import match_short_circuit
 from agent_os.llm.types import LLMRequest
-from agent_os.errors import R015SessionNotFound
 from agent_os.stream.emotion_validator import EmotionValidator
 from agent_os.stream.sentence_splitter import SentenceSplitter
 from agent_os.stream.session_store import SessionStore
 
+if TYPE_CHECKING:
+    from agent_os.bt.state import BTState
+
 _logger = logging.getLogger(__name__)
+
+# ---- W4.2: dispatcher post-hook → npc_sell_to_player -----------------------
+# After ``say_stream()`` finishes the LLM token stream, an opt-in caller
+# (or env-driven default) can queue a fire-and-forget BT action
+# (``npc_sell_to_player``) via ``asyncio.create_task`` — the streaming
+# response itself is not blocked by the upstream HTTP call.
+
+# Environment kill-switch / default opt-in. Callers may also pass
+# ``enable_bt_post_hook=True`` explicitly to ``say_stream()`` regardless of env.
+BT_POST_HOOK_ENABLED: bool = (
+    os.environ.get("BT_POST_HOOK_ENABLED", "false").lower() == "true"
+)
 
 
 @dataclass
@@ -61,6 +78,58 @@ class DispatcherSayStreamEvent:
     complete: bool
     ts_ms: int
     trace_id: str
+
+
+async def _run_post_hook(action_name: str, kwargs: dict[str, Any], bt_state: BTState) -> None:
+    """Background task — fire-and-forget BT action after ``say_stream()`` ends.
+
+    Looks the action up in :data:`agent_os.bt.actions.ACTION_REGISTRY` and
+    invokes it synchronously with the queued ``kwargs``. All exceptions are
+    swallowed + logged at WARNING — the post-hook must never propagate into
+    the streaming caller.
+    """
+    # Local import keeps the dependency optional (BT layer is required for the
+    # 2.0 dispatcher, but tests that never trigger the post-hook avoid the cost).
+    from agent_os.bt.actions import ACTION_REGISTRY
+
+    action_fn = ACTION_REGISTRY.get(action_name)
+    if action_fn is None:
+        _logger.warning("post_hook: unknown action %s", action_name)
+        return
+    try:
+        status = action_fn(state=bt_state, **kwargs)
+        _logger.info(
+            "post_hook.%s: status=%s product=%s",
+            action_name,
+            status.name,
+            kwargs.get("product_id"),
+        )
+    except Exception as e:  # noqa: BLE001 — defensive, post-hook is best-effort
+        _logger.warning("post_hook.%s failed: %s", action_name, e)
+
+
+def schedule_post_hook(bt_state: BTState) -> asyncio.Task[None] | None:
+    """Schedule the post-stream BT action as fire-and-forget.
+
+    Returns ``None`` when the hook is disabled (env :data:`BT_POST_HOOK_ENABLED`
+    is ``False``) or no ``pending_purchase`` is queued on ``bt_state``. The
+    returned :class:`asyncio.Task` is intentionally not awaited — callers
+    (i.e. the streaming endpoint) should not block on the upstream economy
+    HTTP call.
+
+    Args:
+        bt_state: A :class:`BTState` whose ``pending_purchase`` carries the
+            kwargs (e.g. ``{"product_id": 42, "currency": "gold"}``) for the
+            ``npc_sell_to_player`` action.
+    """
+    if not BT_POST_HOOK_ENABLED:
+        return None
+    if not getattr(bt_state, "pending_purchase", None):
+        return None
+    pending = dict(bt_state.pending_purchase)
+    return asyncio.create_task(
+        _run_post_hook("npc_sell_to_player", pending, bt_state),
+    )
 
 
 class ActionDispatcher:
@@ -173,6 +242,8 @@ class ActionDispatcher:
         model: str = "claude-haiku-4-5",
         max_tokens: int = 200,
         player_id: str | None = None,
+        enable_bt_post_hook: bool = False,
+        pending_purchase: dict[str, Any] | None = None,
     ) -> AsyncIterator[DispatcherSayStreamEvent]:
         """LLM token 流 → 句子节拍事件流 → Publisher.publish_beat/done。
 
@@ -201,10 +272,30 @@ class ActionDispatcher:
             player_id: B2 optional player id forwarded to ``MemoryWriter.write_emotions``
                 for emotion persistence. ``None`` → falls back to ``session_id`` as
                 proxy (session-scoped persistence only).
+            enable_bt_post_hook: W4.2 opt-in. When ``True`` and a
+                ``pending_purchase`` is supplied, schedules the
+                ``npc_sell_to_player`` BT action as a fire-and-forget task
+                *after* the LLM stream finishes (does not block the caller
+                yield loop). Honors the module-level
+                :data:`BT_POST_HOOK_ENABLED` env as well — if env is enabled
+                the hook runs even without this kwarg.
+            pending_purchase: W4.2 kwargs (e.g. ``{"product_id": 42, "currency":
+                "gold"}``) consumed by the post-hook action. Ignored when
+                ``enable_bt_post_hook`` is ``False`` and the env var is off.
         """
         # B2: reset per-session emotion collection so dispatcher (singleton) doesn't
         # leak emotions across say_stream() invocations.
         self._emotions_emitted = []
+
+        # W4.2: decide up front whether the post-stream BT action should run.
+        # Either the explicit kwarg or the env kill-switch enables it; a
+        # pending_purchase is required for the hook to do anything.
+        _post_hook_enabled = bool(enable_bt_post_hook or BT_POST_HOOK_ENABLED)
+        _bt_state: BTState | None = None
+        if _post_hook_enabled and pending_purchase:
+            from agent_os.bt.state import BTState
+
+            _bt_state = BTState(player_id=player_id, pending_purchase=dict(pending_purchase))
 
         if trace_id is None:
             trace_id = f"tr-{uuid.uuid4().hex[:12]}"
@@ -413,3 +504,11 @@ class ActionDispatcher:
             # B2: ensure per-session emotion buffer is reset after stream ends
             # (success or failure), so the next say_stream() call starts fresh.
             self._emotions_emitted = []
+            # W4.2: schedule the BT post-hook AFTER the stream yields the
+            # done event (or after an exception is raised above). Running in
+            # ``finally`` ensures the hook fires regardless of upstream
+            # outcome — caller still receives the generator's normal
+            # termination / propagated exception. The task is fire-and-forget
+            # so the caller never blocks on the upstream economy HTTP call.
+            if _bt_state is not None:
+                schedule_post_hook(_bt_state)

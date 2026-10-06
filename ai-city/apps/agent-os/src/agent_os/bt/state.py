@@ -31,11 +31,15 @@ class BTState:
     say_buffer: list[dict[str, Any]] = field(default_factory=list)
     wait_until: float | None = None
     time_of_day: str = "noon"
-    registry: "BTTreeRegistry | None" = None
+    registry: BTTreeRegistry | None = None
     # ---- W2.4: economy-service bridge (npc_sell_to_player) ----
     player_id: str | None = None
     last_purchase: dict[str, Any] | None = None
     last_purchase_error: str | None = None
+    # W4.2: dispatcher pre-stream hook sets a queued purchase for the
+    # post-stream fire-and-forget BT action. Shape matches the kwargs of
+    # ``npc_sell_to_player`` (e.g. {"product_id": 42, "currency": "gold"}).
+    pending_purchase: dict[str, Any] | None = None
 
 
 __all__ = ["BTError", "BTState"]
