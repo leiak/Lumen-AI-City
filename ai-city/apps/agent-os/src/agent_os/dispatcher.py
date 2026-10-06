@@ -71,6 +71,8 @@ class ActionDispatcher:
         publisher=None,
         session_store: SessionStore | None = None,
         memory_writer=None,
+        emotion_repo=None,
+        emotion_settings=None,
     ):
         self.llm_client = llm_client  # Phase 2: LiteLLM client
         self.chat_rule = chat_rule or ChatTurnRule(max_turns=6)
@@ -78,6 +80,10 @@ class ActionDispatcher:
         self.session_store = session_store  # stage2: 重连补帧 buffer（可 None → 不 wire）
         # B2: optional best-effort emotion persistence hook; None = disabled
         self.memory_writer = memory_writer
+        # B2-T08: optional EmotionRepository + settings for prompt-time distribution
+        # injection. None = no injection (pre-B2 behavior).
+        self.emotion_repo = emotion_repo
+        self.emotion_settings = emotion_settings
         # B2: per-session emotion collection (reset at start of say_stream)
         self._emotions_emitted: list[str] = []
 
@@ -222,7 +228,41 @@ class ActionDispatcher:
         validator = EmotionValidator()
         sentence_idx = 0
 
-        prompt = get_npc_stream_prompt(npc_id, player_input, npc_context)
+        # B2-T08: fetch emotion distributions for prompt injection (best-effort).
+        # Failure → log warning + fall back to None (pre-B2 prompt shape).
+        # Respects EMOTION_INJECT_ENABLED kill switch (settings.inject_enabled).
+        recent_dist = None
+        global_dist = None
+        inject_enabled = bool(
+            self.emotion_settings and self.emotion_settings.inject_enabled,
+        )
+        if self.emotion_repo is not None and inject_enabled:
+            try:
+                recent_dist = await self.emotion_repo.fetch_player_distribution(
+                    npc_id, effective_player_id,
+                )
+            except Exception as e:  # noqa: BLE001
+                _logger.warning(
+                    "emotion aggregate (player) failed (npc=%s session=%s): %s "
+                    "— falling back to no-injection",
+                    npc_id, store_sid, e,
+                )
+            try:
+                global_dist = await self.emotion_repo.fetch_global_distribution(npc_id)
+            except Exception as e:  # noqa: BLE001
+                _logger.warning(
+                    "emotion aggregate (global) failed (npc=%s session=%s): %s "
+                    "— falling back to no-injection",
+                    npc_id, store_sid, e,
+                )
+
+        prompt = get_npc_stream_prompt(
+            npc_id,
+            player_input,
+            npc_context,
+            recent_distribution=recent_dist,
+            global_distribution=global_dist,
+        )
         req = LLMRequest(prompt=prompt, model=model, max_tokens=max_tokens)
 
         async def _emit(

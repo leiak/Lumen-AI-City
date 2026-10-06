@@ -9,7 +9,9 @@ Lifespan:
             → NpcRegistry.load_dir(config.npc_templates_dir)
             → SayScheduler 启动为 background asyncio.Task
             → RedisSub 订阅 aicity:player:moved 喂 WelcomeEngine（background task）
-  shutdown → stop event set + task joined + 取消 welcome pump
+            → B2: optional PG pool + EmotionRepository + MemoryWriter（仅当 PG_DSN）
+            → B2: 把 emotion_repo/settings 注入 dispatcher（注入失败回落到无注入）
+  shutdown → stop event set + task joined + 取消 welcome pump + 关 PG pool
 
 Service 名 print 在 startup banner 用于 docker-compose 日志对账。
 """
@@ -17,15 +19,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import asyncpg
 from fastapi import FastAPI, HTTPException, Query
 
 from agent_os.action_dispatcher import ActionDispatcher
 from agent_os.config import Config
+from agent_os.dispatcher import ActionDispatcher as StreamDispatcher
+from agent_os.emotion.repository import EmotionRepository
+from agent_os.emotion.settings import EmotionSettings
 from agent_os.errors import R015SessionNotFound
+from agent_os.memory.writer import MemoryWriter
 from agent_os.move_scheduler import MoveScheduler
 from agent_os.npc_registry import NpcRegistry
 from agent_os.player_listener import PlayerListener
@@ -52,6 +60,9 @@ def create_app(config: Config | None = None) -> FastAPI:
     redis_pub = RedisPub(cfg.redis_url)
     registry = NpcRegistry(Path(cfg.npc_templates_dir))
     dispatcher = ActionDispatcher(redis_pub, channel=cfg.redis_channel_npc_dialogue)
+    # B2-T08: 2.0 stream dispatcher（与 1.0 dispatcher 共存；后者用于 SayScheduler
+    # / WelcomeEngine 的 say() 协议，前者用于 future REST /v1/npc/say_stream 入口）
+    stream_dispatcher = StreamDispatcher()
     session_store = SessionStore()  # stage 3 = 重连补帧 60min TTL 内存 store
     listener = PlayerListener()
     scheduler = SayScheduler(
@@ -73,6 +84,11 @@ def create_app(config: Config | None = None) -> FastAPI:
     )
     redis_sub = RedisSub(cfg.redis_url)
 
+    # B2-T08: load emotion settings eagerly (so app.state.emotion_settings is
+    # always set, even when PG_DSN is absent). PG_DSN gates the actual repo/writer.
+    emotion_settings = EmotionSettings.from_env()
+    pg_dsn = os.getenv("PG_DSN", "").strip()
+
     stop_event = asyncio.Event()
     scheduler_task: asyncio.Task[None] | None = None
     welcome_task: asyncio.Task[None] | None = None
@@ -90,6 +106,8 @@ def create_app(config: Config | None = None) -> FastAPI:
                 "redis_channel_player_moved": cfg.redis_channel_player_moved,
                 "tick_seconds": cfg.say_tick_seconds,
                 "npc_templates_dir": cfg.npc_templates_dir,
+                "pg_dsn_set": bool(pg_dsn),
+                "emotion_inject_enabled": emotion_settings.inject_enabled,
             },
         )
         # best-effort ping（不阻塞 startup；ping 失败时 /healthz 仍 OK）
@@ -97,6 +115,38 @@ def create_app(config: Config | None = None) -> FastAPI:
             await redis_pub.ping()
         except Exception as e:  # noqa: BLE001
             logger.warning("startup redis ping failed", extra={"err": str(e)})
+
+        # B2-T08: optional PG pool + EmotionRepository + MemoryWriter.
+        # Best-effort: PG down → warn + leave repo=None (no-injection fallback).
+        pg_pool: asyncpg.Pool | None = None
+        emotion_repo: EmotionRepository | None = None
+        memory_writer: MemoryWriter | None = None
+        if pg_dsn:
+            try:
+                pg_pool = await asyncpg.create_pool(pg_dsn, min_size=1, max_size=4)
+                emotion_repo = EmotionRepository(pg_pool)
+                memory_writer = MemoryWriter(pg_pool)
+                # Wire repo + settings into the 2.0 stream dispatcher so
+                # say_stream() picks them up. The 1.0 dispatcher (action_dispatcher.py)
+                # is untouched — it doesn't have say_stream.
+                stream_dispatcher.emotion_repo = emotion_repo
+                stream_dispatcher.emotion_settings = emotion_settings
+                stream_dispatcher.memory_writer = memory_writer
+                logger.info(
+                    "PG pool + EmotionRepository + MemoryWriter initialized",
+                    extra={"inject_enabled": emotion_settings.inject_enabled},
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    "PG pool init failed (emotion persistence disabled): %s", e,
+                )
+                pg_pool = None
+
+        # Expose PG wiring on app.state for test inspection (None = degraded).
+        app.state.emotion_repo = emotion_repo
+        app.state.memory_writer = memory_writer
+        app.state.pg_pool = pg_pool
+
         # spawn scheduler
         scheduler_task = asyncio.create_task(scheduler.run(stop_event))
         # spawn player_moved → welcome pump（Redis 不可达时仅重连告警，不影响启动）
@@ -126,6 +176,12 @@ def create_app(config: Config | None = None) -> FastAPI:
                     await move_task
                 except asyncio.CancelledError:
                     pass
+            # B2-T08: close PG pool last (after all background tasks are stopped).
+            if pg_pool is not None:
+                try:
+                    await pg_pool.close()
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("PG pool close failed: %s", e)
             # RedisPub 是 fire-and-forget；每 publish 新连接；这里无 close 方法。
             logger.info("agent-os stopped", extra={"service": cfg.service_name})
 
@@ -172,9 +228,16 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.state.config = cfg
     app.state.registry = registry
     app.state.dispatcher = dispatcher
+    # B2-T08: 2.0 stream dispatcher (the one with say_stream + emotion_repo wiring).
+    app.state.stream_dispatcher = stream_dispatcher
     app.state.scheduler = scheduler
     app.state.player_listener = listener
     app.state.welcome_engine = welcome_engine
     app.state.move_scheduler = move_scheduler
     app.state.session_store = session_store
+    # B2-T08: expose emotion wiring on app.state. emotion_repo is None when
+    # PG_DSN is unset or pool init failed (graceful degradation).
+    app.state.emotion_settings = emotion_settings
+    # Stash pg_dsn so lifespan can read it (avoids re-importing os.getenv).
+    app.state.pg_dsn = pg_dsn
     return app
