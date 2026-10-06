@@ -6,9 +6,9 @@ const BACKEND = process.env.BT_EDITOR_API_URL ?? 'http://localhost:8090';
 
 export async function GET(
   _req: NextRequest,
-  ctx: { params: { npc_id: string } },
+  ctx: { params: Promise<{ npc_id: string }> },
 ): Promise<NextResponse> {
-  const { npc_id } = ctx.params;
+  const { npc_id } = await ctx.params;
   const url = `${BACKEND}/api/v1/bt/${encodeURIComponent(npc_id)}`;
   try {
     const res = await fetch(url, { cache: 'no-store' });

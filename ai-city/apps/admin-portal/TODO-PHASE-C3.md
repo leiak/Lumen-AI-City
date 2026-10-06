@@ -97,7 +97,7 @@
 
 ## Step 10 — Commit
 
-- [ ] 单 commit：`feat(admin-portal): Phase C.3 BT editor (loader/layout/api/UI/E2E)`
+- [x] 单 commit：`feat(admin-portal): Phase C.3 BT editor (loader/layout/api/UI/E2E)` ✓
 
 ---
 

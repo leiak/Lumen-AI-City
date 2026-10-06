@@ -33,14 +33,16 @@ async function forward(
 
 export async function GET(
   req: NextRequest,
-  ctx: { params: { npc_id: string; tree_name: string } },
+  ctx: { params: Promise<{ npc_id: string; tree_name: string }> },
 ): Promise<NextResponse> {
-  return forward(req, 'GET', ctx.params.npc_id, ctx.params.tree_name);
+  const { npc_id, tree_name } = await ctx.params;
+  return forward(req, 'GET', npc_id, tree_name);
 }
 
 export async function POST(
   req: NextRequest,
-  ctx: { params: { npc_id: string; tree_name: string } },
+  ctx: { params: Promise<{ npc_id: string; tree_name: string }> },
 ): Promise<NextResponse> {
-  return forward(req, 'POST', ctx.params.npc_id, ctx.params.tree_name);
+  const { npc_id, tree_name } = await ctx.params;
+  return forward(req, 'POST', npc_id, tree_name);
 }

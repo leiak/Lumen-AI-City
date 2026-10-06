@@ -9,12 +9,13 @@ interface SearchParams {
   tree_name?: string;
 }
 
-export default function BtEditorPage({
+export default async function BtEditorPage({
   searchParams,
 }: {
-  searchParams?: SearchParams;
+  searchParams: Promise<SearchParams>;
 }) {
-  const npcId = searchParams?.npc_id ?? 'npc_wang_boss_001';
-  const initialTreeName = searchParams?.tree_name ?? null;
+  const sp = await searchParams;
+  const npcId = sp?.npc_id ?? 'npc_wang_boss_001';
+  const initialTreeName = sp?.tree_name ?? null;
   return <BtEditorClient initialNpcId={npcId} initialTreeName={initialTreeName} />;
 }

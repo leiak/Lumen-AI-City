@@ -21,7 +21,7 @@ export default function Home() {
         {dashboards.map((d) => (
           <Link
             key={d.href}
-            href={d.href}
+            href={d.href as unknown as __next_route_internal_types__.RouteImpl<string>}
             className="block p-6 bg-white rounded-lg border border-gray-200 hover:border-brand-500 transition"
           >
             <h2 className="text-lg font-semibold">{d.name}</h2>

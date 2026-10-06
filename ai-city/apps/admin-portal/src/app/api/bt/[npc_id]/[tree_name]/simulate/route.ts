@@ -6,9 +6,9 @@ const BACKEND = process.env.BT_EDITOR_API_URL ?? 'http://localhost:8090';
 
 export async function POST(
   req: NextRequest,
-  ctx: { params: { npc_id: string; tree_name: string } },
+  ctx: { params: Promise<{ npc_id: string; tree_name: string }> },
 ): Promise<NextResponse> {
-  const { npc_id, tree_name } = ctx.params;
+  const { npc_id, tree_name } = await ctx.params;
   const url = `${BACKEND}/api/v1/bt/${encodeURIComponent(npc_id)}/${encodeURIComponent(tree_name)}/simulate`;
   try {
     const res = await fetch(url, {
