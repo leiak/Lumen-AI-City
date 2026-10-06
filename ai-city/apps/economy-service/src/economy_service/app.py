@@ -4,16 +4,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from economy_service.api.v1.admin import router as admin_router
 from economy_service.api.v1.products import router as products_router
 from economy_service.api.v1.wallet import router as wallet_router
 from economy_service.db import close_pool, get_pool
 from economy_service.errors import EconomyError
+from economy_service.scheduler import start_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await get_pool()  # warm up pool
+    task = start_scheduler()  # NEW: 启动中央银行 scheduler
     yield
+    task.cancel()
     await close_pool()
 
 
@@ -27,6 +31,7 @@ async def health():
 
 app.include_router(wallet_router)
 app.include_router(products_router)
+app.include_router(admin_router)
 
 
 @app.exception_handler(EconomyError)
