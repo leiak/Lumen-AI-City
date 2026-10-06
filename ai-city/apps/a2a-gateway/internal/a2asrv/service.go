@@ -29,12 +29,13 @@ import (
 	"log"
 	"time"
 
+	"github.com/aicity/a2a-gateway/internal/crosscity"
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// Service 持有 Registry + Verifier + Dispatcher + InboxStore + ACL，
+// Service 持有 Registry + Verifier + Dispatcher + InboxStore + ACL + MirrorStore，
 // 对外提供 A2AGatewayServer。
 type Service struct {
 	a2av1.UnimplementedA2AGatewayServer
@@ -43,6 +44,9 @@ type Service struct {
 	dispatcher *Dispatcher
 	inbox      *InboxStore // nil = 禁用 inbox（向后兼容）
 	acl        *ACL        // nil = 默认 allow（向后兼容 Sprint 7）
+	// mirror：B1 跨城流式回放 store。nil = 禁用 SayStreamForward 流式持久化
+	// （向后兼容：旧测试不依赖；T03 骨架可选注入）。
+	mirror *crosscity.MirrorStore
 }
 
 // NewService 构造 service。
@@ -58,6 +62,14 @@ func NewService(reg *Registry, verifier *Verifier, dispatcher *Dispatcher, inbox
 		dispatcher = NewDispatcher()
 	}
 	return &Service{reg: reg, verifier: verifier, dispatcher: dispatcher, inbox: inbox, acl: acl}
+}
+
+// SetMirrorStore 注入跨城流式 MirrorStore（Sprint B1 / Stage 3）。
+// 选 setter 而非 NewService 第 6 参数：避免破已有 5 个 NewService 调用点
+// （cmd/main.go + 2 处 service_test.go + httpgw/router_test.go）。
+// 缺省 nil：SayStreamForward 仍走通验证 + done 帧，仅不写入镜像。
+func (s *Service) SetMirrorStore(m *crosscity.MirrorStore) {
+	s.mirror = m
 }
 
 // RegisterCard 注册 / 覆盖 AgentCard。
@@ -213,4 +225,88 @@ func (s *Service) FetchInbox(ctx context.Context, req *a2av1.FetchInboxRequest) 
 		return nil, status.Error(codes.Internal, "F_012:"+err.Error())
 	}
 	return &a2av1.FetchInboxResponse{Messages: msgs, NextCursor: next}, nil
+}
+
+// SayStreamForward B1 跨城流式转发（B 城侧）。
+//
+// 协议（packages/proto/a2a.proto）：
+//   - A 城 a2a-gateway 经 mTLS 拨号本城 gRPC，开双工流
+//   - client 首帧必须为 SayStreamMessage{init: SayRequestInit{...}}；
+//     后续可发 SayStreamMessage{heartbeat: ...} 保活（A 城随时可关 inbound）
+//   - 本服务持续返回 SayBeat 流：
+//       type="npc_say_stream"      每节拍一帧（带 text/emotion/sentence_idx）
+//       type="npc_say_stream_done" 流结束帧（complete=true 正常 / false 异常）
+//
+// 初版（T03）骨架仅做：
+//   - 验首帧为 init 且 npc_id 非空（InvalidArgument "R_009:npc_id required"）
+//   - 若 mirror 已注入，Create session
+//   - 立即返 done(complete=true) —— 让 A 城阶段 1 测试流程跑通
+//
+// 真实订阅 B 城 Redis + LLM 转发由 T06 补全（依赖 dispatcher client）。
+//
+// 错误码（gRPC status）：
+//   R_001 首帧不是 init 或 Recv 失败 → InvalidArgument
+//   R_009 npc_id 缺失 → InvalidArgument
+func (s *Service) SayStreamForward(stream a2av1.A2AGateway_SayStreamForwardServer) error {
+	ctx := stream.Context()
+
+	// 1) 首帧：必须是 SayRequestInit
+	first, err := stream.Recv()
+	if err != nil {
+		if err == io.EOF {
+			return status.Error(codes.InvalidArgument, "R_001:client closed stream before init")
+		}
+		return status.Errorf(codes.InvalidArgument, "R_001:recv init: %v", err)
+	}
+	init := first.GetInit()
+	if init == nil {
+		return status.Error(codes.InvalidArgument, "R_001:first frame must be SayRequestInit")
+	}
+	if init.GetNpcId() == "" {
+		return status.Error(codes.InvalidArgument, "R_009:npc_id required")
+	}
+
+	// 2) 记日志：start 标志
+	log.Printf("a2a-gateway: SayStreamForward start npc_id=%s session_id=%s trace_id=%s player_id=%s",
+		init.GetNpcId(), init.GetSessionId(), init.GetTraceId(), init.GetPlayerId())
+
+	// 3) mirror session（可选注入；nil 跳过持久化）
+	if s.mirror != nil {
+		s.mirror.Create(init.GetSessionId(), init.GetNpcId(), init.GetPlayerId())
+		// 正常骨架路径 → complete=true；后续 T06 失败路径传 false
+		defer func() {
+			if err := s.mirror.MarkDone(init.GetSessionId(), true); err != nil {
+				log.Printf("a2a-gateway: mirror.MarkDone sid=%s err=%v", init.GetSessionId(), err)
+			}
+		}()
+	}
+
+	// 4) drain 协程：吞掉 client 后续的 heartbeat 帧，避免流被反压卡死。
+	//    client 半关闭 inbound 后 Recv 返 io.EOF → 静默退出。
+	go func() {
+		for {
+			if _, err := stream.Recv(); err != nil {
+				return
+			}
+		}
+	}()
+
+	// 5) T03 骨架：直接发 done(complete=true) 让 A 城测试流程跑通。
+	//    T06 将替换为 B 城 Redis 订阅 + LLM 节拍转发循环。
+	complete := true
+	done := &a2av1.SayBeat{
+		Type:      "npc_say_stream_done",
+		NpcId:     init.GetNpcId(),
+		SessionId: init.GetSessionId(),
+		Complete:  &complete,
+		TsMs:      time.Now().UnixMilli(),
+		TraceId:   init.GetTraceId(),
+	}
+	if err := stream.Send(done); err != nil {
+		// 客户端中途断开 → 不算 server 错；记日志返回 nil 让 gRPC 正常关流
+		log.Printf("a2a-gateway: SayStreamForward send done failed (client gone?): %v", err)
+		_ = ctx // 暂未订阅，保留 ctx 给 T06 LLM 调用
+		return nil
+	}
+	return nil
 }

@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/aicity/a2a-gateway/internal/a2asrv"
+	"github.com/aicity/a2a-gateway/internal/crosscity"
 	"github.com/aicity/a2a-gateway/internal/handlers"
 	"github.com/aicity/a2a-gateway/internal/httpgw"
 	"github.com/aicity/a2a-gateway/internal/router"
@@ -94,6 +95,13 @@ func main() {
 	dispatcher.SetFallback(inboxAdapter)
 
 	svc := a2asrv.NewService(reg, verifier, dispatcher, inboxStore, acl)
+
+	// B1：跨城流式 MirrorStore（60min TTL —— 与 stage 2 SessionStore 一致）。
+	// 注入到 Service 后，SayStreamForward init 帧会 Create session，正常结束
+	// 路径 defer MarkDone(complete=true)；T06 失败路径传 false。
+	mirrorStore := crosscity.NewMirrorStore(60 * time.Minute)
+	svc.SetMirrorStore(mirrorStore)
+	log.Printf("a2a-gateway: MirrorStore wired (ttl=60m)")
 
 	// gRPC server
 	grpcLis, err := net.Listen("tcp", grpcAddr)
