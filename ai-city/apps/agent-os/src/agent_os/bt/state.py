@@ -32,6 +32,10 @@ class BTState:
     wait_until: float | None = None
     time_of_day: str = "noon"
     registry: "BTTreeRegistry | None" = None
+    # ---- W2.4: economy-service bridge (npc_sell_to_player) ----
+    player_id: str | None = None
+    last_purchase: dict[str, Any] | None = None
+    last_purchase_error: str | None = None
 
 
 __all__ = ["BTError", "BTState"]

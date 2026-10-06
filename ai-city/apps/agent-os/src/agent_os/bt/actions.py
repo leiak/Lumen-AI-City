@@ -51,6 +51,53 @@ def noop(state: BTState) -> Status:
     return Status.SUCCESS
 
 
+# ---- W2.4: economy bridge -------------------------------------------------
+# NPC BT action that calls economy-service POST /api/v1/wallet/purchase.
+# Optional dep (httpx) imported lazily so agent-os remains usable without the
+# economy stack (e.g. tests that don't exercise this action).
+
+def npc_sell_to_player(
+    product_id: int, currency: str, state: BTState,
+) -> Status:
+    """NPC 通过 product_id 售货给玩家。调 economy-service。
+
+    失败（网络/余额不足/库存）返回 FAILURE（BT 短路）。
+    """
+    import httpx  # local import — optional dep
+    import os
+
+    base_url = os.environ.get(
+        "ECONOMY_SERVICE_URL", "http://economy-service:8005",
+    )
+    trace_id = f"bt_tick_{state.tick_count}"
+
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            r = client.post(
+                f"{base_url}/api/v1/wallet/purchase",
+                json={
+                    "user_id": state.player_id or "anonymous",
+                    "product_id": product_id,
+                    "currency": currency,
+                    "idempotency_key": trace_id,
+                    "trace_id": trace_id,
+                },
+            )
+        if r.status_code == 200:
+            data = r.json()
+            state.last_purchase = data
+            return Status.SUCCESS
+        else:
+            detail = r.json().get("detail", {})
+            state.last_purchase_error = (
+                f"{detail.get('code', 'R_018')}: {detail.get('msg', 'unknown')}"
+            )
+            return Status.FAILURE
+    except (httpx.HTTPError, ValueError) as e:
+        state.last_purchase_error = f"network: {e}"
+        return Status.FAILURE
+
+
 # ---- Test-only synthetic actions -----------------------------------------
 # These are used by the evaluator tests to verify FAILURE/RUNNING propagation.
 # They are NOT exported as part of the public action API.
@@ -70,6 +117,7 @@ ACTION_REGISTRY: dict[str, Callable[..., Status]] = {
     "wait": wait,
     "set_npc_state": set_npc_state,
     "noop": noop,
+    "npc_sell_to_player": npc_sell_to_player,  # W2.4
 }
 
 # Test-only synthetic actions used by evaluator unit tests to verify
@@ -101,6 +149,7 @@ __all__ = [
     "dispatch_action",
     "move_to_tile",
     "noop",
+    "npc_sell_to_player",
     "say_to_player",
     "set_npc_state",
     "wait",
