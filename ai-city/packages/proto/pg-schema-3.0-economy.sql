@@ -74,3 +74,18 @@ CREATE TRIGGER trg_transaction_no_delete
     BEFORE DELETE ON transaction
     FOR EACH ROW
     EXECUTE FUNCTION transaction_block_mutation();
+
+-- W2.1: NPC 商品目录
+CREATE TABLE IF NOT EXISTS product (
+    id          BIGSERIAL PRIMARY KEY,
+    npc_id      TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    price_gold  BIGINT NOT NULL CHECK (price_gold >= 0),
+    price_token BIGINT CHECK (price_token >= 0),
+    stock       INTEGER CHECK (stock IS NULL OR stock >= 0),
+    enabled     BOOLEAN NOT NULL DEFAULT true,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(npc_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_npc ON product(npc_id) WHERE enabled;
