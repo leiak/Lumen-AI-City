@@ -2,6 +2,7 @@
 
 Endpoints:
   GET /healthz   → 200 {"status":"ok"}（不依赖 redis 真活着）
+  GET /v1/npc/sessions/{sid}/buffer?from_idx=N → 重连补帧（stage 3 / C2 follow-up）
 
 Lifespan:
   startup  → RedisPub.ping() (best-effort, warn on error)
@@ -20,16 +21,18 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query
 
 from agent_os.action_dispatcher import ActionDispatcher
 from agent_os.config import Config
+from agent_os.errors import R015SessionNotFound
 from agent_os.move_scheduler import MoveScheduler
 from agent_os.npc_registry import NpcRegistry
 from agent_os.player_listener import PlayerListener
 from agent_os.redis_pub import RedisPub
 from agent_os.redis_sub import RedisSub
 from agent_os.say_scheduler import SayScheduler
+from agent_os.stream.session_store import SessionStore
 from agent_os.welcome_engine import WelcomeEngine
 
 logger = logging.getLogger(__name__)
@@ -49,6 +52,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     redis_pub = RedisPub(cfg.redis_url)
     registry = NpcRegistry(Path(cfg.npc_templates_dir))
     dispatcher = ActionDispatcher(redis_pub, channel=cfg.redis_channel_npc_dialogue)
+    session_store = SessionStore()  # stage 3 = 重连补帧 60min TTL 内存 store
     listener = PlayerListener()
     scheduler = SayScheduler(
         registry=registry,
@@ -131,6 +135,37 @@ def create_app(config: Config | None = None) -> FastAPI:
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/v1/npc/sessions/{sid}/buffer")
+    async def get_session_buffer(
+        sid: str,
+        from_idx: int = Query(0, ge=0, description="从第 N 个 beat 开始返（含），用于补帧"),
+    ) -> dict[str, object]:
+        """重连补帧端点（C2 follow-up / stage 3）。
+
+        返回 ``from_idx`` 起的所有 beat（含）+ ``complete`` 标记 + ``sentence_count``。
+        session 不存在或 60min 过期 → 400 R_015。
+        """
+        store: SessionStore = app.state.session_store
+        try:
+            beats = store.get_buffer(sid, from_idx=from_idx)
+        except R015SessionNotFound:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "R_015",
+                    "message": "session_id 过期或不存在",
+                    "session_id": sid,
+                },
+            )
+        # sentence_count = store 里 beat 总数（含 from_idx 之前的）
+        total_beats = len(store.get_buffer(sid, from_idx=0))
+        return {
+            "session_id": sid,
+            "beats": beats,
+            "complete": store.is_complete(sid),
+            "sentence_count": total_beats,
+        }
+
     # expose for test inspection
     app.state.config = cfg
     app.state.registry = registry
@@ -139,4 +174,5 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.state.player_listener = listener
     app.state.welcome_engine = welcome_engine
     app.state.move_scheduler = move_scheduler
+    app.state.session_store = session_store
     return app

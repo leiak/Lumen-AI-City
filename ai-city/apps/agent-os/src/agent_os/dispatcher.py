@@ -28,8 +28,10 @@ from agent_os.llm.prompts import get_npc_stream_prompt
 from agent_os.llm.rules import ChatTurnRule
 from agent_os.llm.short_circuit import match_short_circuit
 from agent_os.llm.types import LLMRequest
+from agent_os.errors import R015SessionNotFound
 from agent_os.stream.emotion_validator import EmotionValidator
 from agent_os.stream.sentence_splitter import SentenceSplitter
+from agent_os.stream.session_store import SessionStore
 
 
 @dataclass
@@ -64,10 +66,12 @@ class ActionDispatcher:
         llm_client=None,
         chat_rule: ChatTurnRule | None = None,
         publisher=None,
+        session_store: SessionStore | None = None,
     ):
         self.llm_client = llm_client  # Phase 2: LiteLLM client
         self.chat_rule = chat_rule or ChatTurnRule(max_turns=6)
         self.publisher = publisher  # stage2: Redis 节拍发布器（可 None）
+        self.session_store = session_store  # stage2: 重连补帧 buffer（可 None → 不 wire）
 
     async def say(self, npc_id: str, player_input: str, npc_context: list) -> DispatcherSayResult:
         # 1.0 Phase 1 占位：返回固定台词（BT path 由 action_dispatcher.py 保留）
@@ -157,8 +161,16 @@ class ActionDispatcher:
           2. 调 ``llm_client.stream(req)`` 逐 chunk 喂给 SentenceSplitter
           3. 每个切出的 (text, raw_emotion) 经 EmotionValidator 规范化
           4. 构造 DispatcherSayStreamEvent → publisher.publish_beat → yield
+             → （如注入 session_store）session_store.append
           5. EOF：splitter.flush() 残余句 → beat；最后发 publish_done → yield done
-          6. 异常：发 publish_done(complete=False) 并 raise（R_011 fallback）
+             → session_store.mark_done(complete=True)
+          6. 异常：发 publish_done(complete=False) + session_store.mark_done(complete=False)
+             并 raise（R_011 fallback）
+
+        SessionStore wire（如 ``ActionDispatcher(..., session_store=...)`` 注入）：
+          - caller 传的 ``session_id`` 不在 store 里时，dispatcher 自动 mint 新 sid
+            并 override 该 sid 用于 publisher + store（保持唯一 id 用于重连补帧）
+          - 已存在的 sid 沿用 caller 提供的（典型：先 create 再 stream）
 
         Args:
             model: LLM model id forwarded to ``LLMRequest`` (default ``claude-haiku-4-5``
@@ -168,6 +180,19 @@ class ActionDispatcher:
         """
         if trace_id is None:
             trace_id = f"tr-{uuid.uuid4().hex[:12]}"
+
+        # Wire SessionStore（如注入）：保证 session 存在；用于断线重连补帧
+        store = self.session_store
+        if store is not None:
+            try:
+                store._require(session_id)  # 已存在 → 沿用 caller 提供的 sid
+                store_sid = session_id
+            except R015SessionNotFound:
+                # caller 传的 sid 不在 store 里（典型：测试 stub 或新流未创建）
+                # mint 一个新的并 override
+                store_sid = store.create(npc_id)
+        else:
+            store_sid = session_id
 
         splitter = SentenceSplitter()
         validator = EmotionValidator()
@@ -184,7 +209,7 @@ class ActionDispatcher:
             validated = validator.validate(raw_emotion)
             event = DispatcherSayStreamEvent(
                 npc_id=npc_id,
-                session_id=session_id,
+                session_id=store_sid,
                 sentence_idx=None if is_done else sentence_idx,
                 text="" if is_done else text,
                 emotion="neutral" if is_done else validated,
@@ -195,20 +220,31 @@ class ActionDispatcher:
             if is_done:
                 await self.publisher.publish_done(
                     npc_id=npc_id,
-                    session_id=session_id,
+                    session_id=store_sid,
                     sentence_count=sentence_idx,
                     complete=True,
                     trace_id=trace_id,
                 )
+                # SessionStore wire：done → mark_done(complete=True)
+                if store is not None:
+                    store.mark_done(store_sid, complete=True)
             else:
                 await self.publisher.publish_beat(
                     npc_id=npc_id,
-                    session_id=session_id,
+                    session_id=store_sid,
                     sentence_idx=sentence_idx,
                     text=text,
                     emotion=validated,
                     trace_id=trace_id,
                 )
+                # SessionStore wire：每句 beat → append
+                if store is not None:
+                    store.append(
+                        store_sid,
+                        sentence_idx=sentence_idx,
+                        text=text,
+                        emotion=validated,
+                    )
                 sentence_idx += 1
             return event
 
@@ -231,9 +267,17 @@ class ActionDispatcher:
             if self.publisher is not None:
                 await self.publisher.publish_done(
                     npc_id=npc_id,
-                    session_id=session_id,
+                    session_id=store_sid,
                     sentence_count=sentence_idx,
                     complete=False,
                     trace_id=trace_id,
                 )
+            # SessionStore wire：异常退出也 mark_done(complete=False)，
+            # 让重连端点能区分"流正常结束" vs "流异常结束"。
+            if store is not None:
+                try:
+                    store.mark_done(store_sid, complete=False)
+                except R015SessionNotFound:
+                    # session 已被 TTL 清掉 — best-effort 忽略
+                    pass
             raise
