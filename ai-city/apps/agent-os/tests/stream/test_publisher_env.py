@@ -21,6 +21,18 @@ def test_default_channel_is_npc_say_stream(monkeypatch: pytest.MonkeyPatch) -> N
     assert get_redis_channel_npc_say_stream() == "aicity:npc:say_stream"
 
 
+def test_empty_env_falls_back_to_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """env 设成空串 → 走默认值（os.getenv 不替代 default）。"""
+    monkeypatch.setenv("REDIS_CHANNEL_NPC_SAY_STREAM", "")
+    assert get_redis_channel_npc_say_stream() == "aicity:npc:say_stream"
+
+
+def test_whitespace_env_falls_back_to_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """env 设成纯空白 → 走默认值（避免 redis.publish("   ") 静默失败）。"""
+    monkeypatch.setenv("REDIS_CHANNEL_NPC_SAY_STREAM", "   ")
+    assert get_redis_channel_npc_say_stream() == "aicity:npc:say_stream"
+
+
 def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     """设了 env → 走自定义值。"""
     monkeypatch.setenv("REDIS_CHANNEL_NPC_SAY_STREAM", "test:custom:channel")
