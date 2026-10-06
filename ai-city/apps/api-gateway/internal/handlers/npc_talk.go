@@ -19,6 +19,8 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -31,6 +33,21 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
+
+// mintSessionID returns a 16-byte (32 hex char) session id like
+// "sess-7f3b2e1c9a4d8e2f". Uses crypto/rand for uniqueness.
+//
+// B1-T07 followup: per spec §3.5 line 250, session_id is optional; when
+// omitted, api-gateway (A 城) mints one before forwarding to a2a-gateway.
+// The minted id is also re-marshaled into rawBody so the upstream request
+// carries the same value.
+func mintSessionID() (string, error) {
+	var buf [16]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return "", err
+	}
+	return "sess-" + hex.EncodeToString(buf[:]), nil
+}
 
 // crossCityStreamBodyCap is the upstream body cap for the SSE relay (matches
 // a2a-gateway's POST /v1/federation/say_stream cap; see
@@ -398,15 +415,17 @@ func (h *NPCTalkHandler) forwardCrossCity(c *gin.Context, npcID string, body map
 // B1-T07：替换 forwardCrossCity（Sint 整段）→ forwardCrossCityStream（SSE）。
 // 调用方：Handle/HandleByID 当 npcID 含 `_b_` 时调用。处理流程：
 //  1. npcID 必填校验（缺 → 400 R_009，不发上游请求）
-//  2. body 必填校验：JSON 可解 + session_id 必须存在（a2a-gateway SayStreamHandler
-//     要求 session_id 与 npc_id 两者必填）
+//  2. body 必填校验：JSON 可解；缺 session_id 由本层 mint 一个（spec §3.5
+//     line 250：session_id 可选；缺省由 A 城生成），保证 a2a-gateway
+//     SayStreamHandler 入站 sid 永远非空
 //  3. POST http://<A2A_HUB_URL>/v1/federation/say_stream，body 透传，附 Bearer
 //     （env A2A_HTTP_API_KEY 非空时）
 //  4. a2a-gateway 非 200 → 按原状态码 + body 透传给 web 客户端（不二次包 SSE）
 //  5. 200 → 透传响应（text/event-stream 帧原样写入 client.Writer
 //
 // 错误码（与 a2a F_xxx 对齐）：
-//   - 400 + R_009：npcID 为空 / body 不可读 / JSON 非法 / 缺 session_id
+//   - 400 + R_009：npcID 为空 / body 不可读 / JSON 非法
+//   - 500 + R_011：mint / re-marshal session_id 失败（极少见，crypto/rand 出错）
 //   - 502 + R_016：a2a-gateway 不可达（网络错误 / 拨号超时）
 //   - 透传 a2a-gateway 自身的 HTTP 状态码与 body（含 400/401/502 + 错误 JSON）
 //
@@ -444,11 +463,26 @@ func (h *NPCTalkHandler) forwardCrossCityStream(c *gin.Context, npcID string, ra
 		return
 	}
 	if sid, _ := peek["session_id"].(string); sid == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    "R_009",
-			"message": "session_id required",
-		})
-		return
+		// B1-T07 followup: spec §3.5 line 250 — session_id 可选；缺省由 A 城 mint。
+		// a2a-gateway SayStreamHandler 仍要求非空；由 api-gateway 保证入站 sid 永远非空。
+		newSID, err := mintSessionID()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    "R_011",
+				"message": "sid mint fail: " + err.Error(),
+			})
+			return
+		}
+		peek["session_id"] = newSID
+		// Re-marshal so the forwarded body includes the minted sid.
+		rawBody, err = json.Marshal(peek)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    "R_011",
+				"message": "sid re-marshal fail: " + err.Error(),
+			})
+			return
+		}
 	}
 
 	// 构造上游 POST：context 用 client ctx，body 透传，附 Bearer。

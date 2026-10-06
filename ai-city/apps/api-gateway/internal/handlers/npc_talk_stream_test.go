@@ -44,26 +44,89 @@ func TestForwardCrossCityStream_NoNpcIDReturns400(t *testing.T) {
 	}
 }
 
-// TestForwardCrossCityStream_NoSessionIDReturns400 — body 缺 session_id
-// 时拒绝（a2a-gateway SayStreamHandler 同样要求 session_id；这里前置校验，
-// 避免白跑 HTTP 调用）。
-func TestForwardCrossCityStream_NoSessionIDReturns400(t *testing.T) {
+// TestForwardCrossCityStream_MintsSessionIDWhenMissing — body 缺 session_id
+// 时本层 mint 一个 `sess-<32hex>`（crypto/rand）并塞回 body 转发，保证
+// a2a-gateway SayStreamHandler 入站 sid 永远非空。spec §3.5 line 250
+// 明确允许缺省。
+func TestForwardCrossCityStream_MintsSessionIDWhenMissing(t *testing.T) {
+	var gotBody []byte
+	fakeA2A := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: {\"type\":\"npc_say_stream\",\"text\":\"hi\"}\n\n"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}))
+	defer fakeA2A.Close()
+
+	t.Setenv("A2A_HUB_URL", fakeA2A.URL)
+
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	h := newStreamTestHandler(t)
+	// body 没有 session_id
+	body := []byte(`{"npc_id":"npc_b_wu","player_input":"hi"}`)
 	r.POST("/x", func(c *gin.Context) {
-		h.forwardCrossCityStream(c, "npc_b_wu", []byte(`{"npc_id":"npc_b_wu"}`))
+		h.forwardCrossCityStream(c, "npc_b_wu", body)
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (minted sid); body=%s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), "R_009") {
-		t.Fatalf("body = %s, want R_009", w.Body.String())
+	if !strings.Contains(string(gotBody), `"session_id":"sess-`) {
+		t.Fatalf("forwarded body = %q, want contains minted session_id sess-...", gotBody)
+	}
+	// sanity: minted id 必须是 32 hex char（"sess-" 前缀后）
+	if len(gotBody) == 0 || !strings.Contains(string(gotBody), `"session_id":"sess-`) {
+		t.Fatalf("expected minted sid prefix, got: %s", gotBody)
+	}
+}
+
+// TestForwardCrossCityStream_PreservesSessionIDWhenProvided — 客户端显式
+// 带 session_id 时必须原样转发，不能被覆盖成 mint 值。
+func TestForwardCrossCityStream_PreservesSessionIDWhenProvided(t *testing.T) {
+	var gotBody []byte
+	fakeA2A := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: {\"type\":\"end\"}\n\n"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}))
+	defer fakeA2A.Close()
+
+	t.Setenv("A2A_HUB_URL", fakeA2A.URL)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := newStreamTestHandler(t)
+	body := []byte(`{"npc_id":"npc_b_wu","session_id":"sess-existing","player_input":"hi"}`)
+	r.POST("/x", func(c *gin.Context) {
+		h.forwardCrossCityStream(c, "npc_b_wu", body)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/x", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(string(gotBody), `"session_id":"sess-existing"`) {
+		t.Fatalf("forwarded body = %q, want contains original session_id", gotBody)
+	}
+	if strings.Contains(string(gotBody), `"session_id":"sess-`) && !strings.Contains(string(gotBody), "sess-existing") {
+		t.Fatalf("expected original session_id preserved, got: %s", gotBody)
 	}
 }
 
