@@ -17,6 +17,7 @@ Spec ref:
 """
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from dataclasses import dataclass
@@ -32,6 +33,8 @@ from agent_os.errors import R015SessionNotFound
 from agent_os.stream.emotion_validator import EmotionValidator
 from agent_os.stream.sentence_splitter import SentenceSplitter
 from agent_os.stream.session_store import SessionStore
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -67,11 +70,16 @@ class ActionDispatcher:
         chat_rule: ChatTurnRule | None = None,
         publisher=None,
         session_store: SessionStore | None = None,
+        memory_writer=None,
     ):
         self.llm_client = llm_client  # Phase 2: LiteLLM client
         self.chat_rule = chat_rule or ChatTurnRule(max_turns=6)
         self.publisher = publisher  # stage2: Redis 节拍发布器（可 None）
         self.session_store = session_store  # stage2: 重连补帧 buffer（可 None → 不 wire）
+        # B2: optional best-effort emotion persistence hook; None = disabled
+        self.memory_writer = memory_writer
+        # B2: per-session emotion collection (reset at start of say_stream)
+        self._emotions_emitted: list[str] = []
 
     async def say(self, npc_id: str, player_input: str, npc_context: list) -> DispatcherSayResult:
         # 1.0 Phase 1 占位：返回固定台词（BT path 由 action_dispatcher.py 保留）
@@ -153,6 +161,7 @@ class ActionDispatcher:
         trace_id: str | None,
         model: str = "claude-haiku-4-5",
         max_tokens: int = 200,
+        player_id: str | None = None,
     ) -> AsyncIterator[DispatcherSayStreamEvent]:
         """LLM token 流 → 句子节拍事件流 → Publisher.publish_beat/done。
 
@@ -164,6 +173,7 @@ class ActionDispatcher:
              → （如注入 session_store）session_store.append
           5. EOF：splitter.flush() 残余句 → beat；最后发 publish_done → yield done
              → session_store.mark_done(complete=True)
+             → (B2) MemoryWriter.write_emotions (best-effort)
           6. 异常：发 publish_done(complete=False) + session_store.mark_done(complete=False)
              并 raise（R_011 fallback）
 
@@ -177,9 +187,23 @@ class ActionDispatcher:
                 for cost — tests pass ``claude-haiku-4-5``; prod callers may upgrade to
                 sonnet for richer responses).
             max_tokens: Hard cap on LLM output tokens (default 200).
+            player_id: B2 optional player id forwarded to ``MemoryWriter.write_emotions``
+                for emotion persistence. ``None`` → falls back to ``session_id`` as
+                proxy (session-scoped persistence only).
         """
+        # B2: reset per-session emotion collection so dispatcher (singleton) doesn't
+        # leak emotions across say_stream() invocations.
+        self._emotions_emitted = []
+
         if trace_id is None:
             trace_id = f"tr-{uuid.uuid4().hex[:12]}"
+
+        # B2: when caller didn't pass player_id, fall back to session-scoped proxy.
+        # write_emotions requires non-None player_id (PG schema NOT NULL); session_id
+        # uniquely identifies the conversation so this is a safe proxy for the
+        # emotion persistence use case (no global player aggregation unless caller
+        # passes the real player_id).
+        effective_player_id = player_id or session_id
 
         # Wire SessionStore（如注入）：保证 session 存在；用于断线重连补帧
         store = self.session_store
@@ -228,6 +252,22 @@ class ActionDispatcher:
                 # SessionStore wire：done → mark_done(complete=True)
                 if store is not None:
                     store.mark_done(store_sid, complete=True)
+                # B2: best-effort emotion persist on successful completion.
+                # write_emotions itself swallows PG errors, but we wrap defensively
+                # so any unexpected exception here never breaks the caller stream.
+                if self.memory_writer is not None and self._emotions_emitted:
+                    try:
+                        await self.memory_writer.write_emotions(
+                            npc_id=npc_id,
+                            player_id=effective_player_id,
+                            session_id=store_sid,
+                            emotions=list(self._emotions_emitted),
+                        )
+                    except Exception as e:  # pragma: no cover - defensive
+                        _logger.warning(
+                            "dispatcher: emotion persist failed (npc=%s session=%s): %s",
+                            npc_id, store_sid, e,
+                        )
             else:
                 # SessionStore wire：每句 beat → append FIRST
                 # (buffer is source of truth；publish 之前完成 append，
@@ -248,6 +288,9 @@ class ActionDispatcher:
                     emotion=validated,
                     trace_id=trace_id,
                 )
+                # B2: collect this beat's validated emotion for write_emotions
+                if validated:
+                    self._emotions_emitted.append(validated)
                 sentence_idx += 1
             return event
 
@@ -283,4 +326,10 @@ class ActionDispatcher:
                 except R015SessionNotFound:
                     # session 已被 TTL 清掉 — best-effort 忽略
                     pass
+            # B2: 清空情绪收集（异常时不持久化）
+            self._emotions_emitted = []
             raise
+        finally:
+            # B2: ensure per-session emotion buffer is reset after stream ends
+            # (success or failure), so the next say_stream() call starts fresh.
+            self._emotions_emitted = []
