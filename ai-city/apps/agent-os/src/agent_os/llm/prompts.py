@@ -108,17 +108,36 @@ _PERSONALITY_DESC_MAP: dict[str, str] = {
 }
 
 
-def get_npc_stream_prompt(npc_id: str, player_input: str, npc_context: list) -> str:
+def get_npc_stream_prompt(
+    npc_id: str,
+    player_input: str,
+    npc_context: list,
+    *,
+    recent_distribution: "EmotionDistribution | None" = None,
+    global_distribution: "EmotionDistribution | None" = None,
+) -> str:
     """5 NPC 个性化流式 prompt（emotion tag 强制 + OCEAN personality）。
 
     T06 占位 stub 已被 T08 覆盖。
     npc_context 项预期为 dict（含 'role' + 'content'）。非 dict 项静默跳过。
+
+    B2-T07: optional ``recent_distribution`` + ``global_distribution`` inject a
+    【最近情绪氛围】 section between system and history. Both kwargs default to
+    None — backward-compatible with pre-B2 callers.
     """
+    from agent_os.emotion.aggregate import EmotionDistribution
+
     npc_name = npc_id.replace("npc_", "").replace("_001", "").replace("_", "")
     personality_desc = _PERSONALITY_DESC_MAP.get(npc_id, "性格温和。")
     system = _STREAM_SYSTEM_TEMPLATE.format(
         npc_name=npc_name, personality_desc=personality_desc,
     )
+
+    # B2: emotion persistence injection (empty string when no data → backward-compat)
+    emotion_section = _render_emotion_section(
+        recent_distribution, global_distribution,
+    )
+
     history_lines = []
     for m in npc_context:
         if isinstance(m, dict) and "role" in m and "content" in m:
@@ -126,7 +145,47 @@ def get_npc_stream_prompt(npc_id: str, player_input: str, npc_context: list) -> 
     history = "\n".join(history_lines)
     return (
         f"<system>{system}</system>\n"
+        f"{emotion_section}\n"
         f"{history}\n"
         f"<user>{player_input}</user>\n"
         f"Assistant:"
     )
+
+
+def _render_emotion_section(
+    recent: "EmotionDistribution | None",
+    global_d: "EmotionDistribution | None",
+) -> str:
+    """Render B2 emotion distribution section. Empty string if no data.
+
+    Caller may pass:
+    - both None → "" (no injection, pre-B2 shape preserved)
+    - both empty (total_rows=0) → "首次对话" marker
+    - one or both populated → full distribution + inertia hint
+    """
+    from agent_os.emotion.aggregate import (
+        format_distribution_for_prompt, top_emotion,
+    )
+    if recent is None and global_d is None:
+        return ""
+    if (recent is None or recent.total_rows == 0) and \
+       (global_d is None or global_d.total_rows == 0):
+        return "【最近情绪氛围】（首次对话，无历史情绪）"
+
+    lines = ["【最近情绪氛围 — 仅参考，不强求】"]
+    if recent is not None and recent.total_rows > 0:
+        lines.append(
+            f"玩家对你（个人近 {recent.total_rows} 轮）：{format_distribution_for_prompt(recent)}"
+        )
+    if global_d is not None and global_d.total_rows > 0:
+        lines.append(
+            f"所有玩家对你（全局近 {global_d.total_rows} 轮）：{format_distribution_for_prompt(global_d)}"
+        )
+    hints = []
+    if recent is not None and recent.total_rows > 0:
+        hints.append(f"玩家最近偏 {top_emotion(recent)}，可以延续")
+    if global_d is not None and global_d.total_rows > 0:
+        hints.append(f"全局偏 {top_emotion(global_d)}，可考虑适度收敛")
+    if hints:
+        lines.append("情绪惯性：" + "；".join(hints) + "。")
+    return "\n".join(lines)
