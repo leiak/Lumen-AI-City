@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from economy_service.api.v1.products import router as products_router
 from economy_service.api.v1.wallet import router as wallet_router
 from economy_service.db import close_pool, get_pool
 from economy_service.errors import EconomyError
@@ -25,6 +26,7 @@ async def health():
 
 
 app.include_router(wallet_router)
+app.include_router(products_router)
 
 
 @app.exception_handler(EconomyError)

@@ -25,3 +25,13 @@ class TransferSelf(EconomyError):  # noqa: N818 (named per spec)
 class WalletNotFound(EconomyError):  # noqa: N818 (named per spec)
     code = "R_018"
     http_status = 404
+
+
+class ProductOutOfStock(EconomyError):
+    code = "R_024"
+    http_status = 409
+
+
+class ProductNotFound(EconomyError):
+    code = "R_025"
+    http_status = 404

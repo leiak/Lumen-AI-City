@@ -30,13 +30,13 @@ async def pool():
                 "created_at": "2026-10-06T00:00:00Z",
                 "updated_at": "2026-10-06T00:00:00Z"}
 
-    async def fetchrow(*args, **kwargs):
+    async def fetchrow_default(*args, **kwargs):
         # Simple dispatch based on SQL fragment
         if "SELECT" in args[0] and "FROM wallet" in args[0]:
             return await fetchrow_wallet(args[1] if len(args) > 1 else None)
         return None
 
-    async def execute(*args, **kwargs):
+    async def execute_default(*args, **kwargs):
         # Handle INSERT into wallet (idempotent create-or-find)
         if args and "INSERT INTO wallet" in args[0]:
             uid = args[1]
@@ -55,10 +55,16 @@ async def pool():
                 t = new_balance
             wallets[user_id] = (g, t)
             return "UPDATE 1"
+        # UPDATE product SET stock = stock - 1 (W2.3 purchase)
+        if args and "UPDATE product SET stock" in args[0]:
+            return "UPDATE 1"
+        # INSERT INTO transaction — append-only log; no-op for in-memory mock
         return "OK"
 
-    conn.fetchrow = fetchrow
-    conn.execute = execute
+    # Use AsyncMock so tests can override .side_effect with a list of return values.
+    # When not overridden, dispatch via the default callable above.
+    conn.fetchrow = AsyncMock(side_effect=fetchrow_default)
+    conn.execute = AsyncMock(side_effect=execute_default)
 
     # conn.transaction() returns an async CM directly (matches real asyncpg)
     class _TransactionCtx:

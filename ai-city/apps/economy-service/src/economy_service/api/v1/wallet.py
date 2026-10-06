@@ -7,9 +7,10 @@ from fastapi import APIRouter
 from economy_service.db import get_pool
 from economy_service.errors import WalletNotFound
 from economy_service.schemas import (
-    TransferRequest, WalletResponse,
+    PurchaseRequest, TransferRequest, WalletResponse,
 )
 from economy_service.services.idempotency import IdempotencyStore
+from economy_service.services.purchase_service import PurchaseService
 from economy_service.services.wallet_service import WalletService
 
 router = APIRouter(prefix="/api/v1/wallet", tags=["wallet"])
@@ -60,3 +61,20 @@ async def transfer(req: TransferRequest) -> WalletResponse:
     )
     await idem.check_and_set("transfer", req.idempotency_key, response.model_dump())
     return response
+
+
+@router.post("/purchase")
+async def purchase(req: PurchaseRequest) -> dict:
+    idem = IdempotencyStore(_redis())
+    cached = await idem.get_cached("purchase", req.idempotency_key)
+    if cached:
+        return cached
+
+    svc = PurchaseService(await get_pool())
+    result = await svc.purchase(
+        req.user_id, req.product_id, req.currency.value,
+        req.idempotency_key, trace_id=req.trace_id,
+    )
+
+    await idem.check_and_set("purchase", req.idempotency_key, result)
+    return result

@@ -55,3 +55,21 @@ class TxListResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: dict
+
+
+class Product(BaseModel):
+    id: int
+    npc_id: str
+    name: str
+    price_gold: int = Field(ge=0)
+    price_token: int | None = Field(default=None, ge=0)
+    stock: int | None = None  # None = unlimited
+    enabled: bool
+
+
+class PurchaseRequest(BaseModel):
+    user_id: str
+    product_id: int = Field(gt=0)
+    currency: Currency
+    idempotency_key: str = Field(min_length=8, max_length=64)
+    trace_id: str | None = None
