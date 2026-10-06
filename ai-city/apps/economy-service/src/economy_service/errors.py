@@ -20,3 +20,8 @@ class InsufficientBalance(EconomyError):  # noqa: N818 (named per spec)
 class TransferSelf(EconomyError):  # noqa: N818 (named per spec)
     code = "R_023"
     http_status = 400
+
+
+class WalletNotFound(EconomyError):  # noqa: N818 (named per spec)
+    code = "R_018"
+    http_status = 404

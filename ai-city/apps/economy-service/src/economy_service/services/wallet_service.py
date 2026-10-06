@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncpg
 
-from economy_service.errors import InsufficientBalance, TransferSelf
+from economy_service.errors import InsufficientBalance, TransferSelf, WalletNotFound
+from economy_service.schemas import Currency
 
 
 class WalletService:
@@ -21,7 +22,7 @@ class WalletService:
 
     async def transfer(
         self, from_user_id: str, to_user_id: str,
-        currency: str, amount: int, trace_id: str | None = None,
+        currency: Currency, amount: int, trace_id: str | None = None,
     ) -> tuple[dict, dict]:
         """Atomic transfer. Returns (from_wallet, to_wallet) after commit."""
         if from_user_id == to_user_id:
@@ -35,9 +36,9 @@ class WalletService:
                 from_user_id,
             )
             if from_row is None:
-                raise ValueError(f"wallet not found: {from_user_id}")
+                raise WalletNotFound(f"wallet not found: {from_user_id}")
 
-            from_balance = from_row[currency + "_balance"]
+            from_balance = from_row[currency.value + "_balance"]
             if from_balance < amount:
                 raise InsufficientBalance(
                     f"{currency} balance {from_balance} < {amount}"
@@ -56,15 +57,15 @@ class WalletService:
             )
 
             new_from = from_balance - amount
-            new_to = to_row[currency + "_balance"] + amount
+            new_to = to_row[currency.value + "_balance"] + amount
 
             await conn.execute(
-                f"UPDATE wallet SET {currency}_balance = $1 "
+                f"UPDATE wallet SET {currency.value}_balance = $1 "
                 "WHERE user_id = $2",
                 new_from, from_user_id,
             )
             await conn.execute(
-                f"UPDATE wallet SET {currency}_balance = $1 "
+                f"UPDATE wallet SET {currency.value}_balance = $1 "
                 "WHERE user_id = $2",
                 new_to, to_user_id,
             )
@@ -74,16 +75,16 @@ class WalletService:
                 "INSERT INTO transaction (tx_type, user_id, counterparty_id, "
                 "currency, amount, balance_after, trace_id) "
                 "VALUES ('player_transfer', $1, $2, $3, $4, $5, $6)",
-                from_user_id, to_user_id, currency, -amount, new_from, trace_id,
+                from_user_id, to_user_id, currency.value, -amount, new_from, trace_id,
             )
             await conn.execute(
                 "INSERT INTO transaction (tx_type, user_id, counterparty_id, "
                 "currency, amount, balance_after, trace_id) "
                 "VALUES ('player_transfer', $1, $2, $3, $4, $5, $6)",
-                to_user_id, from_user_id, currency, amount, new_to, trace_id,
+                to_user_id, from_user_id, currency.value, amount, new_to, trace_id,
             )
 
             return (
-                {"user_id": from_user_id, currency + "_balance": new_from},
-                {"user_id": to_user_id, currency + "_balance": new_to},
+                {"user_id": from_user_id, currency.value + "_balance": new_from},
+                {"user_id": to_user_id, currency.value + "_balance": new_to},
             )
