@@ -77,7 +77,7 @@ describe('bt_api wrappers', () => {
     await expect(getBtTree(NPC, 'missing_tree')).rejects.toThrow(/404/);
   });
 
-  it('saveBtTree → POST /api/bt/{npc}/{name} with JSON body', async () => {
+  it('saveBtTree → POST /api/bt/{npc}/{name} with wrapped {tree_json:…} body', async () => {
     const treeJson = { version: '1.0.0', root: { id: 'r', type: 'sequence' } };
     const mockPayload = {
       npc_id: NPC,
@@ -99,13 +99,13 @@ describe('bt_api wrappers', () => {
     const [url, init] = fetchMock.mock.calls[0] as unknown as FetchArgs;
     expect(url).toBe(`/api/bt/${NPC}/${TREE}`);
     expect(init?.method).toBe('POST');
-    // Body is the raw BTJSON document (proxy/bt-editor-api unwrap it)
-    expect(JSON.parse(init?.body as string)).toEqual(treeJson);
+    // Body MUST be wrapped as {tree_json: ...} per C.2 SaveTreeRequest.
+    expect(JSON.parse(init?.body as string)).toEqual({ tree_json: treeJson });
   });
 
   it('saveBtTree → throws on 4xx', async () => {
     mockFetchOnce(
-      new Response(JSON.stringify({ error: 'invalid tree' }), {
+      new Response(JSON.stringify({ detail: { code: 'R_019', msg: 'bad tree' } }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -114,33 +114,67 @@ describe('bt_api wrappers', () => {
     await expect(saveBtTree(NPC, TREE, {} as never)).rejects.toThrow(/400/);
   });
 
-  it('simulateBtTree → POST /api/bt/{npc}/{name}/simulate and returns trace', async () => {
-    const traceEntry = {
-      tick: 1,
-      node_id: 'r',
+  it('simulateBtTree → POST /api/bt/{npc}/{name}/simulate with C.2 contract', async () => {
+    const treeJson = { version: '1.0.0', root: { id: 'r', type: 'sequence' } };
+    const mockResponse = {
       status: 'success',
-      message: 'ok',
-    };
-    const mockPayload = {
-      npc_id: NPC,
-      name: TREE,
-      final_status: 'success',
-      trace: [traceEntry],
+      trace: [{ node_id: 'r', status: 'success', tick_count: 1 }],
+      final_state: { tick: 1 },
     };
     const fetchMock = mockFetchOnce(
-      new Response(JSON.stringify(mockPayload), {
+      new Response(JSON.stringify(mockResponse), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
     );
 
-    const result = await simulateBtTree(NPC, TREE, {
-      world_state: { player_pos: [0, 0] },
-    });
+    const result = await simulateBtTree(NPC, TREE, treeJson, 50);
 
-    expect(result).toEqual(mockPayload);
+    expect(result).toEqual(mockResponse);
     const [url, init] = fetchMock.mock.calls[0] as unknown as FetchArgs;
     expect(url).toBe(`/api/bt/${NPC}/${TREE}/simulate`);
     expect(init?.method).toBe('POST');
+    // Request body must match C.2 SimulateRequest shape.
+    const body = JSON.parse(init?.body as string);
+    expect(body.tree_json).toEqual(treeJson);
+    expect(body.tick_limit).toBe(50);
+    expect(body.state).toEqual({
+      player_position: [0, 0],
+      npc_state: {},
+      time_of_day: 'noon',
+      max_ticks: 100,
+    });
+  });
+
+  it('simulateBtTree → default tick_limit is 100', async () => {
+    const treeJson = { version: '1.0.0', root: { id: 'r', type: 'sequence' } };
+    const fetchMock = mockFetchOnce(
+      new Response(
+        JSON.stringify({
+          status: 'success',
+          trace: [],
+          final_state: {},
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    await simulateBtTree(NPC, TREE, treeJson);
+    const [, init] = fetchMock.mock.calls[0] as unknown as FetchArgs;
+    const body = JSON.parse(init?.body as string);
+    expect(body.tick_limit).toBe(100);
+  });
+
+  it('simulateBtTree → throws on 4xx with detail envelope', async () => {
+    mockFetchOnce(
+      new Response(
+        JSON.stringify({ detail: { code: 'R_020', msg: 'sim error' } }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    await expect(
+      simulateBtTree(NPC, TREE, { version: '1.0.0', root: { id: 'r', type: 'sequence' } }),
+    ).rejects.toThrow(/R_020/);
   });
 });

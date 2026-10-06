@@ -155,4 +155,65 @@ describe('parseBtTreeToGraph', () => {
     } as unknown as BTJSON;
     expect(() => parseBtTreeToGraph(tree)).toThrow(/type/);
   });
+
+  it('treats SubTree as a leaf — no inlining + no recursion', () => {
+    // SubTree is documented as a leaf in the UI. The loader MUST NOT walk
+    // into the referenced subtree body, even when the body is present in
+    // `subtrees`. Without this guard a single SubTree reference would
+    // explode into N sub-units in the rendered graph.
+    const tree: BTJSON = {
+      version: '1.0.0',
+      root: {
+        id: 'r',
+        type: 'sequence',
+        children: [{ id: 'sub', type: 'subtree', ref: 'greet_inner' }],
+      },
+      subtrees: {
+        // An elaborate body that should NOT appear in the output graph.
+        greet_inner: {
+          id: 'greet_inner',
+          type: 'sequence',
+          children: [
+            { id: 'gi_a', type: 'action', action: 'say' },
+            { id: 'gi_b', type: 'condition', expression: 'x' },
+            { id: 'gi_c', type: 'decorator', decorator: 'Inverter', child: { id: 'gi_d', type: 'action', action: 'wait' } },
+          ],
+        },
+      },
+    };
+    const g = parseBtTreeToGraph(tree);
+
+    // SubTree is a leaf — only the SubTree node appears.
+    expect(g.nodes.map((n) => n.id).sort()).toEqual(['r', 'sub']);
+    // No edges originate from the SubTree node.
+    const subtreeOutgoing = g.edges.filter((e) => e.source === 'sub');
+    expect(subtreeOutgoing.length).toBe(0);
+    // Only one edge: parent sequence → SubTree.
+    expect(g.edges.length).toBe(1);
+    expect(g.edges[0]).toMatchObject({ source: 'r', target: 'sub' });
+  });
+
+  it('treats a deeply nested SubTree → SubTree as still a single leaf', () => {
+    // Regression: even when the body of a SubTree contains another SubTree,
+    // we do not walk any of them.
+    const tree: BTJSON = {
+      version: '1.0.0',
+      root: { id: 'sub1', type: 'subtree', ref: 'outer' },
+      subtrees: {
+        outer: {
+          id: 'outer',
+          type: 'sequence',
+          children: [{ id: 'sub2', type: 'subtree', ref: 'inner' }],
+        },
+        inner: {
+          id: 'inner',
+          type: 'sequence',
+          children: [{ id: 'a', type: 'action', action: 'say' }],
+        },
+      },
+    };
+    const g = parseBtTreeToGraph(tree);
+    expect(g.nodes.map((n) => n.id).sort()).toEqual(['sub1']);
+    expect(g.edges.length).toBe(0);
+  });
 });

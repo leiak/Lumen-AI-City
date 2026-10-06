@@ -13,6 +13,7 @@ import {
   type BTSimulateResponse,
 } from '@/lib/bt_api';
 import { parseBtTreeToGraph, type BTGraph, type BTJSON } from '@/lib/bt_loader';
+import { extractApiError } from '@/lib/extract_api_error';
 
 // Monaco is client-only — React Flow too. Dynamic imports avoid SSR cost.
 const BTGraph = dynamic(() => import('@/components/BTGraph'), { ssr: false });
@@ -33,7 +34,8 @@ interface Props {
   initialTreeName?: string | null;
 }
 
-type Toast = { kind: 'success' | 'error'; msg: string } | null;
+type ToastKind = 'success' | 'error' | 'warning';
+type Toast = { kind: ToastKind; msg: string } | null;
 
 export default function BtEditorClient({ initialNpcId, initialTreeName }: Props) {
   const [npcId, setNpcId] = useState(initialNpcId);
@@ -126,7 +128,7 @@ export default function BtEditorClient({ initialNpcId, initialTreeName }: Props)
   }, [treeJson]);
 
   // ---- Handlers ----
-  const showToast = useCallback((kind: 'success' | 'error', msg: string) => {
+  const showToast = useCallback((kind: ToastKind, msg: string) => {
     setToast({ kind, msg });
     window.setTimeout(() => setToast(null), 3000);
   }, []);
@@ -143,7 +145,7 @@ export default function BtEditorClient({ initialNpcId, initialTreeName }: Props)
       const list = await listBtTrees(npcId);
       setTrees(list);
     } catch (e) {
-      showToast('error', String(e));
+      showToast('error', extractApiError(e));
     } finally {
       setSaving(false);
     }
@@ -154,13 +156,11 @@ export default function BtEditorClient({ initialNpcId, initialTreeName }: Props)
     setSimulating(true);
     setError(null);
     try {
-      const result = await simulateBtTree(npcId, treeName, {
-        world_state: { player_pos: [0, 0] },
-      });
+      const result = await simulateBtTree(npcId, treeName, treeJson, 100);
       setTrace(result);
-      showToast('success', `模拟完成: ${result.final_status}`);
+      showToast('success', `模拟完成: ${result.status}`);
     } catch (e) {
-      showToast('error', String(e));
+      showToast('error', extractApiError(e));
     } finally {
       setSimulating(false);
     }
@@ -181,6 +181,13 @@ export default function BtEditorClient({ initialNpcId, initialTreeName }: Props)
     if (!selectedNodeId || !graph) return null;
     return graph.nodes.find((n) => n.id === selectedNodeId) ?? null;
   }, [selectedNodeId, graph]);
+
+  const toastClass =
+    toast?.kind === 'success'
+      ? 'bg-green-100 text-green-800'
+      : toast?.kind === 'warning'
+        ? 'bg-yellow-100 text-yellow-800'
+        : 'bg-red-100 text-red-800';
 
   return (
     <main className="min-h-screen p-6">
@@ -231,10 +238,9 @@ export default function BtEditorClient({ initialNpcId, initialTreeName }: Props)
 
       {toast && (
         <div
-          className={`fixed top-4 right-4 px-4 py-2 rounded shadow ${
-            toast.kind === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-          }`}
+          className={`fixed top-4 right-4 px-4 py-2 rounded shadow ${toastClass}`}
           data-testid="bt-toast"
+          data-kind={toast.kind}
         >
           {toast.msg}
         </div>
@@ -318,12 +324,11 @@ export default function BtEditorClient({ initialNpcId, initialTreeName }: Props)
           {trace && (
             <div>
               <h3 className="text-sm font-semibold">Trace log</h3>
-              <p className="text-xs text-gray-600">final: {trace.final_status}</p>
+              <p className="text-xs text-gray-600">final: {trace.status}</p>
               <ul className="text-xs mt-1 max-h-48 overflow-y-auto">
                 {trace.trace.map((t, i) => (
                   <li key={i} className="border-b py-1">
-                    #{t.tick} {t.node_id} → {t.status}
-                    {t.message ? ` (${t.message})` : ''}
+                    #{t.tick_count} {t.node_id} → {t.status}
                   </li>
                 ))}
               </ul>

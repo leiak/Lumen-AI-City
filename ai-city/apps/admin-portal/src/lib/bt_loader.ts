@@ -209,7 +209,9 @@ export function parseBtTreeToGraph(json: BTJSON): BTGraph {
   const nodes: BTNode[] = [];
   const edges: BTEdge[] = [];
   const seen = new Set<string>();
-  const subtreeIndex: Record<string, BTJSONNode> = { ...(json.subtrees ?? {}) };
+  // NOTE: we deliberately do NOT walk into `json.subtrees` — subtree nodes
+  // are leaves in the UI graph (see walk()). The map is accepted on input
+  // for shape compatibility with persisted JSON but is not indexed here.
 
   function walk(n: BTJSONNode, parentId: string | null): void {
     if (typeof n.id !== 'string' || n.id.length === 0) {
@@ -237,16 +239,10 @@ export function parseBtTreeToGraph(json: BTJSON): BTGraph {
       for (const c of children) walk(c, n.id);
     } else if (normType === 'decorator') {
       if (n.child) walk(n.child, n.id);
-    } else if (normType === 'subtree') {
-      // Inline subtree body if available in subtrees map (ref → body)
-      const ref = n.ref;
-      if (ref && subtreeIndex[ref]) {
-        const body = subtreeIndex[ref];
-        // rename inline body ids to avoid collision
-        const inlinedId = `${n.id}__body`;
-        walk({ ...body, id: inlinedId }, n.id);
-      }
     }
+    // subtree is intentionally a leaf in the UI graph — no inlining, no
+    // recursion. The runtime resolves it separately; if we walked it here
+    // we'd emit unbounded `${id}__body` nodes for nested subtrees.
     // action / condition / llm: no children
   }
 

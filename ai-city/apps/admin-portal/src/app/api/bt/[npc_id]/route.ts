@@ -1,6 +1,7 @@
 /** GET /api/bt/[npc_id] — proxy to bt-editor-api list endpoint. */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeName } from '@/lib/safe_name';
 
 const BACKEND = process.env.BT_EDITOR_API_URL ?? 'http://localhost:8090';
 
@@ -9,6 +10,14 @@ export async function GET(
   ctx: { params: Promise<{ npc_id: string }> },
 ): Promise<NextResponse> {
   const { npc_id } = await ctx.params;
+  try {
+    safeName(npc_id, 'npc_id');
+  } catch (e) {
+    return NextResponse.json(
+      { detail: { code: 'R_019', msg: String(e) } },
+      { status: 422 },
+    );
+  }
   const url = `${BACKEND}/api/v1/bt/${encodeURIComponent(npc_id)}`;
   try {
     const res = await fetch(url, { cache: 'no-store' });

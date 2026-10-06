@@ -2,6 +2,12 @@
  *
  *  Talks to the local Next.js API routes under `/api/bt/...` which in turn
  *  proxy to the upstream `bt-editor-api` FastAPI service.
+ *
+ *  Wire shapes match the C.2 GA contract (see apps/bt-editor-api/src/
+ *  bt_editor_api/schemas.py):
+ *    - POST /api/v1/bt/{npc_id}/{tree_name}        → SaveTreeRequest{tree_json}
+ *    - POST /api/v1/bt/{npc_id}/{tree_name}/simulate → SimulateRequest{tree_json, state, tick_limit}
+ *    - SimulateResponse{status, trace[node_id/status/tick_count], final_state}
  */
 
 import type { BTJSON } from './bt_loader';
@@ -23,24 +29,33 @@ export interface BTTreeFull {
   updated_at: string;
 }
 
+/** Single trace entry returned by the simulate endpoint (C.2 contract). */
 export interface BTSimulateTraceEntry {
-  tick: number;
   node_id: string;
   status: string;
-  message?: string;
+  tick_count: number;
 }
 
-export interface BTSimulateRequest {
-  world_state?: Record<string, unknown>;
-  /** optional stop condition forwarded to the backend */
+/** Optional inner state payload for /simulate — defaults match backend factory. */
+export interface BTSimulateState {
+  player_position?: [number, number];
+  npc_state?: Record<string, unknown>;
+  time_of_day?: string;
   max_ticks?: number;
 }
 
+/** Request body for /simulate (C.2 contract). */
+export interface BTSimulateRequest {
+  tree_json: BTJSON;
+  state?: BTSimulateState;
+  tick_limit?: number;
+}
+
+/** Response body for /simulate (C.2 contract). */
 export interface BTSimulateResponse {
-  npc_id: string;
-  name: string;
-  final_status: string;
+  status: string;        // "success" | "failure" | "running" | "error"
   trace: BTSimulateTraceEntry[];
+  final_state: Record<string, unknown>;
 }
 
 async function handle<T>(res: Response): Promise<T> {
@@ -76,8 +91,8 @@ export async function getBtTree(
 
 /** POST /api/bt/{npc_id}/{tree_name} — upsert a tree.
  *
- *  Body is the raw BTJSON document; the proxy (and bt-editor-api)
- *  unwrap it into the FastAPI `SaveTreeRequest` shape.
+ *  Body is wrapped as `{ tree_json: ... }` per C.2's SaveTreeRequest schema.
+ *  The proxy forwards it to bt-editor-api verbatim.
  */
 export async function saveBtTree(
   npcId: string,
@@ -89,25 +104,42 @@ export async function saveBtTree(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(treeJson),
+      body: JSON.stringify({ tree_json: treeJson }),
     },
   );
   return handle<BTTreeFull>(res);
 }
 
-/** POST /api/bt/{npc_id}/{tree_name}/simulate — dry-run tick with trace log. */
+/** POST /api/bt/{npc_id}/{tree_name}/simulate — dry-run tick with trace log.
+ *
+ *  Request/response shapes match C.2 SimulateRequest / SimulateResponse.
+ */
 export async function simulateBtTree(
   npcId: string,
   treeName: string,
-  payload: BTSimulateRequest,
+  treeJson: BTJSON,
+  tickLimit = 100,
 ): Promise<BTSimulateResponse> {
   const res = await fetch(
     `${BASE}/${encodeURIComponent(npcId)}/${encodeURIComponent(treeName)}/simulate`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        tree_json: treeJson,
+        state: {
+          player_position: [0, 0],
+          npc_state: {},
+          time_of_day: 'noon',
+          max_ticks: 100,
+        },
+        tick_limit: tickLimit,
+      }),
     },
   );
-  return handle<BTSimulateResponse>(res);
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(`simulate failed: ${res.status} ${JSON.stringify(detail)}`);
+  }
+  return res.json() as Promise<BTSimulateResponse>;
 }
