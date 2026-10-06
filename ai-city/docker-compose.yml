@@ -38,6 +38,8 @@ services:
       - ./db/seed/seed-admin.sql:/docker-entrypoint-initdb.d/06-seed-admin.sql:ro
       # Phase 3.0: Economy system — wallet + transaction + product + central_bank_ledger
       - ./packages/proto/pg-schema-3.0-economy.sql:/docker-entrypoint-initdb.d/07-economy.sql:ro
+      # Phase 3.0: demo / admin 钱包种子（1000 gold + 100 token，幂等）
+      - ./db/seed/seed-economy.sql:/docker-entrypoint-initdb.d/08-seed-economy.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U aicity']
       interval: 5s
