@@ -47,7 +47,11 @@ class CentralBankService:
             )
 
         # 反通胀公式: 高存量少发
-        ratio = max(0.0, min(1.0, 1.0 - total_gold / self.SINK_CAPACITY))
+        # PG 的 SUM(NUMERIC) 返回 decimal.Decimal；与 float 1.0 混合算术会抛
+        # ``TypeError: unsupported operand type(s) for -: 'float' and 'decimal.Decimal'``。
+        # 显式 cast 成 float 保证 ratio 是 0.0..1.0 的纯 Python 浮点。
+        total_gold_f = float(total_gold)
+        ratio = max(0.0, min(1.0, 1.0 - total_gold_f / self.SINK_CAPACITY))
         amount = int(self.BASE_PER_PLAYER * active_count * ratio)
         return amount, active_count
 

@@ -7,11 +7,13 @@ Validates the 3.0 economy v1 GA surface against the docker-compose stack:
   Step  2: A → B transfer 100 gold.
   Step  3: Verify A=9900 / B=10100 (after 100 moved, seed = 10000 each).
   Step  4: B buys NPC product (50 gold) → balance 10050 + stock-1.
-  Step  5: A buys expensive product → 402 / R_022 (insufficient).
+  Step  5: A buys cheap item + drain → 402 / R_022 (insufficient).
+             拆三步：先买糖葫芦留 ledger 痕迹，再 A→B 800 让余额 < 500，
+             再尝试古籍触发 R_022。
   Step  6: Transfer to self → 400 / R_023.
   Step  7: Same idempotency_key twice → 1 charge (tx_id stable).
   Step  8: Admin central-bank emit → active players +N.
-  Step  9: A transaction history ≥ 3 (transfer out + self-attempt + others).
+  Step  9: A transaction history ≥ 3 (step 2 OUT + step 5a 糖葫芦 + step 5b drain)。
   Step 10: BT action isolation on 5xx — npc_sell_to_player returns FAILURE.
 
 Exit code: 0 = 10/10 PASS, 1 = any step FAIL.
@@ -56,6 +58,11 @@ COMPOSE_PROJECT_DIR = os.environ.get(
 SEED_GOLD = 1000  # demo + admin seeded with 1000 gold each
 TRANSFER_AMOUNT = 100
 PRODUCT_PRICE = 50  # '招牌红烧肉' from wang_boss_001
+# 中央银行 scheduler 在 economy-service 启动后立刻发一轮 emit
+#（scheduler.py:24 循环前先 await emit），给近 24h 有 wallet 更新的玩家 +
+# BASE_PER_PLAYER*ratio。seed=1000 时实际起手余额 = 1000 + emit。
+# 不要硬编码：改成在 step 1 抓真实余额作为基线，传给后续 step 3 / 4 算 expect。
+STARTING_GOLD: dict[str, int] = {}  # {user_id: gold_balance_at_step1}
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +173,11 @@ def step1_register_two_players() -> tuple[str, str]:
     """Health check + return (alice_id, bob_id).
 
     alice = demo UUID, bob = admin UUID (seed-economy.sql).
+
+    同时把当前 gold_balance 写进全局 STARTING_GOLD，给 step 3 / step 4 算
+    expected baseline 用——不要硬编码 1000，因为中央银行 scheduler 在容器
+    启动后会立刻给「近 24h 有 wallet 更新的玩家」发一轮 emit，seed 起手余额
+    实际是 1000 + emit_per_player。
     """
     status, _ = _req("GET", "/health")
     if status != 200:
@@ -180,6 +192,12 @@ def step1_register_two_players() -> tuple[str, str]:
 
     if alice == bob or not alice or not bob:
         return "", ""
+
+    # Snapshot 真实起手余额（覆盖 STARTING_GOLD 全局，方便 step 3/4 算 expect）
+    for uid in (alice, bob):
+        _, body = _req("GET", f"/api/v1/wallet/{uid}")
+        STARTING_GOLD[uid] = int(body.get("gold_balance", 0))
+
     return alice, bob
 
 
@@ -207,11 +225,17 @@ def step2_transfer(alice: str, bob: str) -> bool:
 
 
 def step3_check_balances(alice: str, bob: str) -> bool:
-    """Expect alice=SEED_GOLD - TRANSFER_AMOUNT, bob=SEED_GOLD + TRANSFER_AMOUNT."""
+    """Expect alice=STARTING_GOLD - TRANSFER_AMOUNT, bob=STARTING_GOLD + TRANSFER_AMOUNT.
+
+    基线取自 step 1 抓到的实际 gold_balance，不写死 SEED_GOLD——scheduler
+    启动 emit 会让起手余额偏离 seed 值。
+    """
     _, a = _req("GET", f"/api/v1/wallet/{alice}")
     _, b = _req("GET", f"/api/v1/wallet/{bob}")
-    expect_a = SEED_GOLD - TRANSFER_AMOUNT  # 900
-    expect_b = SEED_GOLD + TRANSFER_AMOUNT  # 1100
+    base_a = STARTING_GOLD.get(alice, SEED_GOLD)
+    base_b = STARTING_GOLD.get(bob, SEED_GOLD)
+    expect_a = base_a - TRANSFER_AMOUNT
+    expect_b = base_b + TRANSFER_AMOUNT
     return (
         a.get("gold_balance") == expect_a
         and b.get("gold_balance") == expect_b
@@ -228,6 +252,8 @@ def step4_bob_buys_product(bob: str, product_id: int = 1) -> bool:
 
     Uses seed product ids (per db/seed/seed-economy.sql, the first INSERT
     row = 招牌红烧肉 with price_gold=50).
+
+    baseline 取 step 1 的 STARTING_GOLD[bob]，跟 step 3 同一逻辑。
     """
     status, body = _req("POST", "/api/v1/wallet/purchase", body={
         "user_id": bob,
@@ -238,8 +264,9 @@ def step4_bob_buys_product(bob: str, product_id: int = 1) -> bool:
     })
     if status != 200:
         return False
-    # bob: 1100 → 1050
-    return body.get("balance_after") == (SEED_GOLD + TRANSFER_AMOUNT - PRODUCT_PRICE)
+    base_b = STARTING_GOLD.get(bob, SEED_GOLD)
+    expect = base_b + TRANSFER_AMOUNT - PRODUCT_PRICE
+    return body.get("balance_after") == expect
 
 
 # ---------------------------------------------------------------------------
@@ -247,21 +274,51 @@ def step4_bob_buys_product(bob: str, product_id: int = 1) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def step5_alice_insufficient(alice: str, product_id: int = 5) -> bool:
-    """A buys product_id=5 (古籍 500 gold) — alice only has 900. 402 / R_022.
+def step5_alice_insufficient(alice: str, bob: str, product_id: int = 5) -> bool:
+    """A buys product_id=5 (古籍 500 gold) — must fail with 402 / R_022.
 
-    product_id=5 is '古籍' from npc_book_keeper_001 (500 gold), the cheapest
-    item alice (900 gold) cannot afford. product_id=1 招牌红烧肉 is 50 gold
-    which alice can still afford after step 2.
+    步骤 5 拆三步：(1) 买糖葫芦给 alice 留 ledger 痕迹（让 step 9 ≥3 通过）；
+    (2) 把 alice 余款「降到 < 500 即可」转给 bob（不是死写 800，保证 acceptance
+    可在已经被前次 run 污染的 DB 上仍跑通）；(3) 尝试买古籍触发 R_022。
+    之所以不能直接买古籍：seed 把 alice 设成 1000 gold，步骤 2 转 100 后
+    仍余 900，足以买 500 gold 的古籍——单独买会成功。任务描述允许
+    "transfer more gold out of Alice first"。
     """
-    status, body = _req("POST", "/api/v1/wallet/purchase", body={
+    # (1) alice 买糖葫芦（10 gold），写入 1 条 transaction
+    s1, _ = _req("POST", "/api/v1/wallet/purchase", body={
+        "user_id": alice,
+        "product_id": 4,
+        "currency": "gold",
+        "idempotency_key": f"acc-v1-s5a-{uuid.uuid4().hex[:12]}",
+        "trace_id": "acceptance_economy_v1 step 5a",
+    })
+    if s1 != 200:
+        return False
+    # (2) 把 alice 余款转给 bob，直到余额 < 500。
+    # 先查当前余额，cap 在 alice 现有 gold（避免 InsufficientBalance 二次失败）
+    _, bal_body = _req("GET", f"/api/v1/wallet/{alice}")
+    cur = int(bal_body.get("gold_balance", 0))
+    drain = max(0, cur - 499)  # 让余额最终 ≤ 499
+    if drain > 0:
+        s2, _ = _req("POST", "/api/v1/wallet/transfer", body={
+            "from_user_id": alice,
+            "to_user_id": bob,
+            "currency": "gold",
+            "amount": drain,
+            "idempotency_key": f"acc-v1-s5b-{uuid.uuid4().hex[:12]}",
+            "memo": "acceptance_economy_v1 step 5 drain",
+        })
+        if s2 != 200:
+            return False
+    # (3) 尝试买古籍 → 402 / R_022
+    s3, body = _req("POST", "/api/v1/wallet/purchase", body={
         "user_id": alice,
         "product_id": product_id,
         "currency": "gold",
-        "idempotency_key": f"acc-v1-s5-{uuid.uuid4().hex[:12]}",
-        "trace_id": "acceptance_economy_v1 step 5",
+        "idempotency_key": f"acc-v1-s5c-{uuid.uuid4().hex[:12]}",
+        "trace_id": "acceptance_economy_v1 step 5c",
     })
-    return status == 402 and body.get("detail", {}).get("code") == "R_022"
+    return s3 == 402 and body.get("detail", {}).get("code") == "R_022"
 
 
 # ---------------------------------------------------------------------------
@@ -338,11 +395,14 @@ def step8_central_bank_emit() -> bool:
 def step9_transaction_history(alice: str) -> bool:
     """GET /api/v1/transactions/{alice} → list with ≥ 3 entries.
 
-    After steps 2/6 alice has:
+    After steps 2/5 alice has:
       - 1× player_transfer OUT (step 2, -100)
-      - 1× failed self-transfer ATTEMPT — may or may not log to transaction
-        table (current implementation does NOT log on rollback, so we only
-        rely on step 2 + any other tx from earlier runs in the same DB).
+      - 1× npc_purchase (step 5a, 糖葫芦 -10)
+      - 1× player_transfer OUT (step 5b, -800, drain)
+      Total = 3 → passes ≥ 3.
+
+    步骤 6 (self-transfer) 和 step 5c (古籍 R_022) 都在事务内 raise，
+    rollback 后不写 transaction 表，所以不算。
     """
     status, body = _req("GET", f"/api/v1/transactions/{alice}")
     if status != 200:
@@ -446,7 +506,7 @@ def _run_steps() -> int:
         results.append(_check(2, "transfer A→B 100 gold", step2_transfer(alice, bob)))
         results.append(_check(3, "balances A=900 / B=1100", step3_check_balances(alice, bob)))
         results.append(_check(4, "B buys product → balance_after=1050", step4_bob_buys_product(bob)))
-        results.append(_check(5, "A insufficient → 402 / R_022", step5_alice_insufficient(alice)))
+        results.append(_check(5, "A insufficient → 402 / R_022", step5_alice_insufficient(alice, bob)))
         results.append(_check(6, "transfer self → 400 / R_023", step6_transfer_self(alice)))
         results.append(_check(7, "idempotent purchase → 1 charge", step7_idempotent_purchase(bob)))
 

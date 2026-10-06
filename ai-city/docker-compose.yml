@@ -282,6 +282,46 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # 3.0 阶段 1：经济系统（虚拟货币 / 结算 / 创作者分成）。
+  # FastAPI + lifespan 启中央银行 emit scheduler (apps/economy-service/src/economy_service/app.py:20)。
+  # 端口 8005（与 web/api-gateway/a2a/ws/agent-os 均无冲突）。
+  economy-service:
+    build:
+      context: .
+      dockerfile: apps/economy-service/Dockerfile
+    container_name: aicity-economy-service
+    ports:
+      - "8005:8005"
+    environment:
+      DATABASE_URL: postgresql://aicity:aicity_dev@postgres:5432/aicity
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # 与 api/v1/admin.py:12 默认值一致；admin 路由验签用 secrets.compare_digest
+      ADMIN_TOKEN: "${ADMIN_TOKEN:-dev-admin-token}"
+      # scheduler.py:12 默认 6 小时一轮中央银行 emit；env 可覆盖
+      EMIT_INTERVAL_HOURS: "${EMIT_INTERVAL_HOURS:-6}"
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      # wallet/product/transaction 表依赖 PG schema-07 + seed-economy.sql 已生效
+      postgres:
+        condition: service_healthy
+      # redis_client.py:8 启动即 PING；wallet/purchase 都走 redis 缓存余额
+      redis:
+        condition: service_healthy
+      # Kafka producer 启动 best-effort（kafka_producer.py:60 失败不致命），
+      # 用 service_started 即可——和 saga-orchestrator 一致。
+      kafka:
+        condition: service_started
+    healthcheck:
+      # /health 不依赖 PG/Redis 真实活着（app.py:43 仅返 {"status":"ok"}）；
+      # 与 agent-os 同款 wget 调用，保证 economy-service 进程在 listen。
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8005/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
   # 2.0 阶段 1：向量数据库（memory-service long-term recall 用）。
   # standalone 模式 = Milvus 主 + 独立 etcd（meta）+ 独立 minio（blob）。
   # ADR-0007 锁定 Milvus 2.4；端口 19530（gRPC）/ 9091（metrics+health）。
