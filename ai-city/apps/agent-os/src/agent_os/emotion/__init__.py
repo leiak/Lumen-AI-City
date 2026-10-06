@@ -1,0 +1,1 @@
+"""Emotion persistence: aggregation + repository + prompt injection."""
