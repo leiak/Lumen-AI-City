@@ -13,7 +13,10 @@ class CentralBankService:
         self.pool = pool
 
     async def compute_emit(self) -> tuple[int, int]:
-        """Returns (amount_per_player, active_player_count)."""
+        """Returns (total_amount_to_distribute, active_player_count).
+
+        Per-player amount = total_amount // active_count (computed in emit()).
+        """
         async with self.pool.acquire() as conn:
             active_count = await conn.fetchval(
                 "SELECT COUNT(DISTINCT user_id) FROM wallet "
@@ -25,6 +28,7 @@ class CentralBankService:
                 "SELECT COALESCE(SUM(gold_balance), 0) FROM wallet",
             )
 
+        # 反通胀公式: 高存量少发
         ratio = max(0.0, min(1.0, 1.0 - total_gold / self.SINK_CAPACITY))
         amount = int(self.BASE_PER_PLAYER * active_count * ratio)
         return amount, active_count
