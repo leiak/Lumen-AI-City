@@ -41,6 +41,7 @@ import (
 	"time"
 
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
+	"github.com/redis/go-redis/v9"
 )
 
 // 默认超时。
@@ -207,6 +208,79 @@ func (r *RedisSubscriber) Subscribe(ctx context.Context, channel string) (<-chan
 
 // Close 关闭底层（Redis 客户端通常在 main 进程生命周期管理，此处 no-op）。
 func (r *RedisSubscriber) Close() error { return nil }
+
+// RealSubscriber 是 Subscriber 的生产实现 —— 直接包 *redis.Client（B1-T06 followup）。
+//
+//   - 与 RedisSubscriber 的区别：RedisSubscriber 用 RedisClient 接口 shim 避开
+//     直接 import；本类型为生产环境推荐实现，main.go 直接构造 *redis.Client 后
+//     注入，pub/sub 行为与 interface shim 等价但更直观。
+//   - Subscribe 内部调 sub.Receive(ctx) 等订阅确认（避免首 Publish race）；
+//     返回的 payload chan 在以下条件之一关闭：
+//     1) ctx 取消；
+//     2) 底层 *redis.PubSub.Channel() 关闭（连接断开 / Close()）。
+//   - cancel() 必须由调用方在读完 chan 后调用（释放 redis.PubSub）。
+//
+// 与 NoopSubscriber 并存（保留用于 11 个 forwarder 单测的 fakeSub 路径）。
+type RealSubscriber struct {
+	Client *redis.Client
+}
+
+// NewRealSubscriber 构造生产 subscriber。
+func NewRealSubscriber(c *redis.Client) *RealSubscriber {
+	return &RealSubscriber{Client: c}
+}
+
+// Subscribe 订阅 Redis 频道，返回 payload chan + cancel func。
+//
+//   - 入参 ctx 用于控制 Receive 阻塞超时 + pump goroutine 生命周期。
+//   - 出参 payload chan (buffered=16)：收到的 message.Payload；EOF/ctx 取消时关闭。
+//   - 出参 cancel func：关闭 *redis.PubSub 并把底层 channel 排干（幂等）。
+func (r *RealSubscriber) Subscribe(ctx context.Context, channel string) (<-chan string, func(), error) {
+	if r == nil || r.Client == nil {
+		return nil, nil, errors.New("crosscity: RealSubscriber: nil redis client")
+	}
+	if channel == "" {
+		return nil, nil, errors.New("crosscity: RealSubscriber: empty channel")
+	}
+	sub := r.Client.Subscribe(ctx, channel)
+	// 必须等 Subscribe 确认（go-redis 文档明确要求）—— 否则首个 Publish 可能 race 丢失。
+	if _, err := sub.Receive(ctx); err != nil {
+		_ = sub.Close()
+		return nil, nil, fmt.Errorf("crosscity: redis subscribe %s: %w", channel, err)
+	}
+	out := make(chan string, 16)
+	cancel := func() {
+		_ = sub.Close()
+		// Drain remaining messages into a discard loop（避免 sub.Channel goroutine 泄漏）。
+		go func() {
+			for range sub.Channel() {
+			}
+		}()
+	}
+	go func() {
+		defer close(out)
+		ch := sub.Channel()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg, ok := <-ch:
+				if !ok {
+					return
+				}
+				select {
+				case out <- msg.Payload:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return out, cancel, nil
+}
+
+// Close 关闭底层（Redis 客户端通常在 main 进程生命周期管理，此处 no-op）。
+func (r *RealSubscriber) Close() error { return nil }
 
 // SayStreamForward 满足 httpgw.SayStreamClient 接口（T04 契约）。
 //

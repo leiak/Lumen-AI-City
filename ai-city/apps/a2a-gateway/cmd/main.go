@@ -17,6 +17,8 @@
 //   A2A_INBOX_TTL_HOURS              inbox 行 TTL 小时数，默认 168（7 天）；0 = 用 PG DEFAULT 兜底
 //   A2A_INBOX_CLEANUP_INTERVAL_SEC   cleanup cron 间隔秒数，默认 300；0 = 禁用
 //   A2A_ROUTING_TABLE                跨城 NPC 路由表 yaml 路径，默认 data/a2a-routing-table.yaml
+//   BCITY_AGENT_OS_URL               B 城 agent-os 触发地址，默认 http://b-city:8081
+//   REDIS_URL                        Redis 连接串（跨城 SayStream 订阅频道），默认 redis://redis:6379/0
 //   DATABASE_URL                     PG 连接串（默认 postgresql://aicity:aicity_dev@localhost:5432/aicity）
 package main
 
@@ -40,6 +42,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 )
 
@@ -106,13 +109,24 @@ func main() {
 
 	// B1-T06：跨城 SayStreamForwarder（A 城 a2a-gateway → B 城 agent-os）。
 	//
-	// Subscriber 当前用 NoopSubscriber 占位 —— 真实部署需注入 *crosscity.RedisSubscriber
-	// （包 github.com/redis/go-redis/v9 的 *redis.Client）。此处不直接 import
-	// go-redis 是为了避免 a2a-gateway go.mod 增加新 dep；后续接入 REDIS_ADDR 后替换。
+	// B1-T06 followup：注入 *crosscity.RealSubscriber（直包 *redis.Client）。
+	// Redis URL 走 REDIS_URL env（与 api-gateway/ws-gateway 同步：默认 redis://redis:6379/0）。
+	redisURL := getEnv("REDIS_URL", "redis://redis:6379/0")
+	redisOpt, redisErr := redis.ParseURL(redisURL)
+	if redisErr != nil {
+		log.Fatalf("redis url parse %s: %v", redisURL, redisErr)
+	}
+	redisClient := redis.NewClient(redisOpt)
+	defer redisClient.Close()
+	if err := redisClient.Ping(bootCtx).Err(); err != nil {
+		log.Fatalf("redis ping %s: %v", redisURL, err)
+	}
+	log.Printf("a2a-gateway: redis connected (url=%s)", redisURL)
+
 	bCityURL := getEnv("BCITY_AGENT_OS_URL", "http://b-city:8081")
 	bCityClient := crosscity.NewBCityClient(bCityURL)
-	forwarder := crosscity.NewForwarder(bCityClient, &crosscity.NoopSubscriber{}, mirrorStore)
-	log.Printf("a2a-gateway: Forwarder wired (b_city=%s subscriber=noop until Redis wired)", bCityURL)
+	forwarder := crosscity.NewForwarder(bCityClient, crosscity.NewRealSubscriber(redisClient), mirrorStore)
+	log.Printf("a2a-gateway: Forwarder wired (b_city=%s subscriber=real channel=%s)", bCityURL, forwarder.Channel)
 
 	// gRPC server
 	grpcLis, err := net.Listen("tcp", grpcAddr)
@@ -131,7 +145,7 @@ func main() {
 	httpHandler.Engine().POST("/v1/cross_city/talk/:npc_id", handlers.CrossCityTalkHandler(router.GlobalTable))
 
 	// B1-T06：挂载 POST /v1/federation/say_stream（B1 跨城流式入口）。
-	// forwarder 当前用 NoopSubscriber —— Redis 接入后会替换。
+	// forwarder 当前接 RealSubscriber —— Redis 链路打通，SSE endpoint 真实可用。
 	httpHandler.Engine().POST("/v1/federation/say_stream", gin.WrapH(&httpgw.SayStreamHandler{
 		APIKey: apiKey,
 		Client: forwarder,

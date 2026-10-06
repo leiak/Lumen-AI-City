@@ -20,7 +20,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
+	"github.com/redis/go-redis/v9"
 )
 
 // fakeSub 最小 Subscriber impl：把 payloads 列表预填入 chan 后关闭。
@@ -512,4 +514,68 @@ func newTriggerStub(t *testing.T) *httptest.Server {
 			f.Flush()
 		}
 	}))
+}
+
+// --- B1-T06 followup: RealSubscriber smoke ---
+
+// TestRealSubscriberSmoke 验 RealSubscriber 能从 Redis pub/sub 拉消息。
+//
+//   - 用 miniredis 替代真 Redis（已为 indirect dep）。
+//   - Subscribe 确认后 Publish → 断言 payload 正确转发到 out chan。
+//   - cleanup() 幂等：调用两次不会 panic（cancel goroutine 仅消费剩余消息）。
+func TestRealSubscriberSmoke(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+
+	rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rc.Close()
+
+	rs := NewRealSubscriber(rc)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	out, cleanup, err := rs.Subscribe(ctx, "test-channel")
+	if err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+	// cleanup 幂等性：第二次调用必须不 panic。
+	defer func() {
+		cleanup()
+		cleanup()
+	}()
+
+	// Publish via the same miniredis instance.
+	mr.Publish("test-channel", "hello")
+
+	select {
+	case msg := <-out:
+		if msg != "hello" {
+			t.Fatalf("got payload %q, want %q", msg, "hello")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for message")
+	}
+}
+
+// TestRealSubscriberNilClient 兜底 —— nil *redis.Client 必须返错而不是 panic。
+func TestRealSubscriberNilClient(t *testing.T) {
+	rs := &RealSubscriber{Client: nil}
+	ctx := context.Background()
+	_, _, err := rs.Subscribe(ctx, "x")
+	if err == nil {
+		t.Fatal("expected error for nil client")
+	}
+}
+
+// TestRealSubscriberEmptyChannel 兜底 —— 空 channel 名必须返错。
+func TestRealSubscriberEmptyChannel(t *testing.T) {
+	mr := miniredis.RunT(t)
+	defer mr.Close()
+	rc := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rc.Close()
+	rs := NewRealSubscriber(rc)
+	_, _, err := rs.Subscribe(context.Background(), "")
+	if err == nil {
+		t.Fatal("expected error for empty channel")
+	}
 }
