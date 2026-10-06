@@ -34,13 +34,34 @@ def test_no_baseline_returns_no_section():
 
 
 def test_baseline_empty_distribution_returns_no_section():
-    """baseline_distribution with total_rows=0 → no section rendered."""
+    """baseline_distribution with empty weights → no section rendered."""
     empty = EmotionDistribution(weights={}, raw_counts={}, total_rows=0)
     prompt = get_npc_stream_prompt(
         "npc_wang_boss_001", "你好", [],
         baseline_distribution=empty,
     )
     assert "【人格基线情绪" not in prompt
+
+
+def test_baseline_with_total_rows_zero_but_weights_renders():
+    """REGRESSION: total_rows=0 + populated weights → section must render.
+
+    This is the production scenario: ocean_to_emotion_baseline() always returns
+    total_rows=0 (baseline ≠ history rows). The renderer must check `weights`
+    not `total_rows` to suppress OCEAN injections.
+    """
+    baseline = EmotionDistribution(
+        weights={"happy": 0.20, "neutral": 0.30},
+        raw_counts={},
+        total_rows=0,  # key: this is what production sends
+    )
+    prompt = get_npc_stream_prompt(
+        "npc_wang_boss_001", "你好", [],
+        baseline_distribution=baseline,
+    )
+    assert "【人格基线情绪" in prompt, (
+        "production OCEAN baseline has total_rows=0 — must still render section"
+    )
 
 
 def test_baseline_with_weights_renders_section():

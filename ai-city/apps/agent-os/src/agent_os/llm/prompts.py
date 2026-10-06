@@ -169,10 +169,16 @@ def _render_baseline_section(
 ) -> str:
     """Render A.4 【人格基线情绪】 section. Empty string if no baseline.
 
-    Caller passes None or EmotionDistribution with total_rows=0 → returns "".
-    Pre-A.4 callers (no baseline kwarg) get byte-identical prompt.
+    Caller passes:
+    - None → "" (no injection, pre-A.4 shape preserved)
+    - EmotionDistribution with empty weights → "" (no baseline configured)
+    - EmotionDistribution with populated weights → render 【人格基线情绪】
+
+    Note: OCEAN-derived baselines always have total_rows=0 (baseline ≠ history),
+    so we test `not baseline.weights` instead of `total_rows == 0` (which would
+    erroneously suppress all OCEAN-driven injections).
     """
-    if baseline is None or baseline.total_rows == 0:
+    if baseline is None or not baseline.weights:
         return ""
     # Reuse format_distribution_for_prompt for style consistency
     from agent_os.emotion.aggregate import format_distribution_for_prompt
