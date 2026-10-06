@@ -55,6 +55,12 @@
 > - 新 env var `OCEAN_BIAS_ENABLED`（kill switch，default true）；`false` 时 prompt byte-identical pre-A
 > - 7 commits（722960f + 53cee2c + 51d9aa9 + ca99519 + 4f190bf + 287397c）GA
 > - ✅ `acceptance_emotion_v1` binary：6/6 步骤通过
+>
+> ## 🎭 2.0 阶段 3 / Phase B — Saga DSL React Flow 只读可视化 已 GA
+>
+> - admin-portal `/saga-viz` 路由；JS-yaml 解析 + React Flow + dagre 自动布局；forward 绿 / compensation 橙
+> - dropdown 切换 saga 脚本 + 元数据面板（节点数 / forward / compensation count）
+> - 1 Playwright E2E smoke（mock API）+ 12 vitest 单测；3 commits GA（a330953 + 6b97dfd + B.3）
 
 ---
 

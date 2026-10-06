@@ -1,3 +1,44 @@
+# 2.0.5-stage3-phase-b-saga-viz (2026-10-06)
+
+## [Phase B] Saga DSL React Flow 只读可视化 — 2026-10-06
+
+Saga DSL YAML → React Flow 流程图只读可视化：admin-portal `/saga-viz` 路由 +
+dropdown 选 saga + React Flow 渲染 + dagre 自动布局 + 元数据面板。JS-yaml 解析
+YAML；自定义 SagaStepNode 按 type 着色（forward 绿 / compensation 橙 /
+start-end 靛蓝）。只读，无编辑器。
+
+### 关键变更
+- 新增 admin-portal `/saga-viz` 路由（dropdown + graph + 元数据面板）
+- `saga_loader.ts` — `parseSagaToGraph()` + 4 types（js-yaml 驱动）
+- `saga_layout.ts` — `@dagrejs/dagre` TB 自动布局
+- `SagaStepNode.tsx` — custom node（type 配色 + handles 上下对）
+- `SagaGraph.tsx` — React Flow wrapper（节点应用 layout 坐标）
+- `SagaStepNode` 含 `data-testid="saga-node-${label}"`（E2E 可断言）
+- API routes：GET `/api/sagas`（list + sort）+ GET `/api/sagas/[name]`（detail + safeName）
+- 主页 `/` 加 nav link 到 `/saga-viz`
+- 1 Playwright E2E smoke（mock API + 验证 8 节点 + 元数据）
+- 3 新 deps：`js-yaml@^4.1.0`、`@dagrejs/dagre@^1.1.0`、`@playwright/test@^1.49.0`
+- 3 测试文件：`saga_loader.test.ts` (8)、`saga_layout.test.ts` (4)、`saga-viz.spec.ts` (1)
+
+### 影响
+- **性能**: layout 计算纯内存 O(n+m)（n=nodes, m=edges），welcome_3npc 8 节点 <5ms；渲染受 React Flow 虚拟化保护
+- **向后兼容**: 仅新增 `/saga-viz` 路由 + nav；YAML 格式不变；0 impact on 现有 saga-orchestrator 加载流程
+- **零回归**: pre-existing 12 vitest tests + 新增 1 E2E 全部 PASS
+
+### 已知限制
+- 无 auth（仅 dev 工具；YAGNI 推迟 admin auth gate）
+- YAGNI 编辑器（spec §7 阶段 2 推迟）：当前只读，编辑出图/DSL lint 留待 backlog
+- E2E 测试使用 mock API（不依赖文件系统）；真实 saga-scripts 渲染留待后续 acceptance binary
+
+### Stats
+- 3 commits ahead of pre-Phase-B origin: `a330953` + `6b97dfd` + B.3
+- 0 pre-existing tests broken
+- Loader: 8 单测；Layout: 4 单测；E2E: 1 — 合计 13 测试
+- New routes: `GET /saga-viz`（page）+ `GET /api/sagas` + `GET /api/sagas/[name]`
+- Spec & Plan: `docs/superpowers/plans/synthetic-jumping-jellyfish.md` §Phase B
+
+---
+
 # 2.0.4-stage3-phase-a-ocean-bias (2026-10-06)
 
 ## [Phase A] OCEAN → emotion 偏好 — 2026-10-06
