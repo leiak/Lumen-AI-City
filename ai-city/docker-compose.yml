@@ -36,6 +36,8 @@ services:
       - ./packages/proto/pg-schema-2.0-bt-auth.sql:/docker-entrypoint-initdb.d/05-bt-auth.sql:ro
       # Phase C.4：admin / adminpass seed（依赖 05 的 role 列）
       - ./db/seed/seed-admin.sql:/docker-entrypoint-initdb.d/06-seed-admin.sql:ro
+      # Phase 3.0: Economy system — wallet + transaction + product + central_bank_ledger
+      - ./packages/proto/pg-schema-3.0-economy.sql:/docker-entrypoint-initdb.d/07-economy.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U aicity']
       interval: 5s
