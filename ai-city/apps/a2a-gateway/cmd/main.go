@@ -37,6 +37,7 @@ import (
 	"github.com/aicity/a2a-gateway/internal/handlers"
 	"github.com/aicity/a2a-gateway/internal/httpgw"
 	"github.com/aicity/a2a-gateway/internal/router"
+	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
 	"google.golang.org/grpc"
@@ -103,6 +104,16 @@ func main() {
 	svc.SetMirrorStore(mirrorStore)
 	log.Printf("a2a-gateway: MirrorStore wired (ttl=60m)")
 
+	// B1-T06：跨城 SayStreamForwarder（A 城 a2a-gateway → B 城 agent-os）。
+	//
+	// Subscriber 当前用 NoopSubscriber 占位 —— 真实部署需注入 *crosscity.RedisSubscriber
+	// （包 github.com/redis/go-redis/v9 的 *redis.Client）。此处不直接 import
+	// go-redis 是为了避免 a2a-gateway go.mod 增加新 dep；后续接入 REDIS_ADDR 后替换。
+	bCityURL := getEnv("BCITY_AGENT_OS_URL", "http://b-city:8081")
+	bCityClient := crosscity.NewBCityClient(bCityURL)
+	forwarder := crosscity.NewForwarder(bCityClient, &crosscity.NoopSubscriber{}, mirrorStore)
+	log.Printf("a2a-gateway: Forwarder wired (b_city=%s subscriber=noop until Redis wired)", bCityURL)
+
 	// gRPC server
 	grpcLis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
@@ -118,6 +129,13 @@ func main() {
 	// 直接挂到 httpgw 暴露的 gin.Engine 上，与其它路由共用中间件链（trace_id /
 	// recovery / logging / 可选 Bearer auth）。
 	httpHandler.Engine().POST("/v1/cross_city/talk/:npc_id", handlers.CrossCityTalkHandler(router.GlobalTable))
+
+	// B1-T06：挂载 POST /v1/federation/say_stream（B1 跨城流式入口）。
+	// forwarder 当前用 NoopSubscriber —— Redis 接入后会替换。
+	httpHandler.Engine().POST("/v1/federation/say_stream", gin.WrapH(&httpgw.SayStreamHandler{
+		APIKey: apiKey,
+		Client: forwarder,
+	}))
 	httpSrv := &http.Server{
 		Addr:              httpAddr,
 		Handler:           httpHandler.Handler(),
