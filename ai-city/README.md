@@ -39,6 +39,14 @@
 > - 跨城 buffer replay endpoint（重连补帧，60min TTL）
 > - 📐 设计：[`docs/superpowers/specs/2026-10-06-2.0-stage3-cross-city-stream-design.md`](docs/superpowers/specs/2026-10-06-2.0-stage3-cross-city-stream-design.md)
 > - ✅ `acceptance_2_2` binary：5/5 步骤通过
+>
+> ## 🎭 2.0 阶段 3 / B2 — Emotion 持久化 已 GA
+>
+> - NPC 对话现在带**情绪惯性**：per-player×NPC（τ=2h 快衰）+ per-NPC-global（τ=24h 慢衰）指数衰减
+> - emotion 标签写入 `memory_player_session.emotion`；下一回合 system prompt 注入 `【最近情绪氛围】`（带加权百分比）
+> - 5 env vars 含 `EMOTION_INJECT_ENABLED` kill switch；best-effort 写不阻塞流
+> - 📐 设计：[`docs/superpowers/specs/2026-10-06-2.0-emotion-persistence-design.md`](docs/superpowers/specs/2026-10-06-2.0-emotion-persistence-design.md)
+> - ✅ `acceptance_emotion_v0` binary：6/6 步骤通过
 
 ---
 

@@ -1,3 +1,68 @@
+# 2.0.3-stage3-b2-emotion-persistence (2026-10-06)
+
+## [B2] Emotion 持久化 — 2026-10-06
+
+### Highlights
+- **Emotion 持久化 + 衰减聚合**：阶段 2 的 8 类 emotion 标签现在写入 PG；agent-os 下一回合拉历史 → Python 端指数衰减 → 注入 `【最近情绪氛围】` 进 system prompt
+- 玩家↔NPC 对话有**情绪惯性**：per-player×NPC（τ=2h 快衰）+ per-NPC-global（τ=24h 慢衰）
+- 5 新 env vars 含 1 个 kill switch；新 acceptance binary 6 步 E2E
+
+### Added
+
+- **DB Migration** `db/migrations/pg-schema-2.0-emotion.sql` — `memory_player_session` 表新增 `emotion TEXT` 列 + 复合索引 `(npc_id, player_id, created_at DESC, emotion)`
+- **`agent_os.emotion.aggregate`** — 纯数学模块，`exp_decay_weight(age_seconds, tau_seconds)` + `aggregate_distribution(rows, tau, now)`（12 单测覆盖空 / 单行 / 全部同时间 / 跨 τ 边界）
+- **`agent_os.emotion.repository`** — asyncpg 包装，两个查询：
+    - `fetch_player_distribution(npc_id, player_id, limit, now)`（per-player×NPC 近期）
+    - `fetch_global_distribution(npc_id, limit, now)`（per-NPC-global）
+  （5 单测覆盖 timeout / empty / happy path）
+- **`agent_os.emotion.settings`** — env-driven dataclass，5 个 env vars，校验 fail-loud（6 单测）
+- **`agent_os.memory.writer.write_emotions`** — best-effort 批量写 emotion 行（3 单测）
+- **`agent_os.llm.prompts.get_npc_stream_prompt`** — 新增 `recent_distribution` + `global_distribution` kwargs（Optional[Dict[str, float]]），未传 / 关闭时不渲染（向后兼容）；传入时渲染 `【最近情绪氛围】` 段（5 单测）
+- **App wiring** `agent_os.app` lifespan — 启动期实例化 `EmotionRepository`（共享 pool），注入到 dispatcher
+- **Dispatcher** `agent_os.dispatcher.say_stream` — 注入开启时（`EMOTION_INJECT_ENABLED=true`）在 prompt build 前拉分布；fetch 失败 fallback 不注入（不抛）；mark_done 后调用 `write_emotions` 持久化（best-effort）
+- **Acceptance** `scripts/acceptance_emotion_v0.py` — 6 步 E2E binary（mocked unit tests，8 测试）：schema check / aggregate pure math / repository mock / settings env parse / writer mock / dispatcher hook
+
+### Env vars (5 new)
+
+| Env var | Default | Purpose |
+|---------|---------|---------|
+| `EMOTION_TAU_PLAYER_SECONDS` | 7200 (2h) | Per-player×NPC 衰减 τ |
+| `EMOTION_TAU_GLOBAL_SECONDS` | 86400 (24h) | Per-NPC-global 衰减 τ |
+| `EMOTION_PLAYER_LIMIT` | 50 | Per-player 扫描行数上限 |
+| `EMOTION_GLOBAL_LIMIT` | 100 | 全局扫描行数上限 |
+| `EMOTION_INJECT_ENABLED` | true | Kill switch（false = 跳过聚合 + 注入） |
+
+### Fixed
+
+- **asyncpg 缺失**：B2-T03 follow-up 把 `asyncpg>=0.30` 加到 `agent-os` 的 `pyproject.toml` 依赖（`fb8ca64` commit）
+
+### Performance
+
+- **Best-effort 持久化**：emotion 写入不阻塞 LLM 流；fetch 失败 fallback 为 no-injection 而非 raise
+- **指数衰减数学**：O(n) over n=扫描行数（n≤100），每次 stream 帧调用一次，两次 SQL 查询（player + global）已加 timeout
+- **共享 pool**：`EmotionRepository` 复用 lifespan 启动期建的 asyncpg pool（不开新连接）
+
+### 范围外（YAGNI）
+
+- OCEAN personality → emotion 偏好概率（backlog，独立 sub-spec）
+- emotion 历史写入 Milvus 向量库（当前仅 PG 行级）
+- emotion 跨城联邦转发（emotion 仍仅本城）
+- emotion 时间窗 UI 可视化（admin / player 都看不到）
+
+### Stats
+
+- 16 commits ahead of pre-B2 origin
+- 0 pre-existing tests broken
+- Aggregate: 12 单测；Repository: 5；Settings: 6；Writer: 3；Prompts: 5；Wiring: 9；Dispatcher hook: 6；Acceptance: 8 — 合计 54 个 B2 测试
+- Acceptance binary: `apps/agent-os/scripts/acceptance_emotion_v0.py`
+
+### Spec & Plan
+
+- spec: `docs/superpowers/specs/2026-10-06-2.0-emotion-persistence-design.md`
+- plan: `docs/superpowers/plans/2026-10-06-2.0-emotion-persistence.md`
+
+---
+
 # 2.0.2-stage3-b1-cross-city-stream (2026-10-06)
 
 ## [B1] 跨城 NPC 流式 — 2026-10-06
