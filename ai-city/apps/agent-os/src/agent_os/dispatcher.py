@@ -73,6 +73,7 @@ class ActionDispatcher:
         memory_writer=None,
         emotion_repo=None,
         emotion_settings=None,
+        npc_registry=None,  # A.4: NpcRegistry for OCEAN baseline lookup
     ):
         self.llm_client = llm_client  # Phase 2: LiteLLM client
         self.chat_rule = chat_rule or ChatTurnRule(max_turns=6)
@@ -84,6 +85,10 @@ class ActionDispatcher:
         # injection. None = no injection (pre-B2 behavior).
         self.emotion_repo = emotion_repo
         self.emotion_settings = emotion_settings
+        # A.4: optional NpcRegistry for OCEAN baseline lookup at prompt build time.
+        # None = no baseline injection (pre-A.4 behavior). The kill switch
+        # OCEAN_BIAS_ENABLED (EmotionSettings.ocean_bias_enabled) also gates this.
+        self.npc_registry = npc_registry
         # B2: per-session emotion collection (reset at start of say_stream)
         self._emotions_emitted: list[str] = []
 
@@ -267,12 +272,36 @@ class ActionDispatcher:
                 type(self.emotion_repo).__name__,
             )
 
+        # A.4: fetch OCEAN baseline from registry (best-effort). Failure → log warning
+        # + fall back to None (no-baseline prompt shape). Respects
+        # OCEAN_BIAS_ENABLED kill switch.
+        baseline_dist = None
+        ocean_bias_enabled = bool(
+            self.emotion_settings and self.emotion_settings.ocean_bias_enabled,
+        )
+        if ocean_bias_enabled and self.npc_registry is not None:
+            try:
+                npc_template = self.npc_registry.get(npc_id)
+                baseline_dist = npc_template.baseline_emotion_distribution
+            except (KeyError, ValueError) as e:  # unknown npc_id or bad YAML
+                _logger.warning(
+                    "OCEAN baseline fetch failed (npc=%s session=%s): %s "
+                    "— falling back to no-baseline",
+                    npc_id, store_sid, e,
+                )
+            except Exception as e:  # noqa: BLE001 — best-effort
+                _logger.warning(
+                    "OCEAN baseline unexpected error (npc=%s session=%s): %s",
+                    npc_id, store_sid, e,
+                )
+
         prompt = get_npc_stream_prompt(
             npc_id,
             player_input,
             npc_context,
             recent_distribution=recent_dist,
             global_distribution=global_dist,
+            baseline_distribution=baseline_dist,  # A.4
         )
         req = LLMRequest(prompt=prompt, model=model, max_tokens=max_tokens)
 

@@ -62,7 +62,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     dispatcher = ActionDispatcher(redis_pub, channel=cfg.redis_channel_npc_dialogue)
     # B2-T08: 2.0 stream dispatcher（与 1.0 dispatcher 共存；后者用于 SayScheduler
     # / WelcomeEngine 的 say() 协议，前者用于 future REST /v1/npc/say_stream 入口）
-    stream_dispatcher = StreamDispatcher()
+    stream_dispatcher = StreamDispatcher(npc_registry=registry)  # A.4: OCEAN baseline lookup
     session_store = SessionStore()  # stage 3 = 重连补帧 60min TTL 内存 store
     listener = PlayerListener()
     scheduler = SayScheduler(
