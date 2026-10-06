@@ -1,3 +1,58 @@
+# 2.0.6-stage3-phase-c-bt-editor-admin-auth (2026-10-06)
+
+## [Phase C] BT 编辑器 + admin auth — 2026-10-06
+
+3-piece set 最后一块落子：BT 编辑器运行时 + 后端 + UI + admin 鉴权。
+3-phase backlog (OCEAN→emotion / Saga viz / BT editor) 全部关闭。
+
+### C.4 — admin auth（新增）
+- **PG migration** `packages/proto/pg-schema-2.0-bt-auth.sql`：`ALTER TABLE player ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'player'` + 部分索引 + `CREATE EXTENSION IF NOT EXISTS pgcrypto`。Mount slot 05（idempotent）。
+- **Seed** `db/seed/seed-admin.sql`：bcrypt(`adminpass`, gen_salt('bf')) + role='admin'；ON CONFLICT 更新密码。Mount slot 06。
+- **`auth.ts`**：手写 HS256 JWT（仅 `node:crypto`，无新依赖）— `signToken` / `decodeToken`（alg pinning 拒 `alg=none`、timing-safe HMAC、30s clock skew、role 白名单）；导出 `COOKIE_NAME='aicity_token'` + `SESSION_MAX_AGE_SEC=7d`。
+- **`middleware.ts`**：Edge runtime 守卫 `/bt-editor/:path*` + `/api/bt/:path*`；无 cookie → API 401 JSON `{detail:{code:'R_401'}}` / UI 303 → `/login?next=…`。
+- **`/login` 页** + **`/api/auth/login`**（JSON + form 双模）+ **`/api/auth/logout`**；默认 `admin/adminpass`，env `ADMIN_USERNAME`/`ADMIN_PASSWORD` 覆盖；复用 `JWT_SECRET`（与 api-gateway/ws-gateway 一致）。
+- **`/bt-editor` server component**：cookie 通过后再做 `decodeToken + isAdmin` 二次校验；非 admin 渲染友好 403。
+- **主页 `/` nav**：登录态显示 username + 退出按钮；未登录显示「管理员登录」链接。
+
+### C.4 — acceptance_bt_editor.py（新增）
+- `apps/agent-os/scripts/acceptance_bt_editor.py` 7 步 E2E：list / get-missing / save-valid / save-invalid (R_019 400) / save-oversize (R_019 422 depth 12 > 10) / get-after-save / simulate。
+- `--smoke` 模式：API 不通时 SKIP exit 0（CI 友好）。
+- 零第三方依赖（urllib stdlib only）。
+
+### 测试
+- admin-portal vitest：**64/64 PASS**（含 14 auth 新增；C.3 阶段 50 → C.4 阶段 64）
+- agent-os acceptance_bt_editor：**7/7**（docker compose up 时）
+- 1 新 PG migration + 1 新 seed，全部 idempotent
+
+### 关键变更
+- `docker-compose.yml`：postgres initdb 多挂 2 个文件（slot 05/06）
+- 8 个 admin-portal 新/改文件：`auth.ts` / `auth.test.ts` / `middleware.ts` / `login/page.tsx` / `api/auth/login/route.ts` / `api/auth/logout/route.ts` / `page.tsx` (nav) / `bt-editor/page.tsx` (server-side role check)
+- 1 个 agent-os 新脚本：`acceptance_bt_editor.py`
+- 2 个 PG SQL：migration + seed
+- docs：`docs/2.0-ROADMAP.md` 新增 Phase C 章节 + status 行加 Phase C GA
+
+### 影响
+- **性能**：middleware 是 Edge runtime O(1) cookie 检查；server-side decode 仅在受保护路由首次访问时执行；登录是单次 bcrypt 比对（cost 10，~100ms） + 1 HMAC-SHA256 sign（<1ms）。
+- **向后兼容**：现有 `demo/demo123` 玩家不受影响（role 默认 'player'）；`pgcrypto` 已在 `pg-schema.sql` 创建；C.1/C.2/C.3 代码冻结未改。
+- **零回归**：C.3 阶段 50 vitest tests 全部 PASS；BT editor C.3 UI 不变，仅多了服务端 role 校验。
+
+### 已知限制
+- v0 登录是 env-常量校验（admin/adminpass）。生产部署应：
+  1. 设 `ADMIN_USERNAME` + `ADMIN_PASSWORD` env
+  2. 或挂 PG bcrypt 查询（admin-portal 起 pg 连接 + 验 player 表）
+- 无 2FA / 无密码重置 / 无 audit log（YAGNI，阶段 4 backlog）
+- middleware 在 Edge runtime 仅做 cookie 存在性检查，完整 JWT 验签在 Node runtime server component 里（防止 Edge crypto 不兼容）。
+
+### Stats
+- 3 commits：`(1) feat(admin-portal): Phase C.4 admin auth` + `(2) feat(agent-os): acceptance_bt_editor` + `(3) docs(2.0): Phase C GA`（本文）
+- 0 pre-existing tests broken
+- admin-portal tests：50 → 64（+14）
+- agent-os acceptance steps：6 (emotion) → 13 (emotion + bt_editor)
+- Spec & Plan: `docs/superpowers/plans/synthetic-jumping-jellyfish.md` §Phase C.4
+- **3-phase backlog 关闭**（OCEAN→emotion + Saga viz + BT editor）
+
+---
+
 # 2.0.5-stage3-phase-b-saga-viz (2026-10-06)
 
 ## [Phase B] Saga DSL React Flow 只读可视化 — 2026-10-06

@@ -62,6 +62,15 @@
 > - dropdown 切换 saga 脚本 + 元数据面板（节点数 / forward / compensation count）
 > - 1 Playwright E2E smoke（mock API）+ 12 vitest 单测；3 commits GA（a330953 + 6b97dfd + B.3）
 
+> ## 🌳 2.0 阶段 3 / Phase C — BT 编辑器 + admin auth 已 GA
+>
+> - **BT 编辑器 3-piece set**：C.1 BT runtime（7 节点 + 5 action + 3 condition + 3 decorator）+ C.2 bt-editor-api FastAPI 4 端点 + C.3 admin-portal `/bt-editor` UI（React Flow + Monaco + dagre）
+> - **C.4 admin auth**：`player.role` 列 + HS256 JWT cookie-session（手写 `node:crypto`，无新依赖）+ middleware 守卫 `/bt-editor` + `/api/bt/*` + `/login` 表单 + `/api/auth/login|logout`
+> - 默认账号 `admin / adminpass`（pgcrypto bcrypt seed；env `ADMIN_USERNAME` / `ADMIN_PASSWORD` 覆盖）
+> - acceptance_bt_editor 7 步 E2E：list / get-missing / save-valid / save-invalid (R_019 400) / save-oversize (R_019 422) / get-after-save / simulate
+> - admin-portal vitest **64/64**（C.3 阶段 50 → C.4 阶段 +14）；3 commits GA
+> - **🎉 3-phase backlog（OCEAN→emotion / Saga viz / BT editor）全部关闭**
+
 ---
 
 > **基于真实或半虚构地图的 2.5D/3D AI 城邦平台**
