@@ -1,8 +1,16 @@
 # apps/economy-service/src/economy_service/services/purchase_service.py
-"""NPC 商品购买 — 原子扣款 + stock 减一. Sink 留给 W3."""
+"""NPC 商品购买 — 原子扣款 + stock 减一 + 5% 自动 sink → central_bank_ledger.
+
+Spec §中央银行机制 (自动 sink): 每次 NPC 售货自动从买家 gold 扣
+``NPC_SINK_RATIO * price`` 沉淀 → central_bank_ledger ('sink' event)。
+Sink 比例可通过 env ``NPC_SINK_RATIO`` 覆盖（默认 0.05 = 5%）。
+"""
 from __future__ import annotations
+import os
 import asyncpg
-from economy_service.clients.kafka_producer import KafkaProducer, TOPIC_TX_COMPLETED
+from economy_service.clients.kafka_producer import (
+    KafkaProducer, TOPIC_TX_COMPLETED, TOPIC_GOLD_SUNK,
+)
 from economy_service.clients.redis_client import RedisClient
 from economy_service.errors import (
     InsufficientBalance, ProductNotFound, ProductOutOfStock,
@@ -24,7 +32,10 @@ def set_clients(
 
 
 class PurchaseService:
-    SINK_RATIO = 0.05  # 5% 自动 sink — 等 central_bank_ledger 落地
+    # 自动 sink 比例 — spec §自动 sink (默认 5% of price).
+    # env override via NPC_SINK_RATIO; e.g. ``NPC_SINK_RATIO=0.10`` 关闭测试压测。
+    # 仅 gold 维度生效（"全系统金池"）。
+    SINK_RATIO = float(os.environ.get("NPC_SINK_RATIO", "0.05"))
 
     def __init__(self, pool: asyncpg.Pool) -> None:
         self.pool = pool
@@ -71,12 +82,20 @@ class PurchaseService:
                 if wallet is None:
                     raise ValueError(f"wallet not found: {user_id}")
 
-                if wallet["bal"] < price:
+                # Auto-sink: 每次 NPC gold 售货沉淀 price * SINK_RATIO → 销毁。
+                # token 维度暂不触发 sink（spec 只谈"金池"）。
+                sink_amount = (
+                    int(price * self.SINK_RATIO) if currency == "gold" else 0
+                )
+                total_debit = price + sink_amount
+
+                if wallet["bal"] < total_debit:
                     raise InsufficientBalance(
-                        f"{currency} balance {wallet['bal']} < {price}"
+                        f"{currency} balance {wallet['bal']} < {total_debit} "
+                        f"(price={price} + sink={sink_amount})"
                     )
 
-                new_bal = wallet["bal"] - price
+                new_bal = wallet["bal"] - total_debit
 
                 await conn.execute(
                     f"UPDATE wallet SET {currency}_balance = $1 "
@@ -89,13 +108,14 @@ class PurchaseService:
                         product_id,
                     )
 
-                # Sink code W3: insert into central_bank_ledger (deferred)
-                # sink_amount = int(price * self.SINK_RATIO)
-                # if currency == "gold" and sink_amount > 0:
-                #     await conn.execute(
-                #         "INSERT INTO central_bank_ledger ... ('sink', 'gold', $1, ...)",
-                #         sink_amount,
-                #     )
+                # 写 central_bank_ledger 1 行（spec §Sink 触发）
+                if sink_amount > 0:
+                    await conn.execute(
+                        "INSERT INTO central_bank_ledger "
+                        "(event_type, currency, amount, reason, trigger_user_id) "
+                        "VALUES ('sink', 'gold', $1, 'auto_npc_purchase_sink', $2)",
+                        sink_amount, user_id,
+                    )
 
                 await conn.execute(
                     "INSERT INTO transaction (tx_type, user_id, currency, "
@@ -110,10 +130,10 @@ class PurchaseService:
                     "currency": currency,
                     "amount_paid": price,
                     "balance_after": new_bal,
-                    "sink_amount": 0,  # W3 will compute + persist
+                    "sink_amount": sink_amount,
                 }
 
-        # Post-commit: fire-and-forget event + cache write
+        # Post-commit: fire-and-forget events + cache write
         # (outside the `async with` so we don't keep the conn alive past return)
         if _kafka is not None:
             await _kafka.send(TOPIC_TX_COMPLETED, {
@@ -124,6 +144,14 @@ class PurchaseService:
                 "balance_after": new_bal,
                 "tx_type": "npc_purchase",
             })
+            if sink_amount > 0:
+                # Kafka emit `gold.sunk`（spec §Sink 触发）
+                await _kafka.send(TOPIC_GOLD_SUNK, {
+                    "user_id": user_id,
+                    "amount": sink_amount,
+                    "balance_after": new_bal,
+                    "reason": "auto_npc_purchase_sink",
+                })
         if _redis is not None:
             # 只更新付款维度 (gold 或 token) — 不要把另一个维度覆盖成 0
             cache_kwargs = {currency: new_bal}

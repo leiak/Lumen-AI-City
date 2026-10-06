@@ -5,10 +5,10 @@ Validates the 3.0 economy v1 GA surface against the docker-compose stack:
 
   Step  1: Health check + resolve 2 seeded player IDs (demo/admin).
   Step  2: A → B transfer 100 gold.
-  Step  3: Verify A=9900 / B=10100 (after 100 moved, seed = 10000 each).
-  Step  4: B buys NPC product (50 gold) → balance 10050 + stock-1.
+  Step  3: Verify A=900 / B=1100 (after 100 moved, seed = 1000 each).
+  Step  4: B buys NPC product (50 gold) → balance -50 -2(sink) + stock-1.
   Step  5: A buys cheap item + drain → 402 / R_022 (insufficient).
-             拆三步：先买糖葫芦留 ledger 痕迹，再 A→B 800 让余额 < 500，
+             拆三步：先买糖葫芦留 ledger 痕迹，再 A→B 让余额 < 500，
              再尝试古籍触发 R_022。
   Step  6: Transfer to self → 400 / R_023.
   Step  7: Same idempotency_key twice → 1 charge (tx_id stable).
@@ -43,6 +43,17 @@ import urllib.error
 import urllib.request
 import uuid
 from typing import Any, Callable
+
+# Import SINK_RATIO 常量用于 step4 expect 计算 (mirror purchase_service.SINK_RATIO).
+# Add src/ to sys.path so the service module is importable when acceptance
+# runs from a checkout (e.g. `cd apps/economy-service && python scripts/...`).
+_ACCEPTANCE_SRC = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
+)
+if _ACCEPTANCE_SRC not in sys.path:
+    sys.path.insert(0, _ACCEPTANCE_SRC)
+
+from economy_service.services.purchase_service import PurchaseService  # noqa: E402
 
 ECONOMY_URL = os.environ.get("ECONOMY_SERVICE_URL", "http://localhost:8005")
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "dev-admin-token")
@@ -243,7 +254,7 @@ def step3_check_balances(alice: str, bob: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Step 4 — B buys NPC product → balance -50, stock-1
+# Step 4 — B buys NPC product → balance -50, stock-1, 5% auto-sink
 # ---------------------------------------------------------------------------
 
 
@@ -252,6 +263,11 @@ def step4_bob_buys_product(bob: str, product_id: int = 1) -> bool:
 
     Uses seed product ids (per db/seed/seed-economy.sql, the first INSERT
     row = 招牌红烧肉 with price_gold=50).
+
+    W5.4 自动 sink：price * NPC_SINK_RATIO (默认 0.05) 也从余额扣，
+    并 INSERT central_bank_ledger + Kafka emit gold.sunk。
+    expect = baseline + 100 (step2 转账) - 50 (price) - 2 (sink)
+           = baseline + 48。
 
     baseline 取 step 1 的 STARTING_GOLD[bob]，跟 step 3 同一逻辑。
     """
@@ -265,7 +281,11 @@ def step4_bob_buys_product(bob: str, product_id: int = 1) -> bool:
     if status != 200:
         return False
     base_b = STARTING_GOLD.get(bob, SEED_GOLD)
-    expect = base_b + TRANSFER_AMOUNT - PRODUCT_PRICE
+    sink = int(PRODUCT_PRICE * PurchaseService.SINK_RATIO)
+    expect = base_b + TRANSFER_AMOUNT - PRODUCT_PRICE - sink
+    # 校验 sink_amount 字段也回填了正确值（防止有人把 sink 静默关掉）
+    if body.get("sink_amount") != sink:
+        return False
     return body.get("balance_after") == expect
 
 
@@ -496,7 +516,7 @@ def _run_steps() -> int:
         for n, name in [
             (2, "transfer A→B 100 gold"),
             (3, "balances A=900 / B=1100"),
-            (4, "B buys product → balance_after=1050"),
+            (4, "B buys product → balance_after=baseline+48 (5% auto-sink)"),
             (5, "A insufficient → 402 / R_022"),
             (6, "transfer self → 400 / R_023"),
             (7, "idempotent purchase → 1 charge"),
@@ -505,7 +525,7 @@ def _run_steps() -> int:
     else:
         results.append(_check(2, "transfer A→B 100 gold", step2_transfer(alice, bob)))
         results.append(_check(3, "balances A=900 / B=1100", step3_check_balances(alice, bob)))
-        results.append(_check(4, "B buys product → balance_after=1050", step4_bob_buys_product(bob)))
+        results.append(_check(4, "B buys product → balance_after=baseline+48 (5% auto-sink)", step4_bob_buys_product(bob)))
         results.append(_check(5, "A insufficient → 402 / R_022", step5_alice_insufficient(alice, bob)))
         results.append(_check(6, "transfer self → 400 / R_023", step6_transfer_self(alice)))
         results.append(_check(7, "idempotent purchase → 1 charge", step7_idempotent_purchase(bob)))
