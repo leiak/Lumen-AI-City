@@ -32,6 +32,10 @@ services:
       - ./packages/proto/pg-schema-2.0.sql:/docker-entrypoint-initdb.d/03-schema-2.0.sql:ro
       # Phase C.2：BT editor 后端持久化（bt_tree 表 + version bump 触发器）
       - ./packages/proto/pg-schema-2.0-bt-editor.sql:/docker-entrypoint-initdb.d/04-bt-editor.sql:ro
+      # Phase C.4：BT editor admin auth（player.role 列 + 索引 + pgcrypto guard）
+      - ./packages/proto/pg-schema-2.0-bt-auth.sql:/docker-entrypoint-initdb.d/05-bt-auth.sql:ro
+      # Phase C.4：admin / adminpass seed（依赖 05 的 role 列）
+      - ./db/seed/seed-admin.sql:/docker-entrypoint-initdb.d/06-seed-admin.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U aicity']
       interval: 5s

@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
+import { COOKIE_NAME, decodeToken, isAdmin } from '@/lib/auth';
 
 const dashboards = [
   { name: 'NPC 管理', href: '/npc', desc: '20+ NPC 模板与配置' },
@@ -9,12 +11,56 @@ const dashboards = [
   { name: '创作者市场', href: '/marketplace', desc: 'NPC / 剧本 / BT 上架' },
 ];
 
-export default function Home() {
+function getJwtSecret(): string {
+  return (
+    process.env.ADMIN_PORTAL_JWT_SECRET ||
+    process.env.JWT_SECRET ||
+    'dev-secret-change-me'
+  );
+}
+
+export default async function Home() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(COOKIE_NAME)?.value ?? '';
+  const session = decodeToken(token, getJwtSecret());
+  const loggedIn = isAdmin(session);
+
   return (
     <main className="min-h-screen p-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold">AI City Admin Portal</h1>
-        <p className="text-gray-600">运营后台 v0.1</p>
+      <header className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">AI City Admin Portal</h1>
+          <p className="text-gray-600">运营后台 v0.1</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {loggedIn ? (
+            <>
+              <span
+                data-testid="session-user"
+                className="text-sm text-gray-600"
+              >
+                登录身份：<strong>{session!.username}</strong> (admin)
+              </span>
+              <form action="/api/auth/logout" method="POST">
+                <button
+                  type="submit"
+                  data-testid="logout-btn"
+                  className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
+                >
+                  退出
+                </button>
+              </form>
+            </>
+          ) : (
+            <Link
+              href={'/login' as unknown as __next_route_internal_types__.RouteImpl<string>}
+              data-testid="login-link"
+              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              管理员登录
+            </Link>
+          )}
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
