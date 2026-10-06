@@ -31,6 +31,14 @@
 > - 离线评估 85% emotion 准确率
 > - 📐 设计：[`docs/superpowers/specs/2026-10-05-2.0-stage2-stream-emotion-design.md`](docs/superpowers/specs/2026-10-05-2.0-stage2-stream-emotion-design.md)
 > - ✅ `acceptance_2_1` binary：5/5 步骤通过
+>
+> ## 🌐 2.0 阶段 3 / B1 — 跨城 NPC 流式 已 GA
+>
+> - A 城玩家 ↔ B 城 NPC 端到端 SSE 流式对话（句子级节拍包跨过联邦边界）
+> - gRPC `SayStreamForward` server-streaming（mTLS） + a2a-gateway `MirrorSessionStore` 跨城会话缓冲
+> - 跨城 buffer replay endpoint（重连补帧，60min TTL）
+> - 📐 设计：[`docs/superpowers/specs/2026-10-06-2.0-stage3-cross-city-stream-design.md`](docs/superpowers/specs/2026-10-06-2.0-stage3-cross-city-stream-design.md)
+> - ✅ `acceptance_2_2` binary：5/5 步骤通过
 
 ---
 

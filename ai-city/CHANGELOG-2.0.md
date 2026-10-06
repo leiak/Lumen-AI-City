@@ -1,3 +1,48 @@
+# 2.0.2-stage3-b1-cross-city-stream (2026-10-06)
+
+## [B1] 跨城 NPC 流式 — 2026-10-06
+
+### Highlights
+- **跨城联邦流式 (cross-city NPC streaming)**: A 城玩家与 B 城 NPC 流式对话，端到端 SSE
+- 新 gRPC RPC `SayStreamForward` (a2a.proto)
+- 新 HTTP endpoints（a2a-gateway + api-gateway）
+- 新错误码 R_016 / R_017
+
+### Tasks (11 total)
+- T01 proto: SayStreamForward + SayRequestInit + SayBeat
+- T02 MirrorSessionStore: 跨城会话缓冲
+- T03 gRPC server (B-city): SayStreamForward 实现骨架
+- T04 SSE entry (a2a-gateway): POST /v1/federation/say_stream
+- T05 errors: R_016 / R_017
+- T06 Forwarder (A-city): Redis sub → mirror → SSE pump
+- T07 api-gateway relay: POST /v1/world/cross_city_say_stream
+- T08 replay endpoint: GET /v1/federation/sessions/{sid}/buffer
+- T09 acceptance_2_2: 5-step E2E binary
+- T10 docs (this)
+- T11 integration verification + cleanup
+
+### New Endpoints
+| Method | Path | Service | Purpose |
+|--------|------|---------|---------|
+| POST | `/v1/federation/say_stream` | a2a-gateway | SSE stream from B-city NPC |
+| GET | `/v1/federation/sessions/{sid}/buffer` | a2a-gateway | replay beats after disconnect |
+| POST | `/v1/world/cross_city_say_stream` | api-gateway | SSE relay to a2a-gateway |
+
+### New Error Codes
+- **R_016 CrossCityStreamFail** (HTTP 502) — 跨城流式 RPC 失败
+- **R_017 CrossCityStreamTimeout** (HTTP 504) — 跨城流式 RPC 超时
+
+### Stats
+- 16 commits ahead of pre-B1 origin
+- 0 pre-existing tests broken
+- Acceptance binary: `cmd/acceptance_2_2/`
+
+### Spec & Plan
+- spec: `docs/superpowers/specs/2026-10-06-2.0-stage3-cross-city-stream-design.md`
+- plan: `docs/superpowers/plans/2026-10-06-2.0-stage3-cross-city-stream.md`
+
+---
+
 # 2.0.1-stage2-stream-emotion (2026-10-05)
 
 ## 新增功能
