@@ -84,9 +84,11 @@ async def _run_post_hook(action_name: str, kwargs: dict[str, Any], bt_state: BTS
     """Background task — fire-and-forget BT action after ``say_stream()`` ends.
 
     Looks the action up in :data:`agent_os.bt.actions.ACTION_REGISTRY` and
-    invokes it synchronously with the queued ``kwargs``. All exceptions are
-    swallowed + logged at WARNING — the post-hook must never propagate into
-    the streaming caller.
+    invokes it synchronously with the queued ``kwargs``. The sync action is
+    run in a worker thread via :func:`asyncio.to_thread` so its blocking
+    ``httpx.Client.post`` call (up to ~5s on the economy endpoint) does not
+    stall the event loop. All exceptions are swallowed + logged at WARNING —
+    the post-hook must never propagate into the streaming caller.
     """
     # Local import keeps the dependency optional (BT layer is required for the
     # 2.0 dispatcher, but tests that never trigger the post-hook avoid the cost).
@@ -97,7 +99,10 @@ async def _run_post_hook(action_name: str, kwargs: dict[str, Any], bt_state: BTS
         _logger.warning("post_hook: unknown action %s", action_name)
         return
     try:
-        status = action_fn(state=bt_state, **kwargs)
+        # Wrap sync action in to_thread so concurrent hooks don't serialize
+        # on the event loop. Without this, a slow economy call (5s timeout)
+        # would block every other coroutine in the loop.
+        status = await asyncio.to_thread(action_fn, state=bt_state, **kwargs)
         _logger.info(
             "post_hook.%s: status=%s product=%s",
             action_name,
@@ -108,21 +113,28 @@ async def _run_post_hook(action_name: str, kwargs: dict[str, Any], bt_state: BTS
         _logger.warning("post_hook.%s failed: %s", action_name, e)
 
 
-def schedule_post_hook(bt_state: BTState) -> asyncio.Task[None] | None:
+def schedule_post_hook(
+    bt_state: BTState, enabled: bool = False,
+) -> asyncio.Task[None] | None:
     """Schedule the post-stream BT action as fire-and-forget.
 
-    Returns ``None`` when the hook is disabled (env :data:`BT_POST_HOOK_ENABLED`
-    is ``False``) or no ``pending_purchase`` is queued on ``bt_state``. The
-    returned :class:`asyncio.Task` is intentionally not awaited — callers
-    (i.e. the streaming endpoint) should not block on the upstream economy
-    HTTP call.
+    Returns ``None`` when ``enabled`` is ``False`` or no ``pending_purchase``
+    is queued on ``bt_state``. The caller (:meth:`ActionDispatcher.say_stream`)
+    is responsible for resolving the effective enabled state — the explicit
+    ``enable_bt_post_hook`` kwarg **overrides** the env kill-switch (kwarg
+    ``True`` + env ``False`` → still runs), while kwarg ``False`` defers to
+    the env. The returned :class:`asyncio.Task` is intentionally not awaited —
+    callers (i.e. the streaming endpoint) should not block on the upstream
+    economy HTTP call.
 
     Args:
         bt_state: A :class:`BTState` whose ``pending_purchase`` carries the
             kwargs (e.g. ``{"product_id": 42, "currency": "gold"}``) for the
             ``npc_sell_to_player`` action.
+        enabled: Pre-resolved (kwarg OR env) flag. ``False`` short-circuits
+            without touching the BT layer.
     """
-    if not BT_POST_HOOK_ENABLED:
+    if not enabled:
         return None
     if not getattr(bt_state, "pending_purchase", None):
         return None
@@ -272,13 +284,12 @@ class ActionDispatcher:
             player_id: B2 optional player id forwarded to ``MemoryWriter.write_emotions``
                 for emotion persistence. ``None`` → falls back to ``session_id`` as
                 proxy (session-scoped persistence only).
-            enable_bt_post_hook: W4.2 opt-in. When ``True`` and a
-                ``pending_purchase`` is supplied, schedules the
-                ``npc_sell_to_player`` BT action as a fire-and-forget task
-                *after* the LLM stream finishes (does not block the caller
-                yield loop). Honors the module-level
-                :data:`BT_POST_HOOK_ENABLED` env as well — if env is enabled
-                the hook runs even without this kwarg.
+            enable_bt_post_hook: W4.2 opt-in. When ``True`` (default ``False``),
+                enables the post-hook for this call **regardless of**
+                :data:`BT_POST_HOOK_ENABLED` env (kwarg explicitly overrides
+                env-off). When ``False``, defers to env — env-on enables the
+                hook, env-off keeps it disabled. Requires a ``pending_purchase``
+                to do anything.
             pending_purchase: W4.2 kwargs (e.g. ``{"product_id": 42, "currency":
                 "gold"}``) consumed by the post-hook action. Ignored when
                 ``enable_bt_post_hook`` is ``False`` and the env var is off.
@@ -510,5 +521,7 @@ class ActionDispatcher:
             # outcome — caller still receives the generator's normal
             # termination / propagated exception. The task is fire-and-forget
             # so the caller never blocks on the upstream economy HTTP call.
+            # Gating: kwarg (enable_bt_post_hook) OR env (BT_POST_HOOK_ENABLED)
+            # was resolved into ``_post_hook_enabled`` at the top of this method.
             if _bt_state is not None:
-                schedule_post_hook(_bt_state)
+                schedule_post_hook(_bt_state, enabled=_post_hook_enabled)
