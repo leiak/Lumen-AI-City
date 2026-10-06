@@ -20,6 +20,11 @@ WORKDIR /app
 # 仅复制 agent-os 自己的代码 + pyproject.toml
 COPY apps/agent-os/pyproject.toml ./pyproject.toml
 COPY apps/agent-os/src ./src
+COPY apps/agent-os/scripts ./scripts
+
+# Acceptance binary sanity check: py_compile fails the build if the script
+# has syntax errors. Cheap (no execution, no deps) and runs at build time.
+RUN python -m py_compile scripts/acceptance_emotion_v0.py
 
 # 把 src 加到 PYTHONPATH，让 `agent_os.*` import 可解析
 ENV PYTHONPATH=/app/src

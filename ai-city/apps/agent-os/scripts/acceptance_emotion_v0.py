@@ -8,12 +8,13 @@ Requires dev PG at postgresql://aicity:aicity_dev@localhost:5432/aicity.
 
 Spec ref: docs/superpowers/specs/2026-10-06-2.0-emotion-persistence-design.md §12.
 
-5-step E2E:
-  [1/5] Verify memory_player_session has 'emotion' column
-  [2/5] Insert 10 emotions via MemoryWriter (6 happy + 4 sad)
-  [3/5] Aggregate via EmotionRepository → happy weight > sad weight
-  [4/5] Prompt with EMOTION_INJECT_ENABLED=false → no section injected
-  [5/5] Prompt with EMOTION_INJECT_ENABLED=true  → section + happy= token
+6-step E2E (steps 1-5 spec literal; 2b adds true time-decay coverage):
+  [1/6]   Verify memory_player_session has 'emotion' column
+  [2/6]   Insert 10 emotions via MemoryWriter (6 happy + 4 sad)
+  [2b/6]  Backdated 9 sad (6h old) + 1 new happy → recent dominates (real exp-decay)
+  [3/6]   Aggregate via EmotionRepository → sum(weights) ≈ 1.0 AND happy > sad
+  [4/6]   Prompt with EMOTION_INJECT_ENABLED=false → no section injected
+  [5/6]   Prompt with EMOTION_INJECT_ENABLED=true  → section + happy= token
 
 Each step prints [OK] / [FAIL]. Cleanup: DELETE rows by player_id at end.
 Exit code: 0 = ALL PASS, 1 = step failure, 2 = PG unreachable.
@@ -21,6 +22,7 @@ Exit code: 0 = ALL PASS, 1 = step failure, 2 = PG unreachable.
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import importlib
 import json
 import os
@@ -46,9 +48,10 @@ def _redact_dsn(dsn: str) -> str:
             if ":" in creds:
                 user, _ = creds.split(":", 1)
                 return f"{scheme}://{user}:***@{hostpart}"
-        return f"{scheme}://{rest[:8]}..."
+        # Malformed DSN (no userinfo or no scheme delimiter) — don't leak any prefix
+        return "***"
     except Exception:  # noqa: BLE001
-        return "<redacted>"
+        return "***"
 
 
 async def main() -> int:
@@ -76,9 +79,9 @@ async def main() -> int:
 
         try:
             # ----------------------------------------------------------------
-            # [1/5] Verify emotion column on memory_player_session
+            # [1/6] Verify emotion column on memory_player_session
             # ----------------------------------------------------------------
-            print("[1/5] Verify emotion column on memory_player_session")
+            print("[1/6] Verify emotion column on memory_player_session")
             try:
                 async with pool.acquire() as conn:
                     cols = await conn.fetch(
@@ -99,9 +102,9 @@ async def main() -> int:
             print()
 
             # ----------------------------------------------------------------
-            # [2/5] Insert 10 emotions via MemoryWriter
+            # [2/6] Insert 10 emotions via MemoryWriter
             # ----------------------------------------------------------------
-            print("[2/5] Insert 10 emotions via MemoryWriter (6 happy + 4 sad)")
+            print("[2/6] Insert 10 emotions via MemoryWriter (6 happy + 4 sad)")
             try:
                 writer = MemoryWriter(pool)
                 emotions = ["happy"] * 6 + ["sad"] * 4
@@ -117,20 +120,80 @@ async def main() -> int:
                 return 1
             print()
 
-            # Tiny sleep so created_at is measurable (exp decay needs time delta)
-            await asyncio.sleep(0.05)
+            # ----------------------------------------------------------------
+            # [2b/6] Time-decay semantics — backdated old rows vs new row
+            # ----------------------------------------------------------------
+            print("[2b/6] Time-decay: 9 backdated sad (6h old) + 1 new happy → recent dominates")
+            try:
+                # Wipe the recent batch so we have a clean slate for time-decay test
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "DELETE FROM memory_player_session WHERE player_id = $1",
+                        player_id,
+                    )
+
+                # 9 "old" sad rows: τ=2h, age=6h → weight ≈ exp(-3) ≈ 0.050 each
+                old_time = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=6)
+                async with pool.acquire() as conn:
+                    for _ in range(9):
+                        await conn.execute(
+                            "INSERT INTO memory_player_session "
+                            "(npc_id, player_id, message, emotion, created_at) "
+                            "VALUES ($1, $2, $3::jsonb, $4, $5)",
+                            npc_id, player_id,
+                            json.dumps({"session_id": session_id, "type": "backdated"}),
+                            "sad", old_time,
+                        )
+                    # 1 "new" happy row: weight ≈ 1.0
+                    await conn.execute(
+                        "INSERT INTO memory_player_session "
+                        "(npc_id, player_id, message, emotion, created_at) "
+                        "VALUES ($1, $2, $3::jsonb, $4, NOW())",
+                        npc_id, player_id,
+                        json.dumps({"session_id": session_id, "type": "recent"}),
+                        "happy",
+                    )
+
+                # Re-aggregate and verify recent dominates
+                repo = EmotionRepository(pool)
+                recent_after_decay = await repo.fetch_player_distribution(npc_id, player_id)
+                w_happy = recent_after_decay.weights.get("happy", 0.0)
+                w_sad = recent_after_decay.weights.get("sad", 0.0)
+                if w_happy <= w_sad:
+                    print(
+                        f"[FAIL] step 2b: time-decay failed. "
+                        f"happy={w_happy:.4f} sad={w_sad:.4f}"
+                    )
+                    return 1
+                print(
+                    f"[OK] time-decay: 1 new happy dominates 9 old sad "
+                    f"(happy={w_happy:.3f}, sad={w_sad:.3f})"
+                )
+            except Exception as e:  # noqa: BLE001
+                print(f"[FAIL] step 2b: {type(e).__name__}: {e}")
+                return 1
+            print()
 
             # ----------------------------------------------------------------
-            # [3/5] Aggregate via EmotionRepository
+            # [3/6] Aggregate via EmotionRepository
             # ----------------------------------------------------------------
-            print("[3/5] Aggregate via EmotionRepository")
+            print("[3/6] Aggregate via EmotionRepository")
             try:
-                repo = EmotionRepository(pool)
-                recent = await repo.fetch_player_distribution(npc_id, player_id)
+                # Reuse repo from step 2b (already constructed). Recent distribution
+                # now reflects the backdated + new mix from step 2b.
+                recent = recent_after_decay
                 if recent.total_rows != 10:
                     print(
                         f"[FAIL] step 3: expected total_rows=10, "
                         f"got {recent.total_rows}"
+                    )
+                    return 1
+                # Spec §12 criterion 5: distribution ≈ 1.0
+                dist_sum = sum(recent.weights.values())
+                if not (0.999 <= dist_sum <= 1.001):
+                    print(
+                        f"[FAIL] step 3: weights sum={dist_sum:.4f}, "
+                        f"expected ≈1.0"
                     )
                     return 1
                 if recent.weights.get("happy", 0.0) <= recent.weights.get("sad", 0.0):
@@ -141,7 +204,7 @@ async def main() -> int:
                     return 1
                 print(
                     f"[OK] recent_dist total_rows={recent.total_rows} "
-                    f"weights={recent.weights}"
+                    f"weights={recent.weights} sum={dist_sum:.4f}"
                 )
             except Exception as e:  # noqa: BLE001
                 print(f"[FAIL] step 3: {type(e).__name__}: {e}")
@@ -149,10 +212,18 @@ async def main() -> int:
             print()
 
             # ----------------------------------------------------------------
-            # [4/5] Prompt with EMOTION_INJECT_ENABLED=false
+            # [4/6] Prompt with EMOTION_INJECT_ENABLED=false
+            # [5/6] Prompt with EMOTION_INJECT_ENABLED=true
             # ----------------------------------------------------------------
-            print("[4/5] Prompt build with EMOTION_INJECT_ENABLED=false")
+            # Wrap env mutations in try/finally so we never leak shell env state
+            # after the binary completes (important for callers that import
+            # agent_os.emotion.settings later in the same process).
+            os.environ.pop("EMOTION_INJECT_ENABLED", None)  # clean slate
             try:
+                # ------------------------------------------------------------
+                # [4/6] Prompt with EMOTION_INJECT_ENABLED=false
+                # ------------------------------------------------------------
+                print("[4/6] Prompt build with EMOTION_INJECT_ENABLED=false")
                 os.environ["EMOTION_INJECT_ENABLED"] = "false"
                 from agent_os.emotion import settings as _settings_mod
                 importlib.reload(_settings_mod)
@@ -176,16 +247,12 @@ async def main() -> int:
                     )
                     return 1
                 print("[OK] no injection when kill switch off")
-            except Exception as e:  # noqa: BLE001
-                print(f"[FAIL] step 4: {type(e).__name__}: {e}")
-                return 1
-            print()
+                print()
 
-            # ----------------------------------------------------------------
-            # [5/5] Prompt with EMOTION_INJECT_ENABLED=true
-            # ----------------------------------------------------------------
-            print("[5/5] Prompt build with EMOTION_INJECT_ENABLED=true")
-            try:
+                # ------------------------------------------------------------
+                # [5/6] Prompt with EMOTION_INJECT_ENABLED=true
+                # ------------------------------------------------------------
+                print("[5/6] Prompt build with EMOTION_INJECT_ENABLED=true")
                 os.environ["EMOTION_INJECT_ENABLED"] = "true"
                 importlib.reload(_settings_mod)
                 s_enabled = _ES.from_env()
@@ -213,10 +280,14 @@ async def main() -> int:
                     )
                     return 1
                 print("[OK] section present + happy= token visible")
+                print()
             except Exception as e:  # noqa: BLE001
-                print(f"[FAIL] step 5: {type(e).__name__}: {e}")
+                # Steps 4/5 raised unexpectedly (e.g. dispatcher wired wrong).
+                # Surface as a step failure so callers get a clean rc=1.
+                print(f"[FAIL] step 4/5: {type(e).__name__}: {e}")
                 return 1
-            print()
+            finally:
+                os.environ.pop("EMOTION_INJECT_ENABLED", None)
 
             # ----------------------------------------------------------------
             # Cleanup (always run on success)
@@ -247,7 +318,7 @@ async def main() -> int:
 
     print()
     print("=" * 50)
-    print("ALL 5 STEPS PASS — B2 emotion persistence ACCEPTED")
+    print("ALL 6 STEPS PASS — B2 emotion persistence ACCEPTED")
     print("=" * 50)
     return 0
 
