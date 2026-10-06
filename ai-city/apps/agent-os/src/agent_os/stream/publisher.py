@@ -6,7 +6,10 @@ import json
 import time
 from typing import Any
 
-CHANNEL_SAY_STREAM = "aicity:npc:say_stream"
+from agent_os.settings import get_redis_channel_npc_say_stream
+
+# 兼容旧导入：保留为模块级常量，但实际值在调用时通过 helper 解析（env 可覆盖）
+CHANNEL_SAY_STREAM = get_redis_channel_npc_say_stream()
 
 
 class Publisher:
@@ -48,12 +51,14 @@ class Publisher:
         await self._publish_with_retry(json.dumps(payload, ensure_ascii=False))
 
     async def _publish_with_retry(self, payload: str) -> None:
+        # 调用时再读 env，便于测试 monkeypatch + 运行期切换 channel
+        channel = get_redis_channel_npc_say_stream()
         last_exc = None
         for delay in (0, *self._retry_intervals):
             if delay:
                 await asyncio.sleep(delay)
             try:
-                await self._redis.publish(CHANNEL_SAY_STREAM, payload)
+                await self._redis.publish(channel, payload)
                 self._flush_buffer()
                 return
             except Exception as e:
@@ -80,9 +85,11 @@ class Publisher:
         self._buffer.clear()
 
         async def _flush():
+            # flush 时同样动态解析 channel，避免 import-time 锁定
+            flush_channel = get_redis_channel_npc_say_stream()
             for p in pending:
                 try:
-                    await self._redis.publish(CHANNEL_SAY_STREAM, p)
+                    await self._redis.publish(flush_channel, p)
                 except Exception:
                     if len(self._buffer) >= self._max_buffer:
                         break
