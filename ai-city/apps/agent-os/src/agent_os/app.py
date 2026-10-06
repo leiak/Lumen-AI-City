@@ -149,11 +149,13 @@ def create_app(config: Config | None = None) -> FastAPI:
         try:
             beats = store.get_buffer(sid, from_idx=from_idx)
         except R015SessionNotFound:
+            # 用 R015SessionNotFound.code/message 当真值，
+            # 避免 errors.py 改 message 时 HTTP 响应漂移（review issue #4）
             raise HTTPException(
-                status_code=400,
+                status_code=R015SessionNotFound.http_status,
                 detail={
-                    "code": "R_015",
-                    "message": "session_id 过期或不存在",
+                    "code": R015SessionNotFound.code,
+                    "message": R015SessionNotFound.message,
                     "session_id": sid,
                 },
             )

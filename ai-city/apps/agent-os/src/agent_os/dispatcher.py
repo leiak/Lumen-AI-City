@@ -229,6 +229,17 @@ class ActionDispatcher:
                 if store is not None:
                     store.mark_done(store_sid, complete=True)
             else:
+                # SessionStore wire：每句 beat → append FIRST
+                # (buffer is source of truth；publish 之前完成 append，
+                # 避免重连窗口期 GET /buffer 漏 beat — fix review issue #2)
+                if store is not None:
+                    store.append(
+                        store_sid,
+                        sentence_idx=sentence_idx,
+                        text=text,
+                        emotion=validated,
+                    )
+                # 然后 publish_beat（下游 Redis 通知）
                 await self.publisher.publish_beat(
                     npc_id=npc_id,
                     session_id=store_sid,
@@ -237,14 +248,6 @@ class ActionDispatcher:
                     emotion=validated,
                     trace_id=trace_id,
                 )
-                # SessionStore wire：每句 beat → append
-                if store is not None:
-                    store.append(
-                        store_sid,
-                        sentence_idx=sentence_idx,
-                        text=text,
-                        emotion=validated,
-                    )
                 sentence_idx += 1
             return event
 

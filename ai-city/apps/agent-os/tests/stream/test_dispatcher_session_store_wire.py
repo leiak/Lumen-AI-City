@@ -214,3 +214,79 @@ def test_dispatcher_no_session_store_incompatible():
     # 不抛错即兼容（store=None 时跳过 append/mark_done）
     events = asyncio.run(run())
     assert len(events) == 3  # 2 beat + 1 done
+
+
+@pytest.mark.asyncio
+async def test_store_append_happens_before_publish_beat():
+    """Buffer append must precede Redis publish so a concurrent reconnect can't miss the beat.
+
+    Regression test (review issue #2)：之前 publish_beat 在 store.append 之前，
+    重连窗口期 GET /buffer?from_idx=N 漏 beat。现在 store 是 source of truth，
+    append 必须先于 publish 完成。
+    """
+    from unittest.mock import MagicMock
+
+    from agent_os.dispatcher import ActionDispatcher
+    from agent_os.stream.session_store import SessionStore
+
+    store = SessionStore()
+    call_order: list[str] = []  # 记录 append vs publish_beat 的调用顺序
+
+    # 包一层 store.append 记录顺序（append 是 sync —— 所以 call 时刻 = 完成时刻）
+    real_append = store.append
+
+    def tracking_append(sid, sentence_idx, text, emotion):
+        call_order.append(f"append:{sid}:{sentence_idx}")
+        return real_append(sid, sentence_idx, text, emotion)
+
+    store.append = tracking_append
+
+    # Mock publisher：publish_beat 故意慢 10ms，给 event loop 插队的窗口
+    publisher = MagicMock()
+    publisher.publish_done = AsyncMock()
+
+    async def slow_publish_beat(**kwargs):
+        call_order.append(
+            f"publish:beat:{kwargs['session_id']}:{kwargs['sentence_idx']}"
+        )
+        await asyncio.sleep(0.01)
+
+    publisher.publish_beat = slow_publish_beat
+
+    # LLM 流：2 个 beat + end
+    llm = MagicMock()
+
+    async def fake_stream(req):
+        yield {"text": "<emotion=happy>来了您嘞！</emotion>", "finish_reason": None}
+        yield {"text": "<emotion=neutral>几位？</emotion>", "finish_reason": None}
+        yield {"text": "<end>", "finish_reason": "stop"}
+
+    llm.stream = fake_stream
+
+    dispatcher = ActionDispatcher(
+        llm_client=llm, publisher=publisher, session_store=store
+    )
+
+    events = []
+    async for ev in dispatcher.say_stream(
+        npc_id="npc_wang_boss_001",
+        player_input="hi",
+        npc_context=[],
+        session_id="sess-stub",
+        trace_id="tr-ordering",
+    ):
+        events.append(ev)
+
+    # dispatcher mint 的 sid
+    real_sid = events[0].session_id
+
+    # 核心断言 —— append:N 必须在 publish:beat:N 之前
+    assert call_order == [
+        f"append:{real_sid}:0",
+        f"publish:beat:{real_sid}:0",
+        f"append:{real_sid}:1",
+        f"publish:beat:{real_sid}:1",
+    ], f"Expected append-then-publish ordering, got: {call_order}"
+
+    # buffer 里有 2 个 beat（即使 publish_beat 慢，append 已经完成）
+    assert len(store.get_buffer(real_sid)) == 2
