@@ -125,8 +125,6 @@ def get_npc_stream_prompt(
     【最近情绪氛围】 section between system and history. Both kwargs default to
     None — backward-compatible with pre-B2 callers.
     """
-    from agent_os.emotion.aggregate import EmotionDistribution
-
     npc_name = npc_id.replace("npc_", "").replace("_001", "").replace("_", "")
     personality_desc = _PERSONALITY_DESC_MAP.get(npc_id, "性格温和。")
     system = _STREAM_SYSTEM_TEMPLATE.format(
