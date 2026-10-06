@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.3
-// source: a2a.proto
+// source: a2a/v1/a2a.proto
 
 package a2av1
 
@@ -19,11 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	A2AGateway_RegisterCard_FullMethodName = "/aicity.a2a.v1.A2AGateway/RegisterCard"
-	A2AGateway_Discover_FullMethodName     = "/aicity.a2a.v1.A2AGateway/Discover"
-	A2AGateway_SendMessage_FullMethodName  = "/aicity.a2a.v1.A2AGateway/SendMessage"
-	A2AGateway_Stream_FullMethodName       = "/aicity.a2a.v1.A2AGateway/Stream"
-	A2AGateway_FetchInbox_FullMethodName   = "/aicity.a2a.v1.A2AGateway/FetchInbox"
+	A2AGateway_RegisterCard_FullMethodName     = "/aicity.a2a.v1.A2AGateway/RegisterCard"
+	A2AGateway_Discover_FullMethodName         = "/aicity.a2a.v1.A2AGateway/Discover"
+	A2AGateway_SendMessage_FullMethodName      = "/aicity.a2a.v1.A2AGateway/SendMessage"
+	A2AGateway_Stream_FullMethodName           = "/aicity.a2a.v1.A2AGateway/Stream"
+	A2AGateway_FetchInbox_FullMethodName       = "/aicity.a2a.v1.A2AGateway/FetchInbox"
+	A2AGateway_SayStreamForward_FullMethodName = "/aicity.a2a.v1.A2AGateway/SayStreamForward"
 )
 
 // A2AGatewayClient is the client API for A2AGateway service.
@@ -42,6 +43,10 @@ type A2AGatewayClient interface {
 	Stream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Message, Message], error)
 	// Sprint 7：拉取 a2a_inbox（store-and-forward）
 	FetchInbox(ctx context.Context, in *FetchInboxRequest, opts ...grpc.CallOption) (*FetchInboxResponse, error)
+	// B1: 跨城流式转发。client (A 城) → server (B 城)。
+	// client 首帧必须为 SayRequestInit；之后可发 SayHeartbeat 保活。
+	// server 持续返回 SayBeat 流（npc_say_stream + npc_say_stream_done）。
+	SayStreamForward(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SayStreamMessage, SayBeat], error)
 }
 
 type a2AGatewayClient struct {
@@ -105,6 +110,19 @@ func (c *a2AGatewayClient) FetchInbox(ctx context.Context, in *FetchInboxRequest
 	return out, nil
 }
 
+func (c *a2AGatewayClient) SayStreamForward(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SayStreamMessage, SayBeat], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &A2AGateway_ServiceDesc.Streams[1], A2AGateway_SayStreamForward_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SayStreamMessage, SayBeat]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type A2AGateway_SayStreamForwardClient = grpc.BidiStreamingClient[SayStreamMessage, SayBeat]
+
 // A2AGatewayServer is the server API for A2AGateway service.
 // All implementations must embed UnimplementedA2AGatewayServer
 // for forward compatibility.
@@ -121,6 +139,10 @@ type A2AGatewayServer interface {
 	Stream(grpc.BidiStreamingServer[Message, Message]) error
 	// Sprint 7：拉取 a2a_inbox（store-and-forward）
 	FetchInbox(context.Context, *FetchInboxRequest) (*FetchInboxResponse, error)
+	// B1: 跨城流式转发。client (A 城) → server (B 城)。
+	// client 首帧必须为 SayRequestInit；之后可发 SayHeartbeat 保活。
+	// server 持续返回 SayBeat 流（npc_say_stream + npc_say_stream_done）。
+	SayStreamForward(grpc.BidiStreamingServer[SayStreamMessage, SayBeat]) error
 	mustEmbedUnimplementedA2AGatewayServer()
 }
 
@@ -145,6 +167,9 @@ func (UnimplementedA2AGatewayServer) Stream(grpc.BidiStreamingServer[Message, Me
 }
 func (UnimplementedA2AGatewayServer) FetchInbox(context.Context, *FetchInboxRequest) (*FetchInboxResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method FetchInbox not implemented")
+}
+func (UnimplementedA2AGatewayServer) SayStreamForward(grpc.BidiStreamingServer[SayStreamMessage, SayBeat]) error {
+	return status.Error(codes.Unimplemented, "method SayStreamForward not implemented")
 }
 func (UnimplementedA2AGatewayServer) mustEmbedUnimplementedA2AGatewayServer() {}
 func (UnimplementedA2AGatewayServer) testEmbeddedByValue()                    {}
@@ -246,6 +271,13 @@ func _A2AGateway_FetchInbox_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _A2AGateway_SayStreamForward_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(A2AGatewayServer).SayStreamForward(&grpc.GenericServerStream[SayStreamMessage, SayBeat]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type A2AGateway_SayStreamForwardServer = grpc.BidiStreamingServer[SayStreamMessage, SayBeat]
+
 // A2AGateway_ServiceDesc is the grpc.ServiceDesc for A2AGateway service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -277,6 +309,12 @@ var A2AGateway_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 			ClientStreams: true,
 		},
+		{
+			StreamName:    "SayStreamForward",
+			Handler:       _A2AGateway_SayStreamForward_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
 	},
-	Metadata: "a2a.proto",
+	Metadata: "a2a/v1/a2a.proto",
 }

@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        v5.29.3
-// source: a2a.proto
+// source: a2a/v1/a2a.proto
 
 package a2av1
 
@@ -41,7 +41,7 @@ type AgentCard struct {
 
 func (x *AgentCard) Reset() {
 	*x = AgentCard{}
-	mi := &file_a2a_proto_msgTypes[0]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53,7 +53,7 @@ func (x *AgentCard) String() string {
 func (*AgentCard) ProtoMessage() {}
 
 func (x *AgentCard) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_proto_msgTypes[0]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66,7 +66,7 @@ func (x *AgentCard) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentCard.ProtoReflect.Descriptor instead.
 func (*AgentCard) Descriptor() ([]byte, []int) {
-	return file_a2a_proto_rawDescGZIP(), []int{0}
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AgentCard) GetAgentId() string {
@@ -149,7 +149,7 @@ type RegisterResponse struct {
 
 func (x *RegisterResponse) Reset() {
 	*x = RegisterResponse{}
-	mi := &file_a2a_proto_msgTypes[1]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -161,7 +161,7 @@ func (x *RegisterResponse) String() string {
 func (*RegisterResponse) ProtoMessage() {}
 
 func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_proto_msgTypes[1]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -174,7 +174,7 @@ func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterResponse.ProtoReflect.Descriptor instead.
 func (*RegisterResponse) Descriptor() ([]byte, []int) {
-	return file_a2a_proto_rawDescGZIP(), []int{1}
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RegisterResponse) GetAccepted() bool {
@@ -201,7 +201,7 @@ type DiscoverRequest struct {
 
 func (x *DiscoverRequest) Reset() {
 	*x = DiscoverRequest{}
-	mi := &file_a2a_proto_msgTypes[2]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -213,7 +213,7 @@ func (x *DiscoverRequest) String() string {
 func (*DiscoverRequest) ProtoMessage() {}
 
 func (x *DiscoverRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_proto_msgTypes[2]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -226,7 +226,7 @@ func (x *DiscoverRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoverRequest.ProtoReflect.Descriptor instead.
 func (*DiscoverRequest) Descriptor() ([]byte, []int) {
-	return file_a2a_proto_rawDescGZIP(), []int{2}
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *DiscoverRequest) GetCapability() string {
@@ -252,7 +252,7 @@ type DiscoverResponse struct {
 
 func (x *DiscoverResponse) Reset() {
 	*x = DiscoverResponse{}
-	mi := &file_a2a_proto_msgTypes[3]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -264,7 +264,7 @@ func (x *DiscoverResponse) String() string {
 func (*DiscoverResponse) ProtoMessage() {}
 
 func (x *DiscoverResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_proto_msgTypes[3]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -277,7 +277,7 @@ func (x *DiscoverResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoverResponse.ProtoReflect.Descriptor instead.
 func (*DiscoverResponse) Descriptor() ([]byte, []int) {
-	return file_a2a_proto_rawDescGZIP(), []int{3}
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *DiscoverResponse) GetCards() []*AgentCard {
@@ -305,7 +305,7 @@ type Message struct {
 
 func (x *Message) Reset() {
 	*x = Message{}
-	mi := &file_a2a_proto_msgTypes[4]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -317,7 +317,7 @@ func (x *Message) String() string {
 func (*Message) ProtoMessage() {}
 
 func (x *Message) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_proto_msgTypes[4]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -330,7 +330,7 @@ func (x *Message) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Message.ProtoReflect.Descriptor instead.
 func (*Message) Descriptor() ([]byte, []int) {
-	return file_a2a_proto_rawDescGZIP(), []int{4}
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Message) GetMessageId() string {
@@ -406,7 +406,7 @@ type MessageResponse struct {
 
 func (x *MessageResponse) Reset() {
 	*x = MessageResponse{}
-	mi := &file_a2a_proto_msgTypes[5]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -418,7 +418,7 @@ func (x *MessageResponse) String() string {
 func (*MessageResponse) ProtoMessage() {}
 
 func (x *MessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_proto_msgTypes[5]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -431,7 +431,7 @@ func (x *MessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageResponse.ProtoReflect.Descriptor instead.
 func (*MessageResponse) Descriptor() ([]byte, []int) {
-	return file_a2a_proto_rawDescGZIP(), []int{5}
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *MessageResponse) GetDelivered() bool {
@@ -461,7 +461,7 @@ type FetchInboxRequest struct {
 
 func (x *FetchInboxRequest) Reset() {
 	*x = FetchInboxRequest{}
-	mi := &file_a2a_proto_msgTypes[6]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -473,7 +473,7 @@ func (x *FetchInboxRequest) String() string {
 func (*FetchInboxRequest) ProtoMessage() {}
 
 func (x *FetchInboxRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_proto_msgTypes[6]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -486,7 +486,7 @@ func (x *FetchInboxRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FetchInboxRequest.ProtoReflect.Descriptor instead.
 func (*FetchInboxRequest) Descriptor() ([]byte, []int) {
-	return file_a2a_proto_rawDescGZIP(), []int{6}
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *FetchInboxRequest) GetAgentId() string {
@@ -527,7 +527,7 @@ type FetchInboxResponse struct {
 
 func (x *FetchInboxResponse) Reset() {
 	*x = FetchInboxResponse{}
-	mi := &file_a2a_proto_msgTypes[7]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -539,7 +539,7 @@ func (x *FetchInboxResponse) String() string {
 func (*FetchInboxResponse) ProtoMessage() {}
 
 func (x *FetchInboxResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_proto_msgTypes[7]
+	mi := &file_a2a_v1_a2a_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -552,7 +552,7 @@ func (x *FetchInboxResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FetchInboxResponse.ProtoReflect.Descriptor instead.
 func (*FetchInboxResponse) Descriptor() ([]byte, []int) {
-	return file_a2a_proto_rawDescGZIP(), []int{7}
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *FetchInboxResponse) GetMessages() []*Message {
@@ -569,11 +569,389 @@ func (x *FetchInboxResponse) GetNextCursor() string {
 	return ""
 }
 
-var File_a2a_proto protoreflect.FileDescriptor
+type SayStreamMessage struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Msg:
+	//
+	//	*SayStreamMessage_Init
+	//	*SayStreamMessage_Heartbeat
+	Msg           isSayStreamMessage_Msg `protobuf_oneof:"msg"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_a2a_proto_rawDesc = "" +
+func (x *SayStreamMessage) Reset() {
+	*x = SayStreamMessage{}
+	mi := &file_a2a_v1_a2a_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SayStreamMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SayStreamMessage) ProtoMessage() {}
+
+func (x *SayStreamMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_a2a_v1_a2a_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SayStreamMessage.ProtoReflect.Descriptor instead.
+func (*SayStreamMessage) Descriptor() ([]byte, []int) {
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SayStreamMessage) GetMsg() isSayStreamMessage_Msg {
+	if x != nil {
+		return x.Msg
+	}
+	return nil
+}
+
+func (x *SayStreamMessage) GetInit() *SayRequestInit {
+	if x != nil {
+		if x, ok := x.Msg.(*SayStreamMessage_Init); ok {
+			return x.Init
+		}
+	}
+	return nil
+}
+
+func (x *SayStreamMessage) GetHeartbeat() *SayHeartbeat {
+	if x != nil {
+		if x, ok := x.Msg.(*SayStreamMessage_Heartbeat); ok {
+			return x.Heartbeat
+		}
+	}
+	return nil
+}
+
+type isSayStreamMessage_Msg interface {
+	isSayStreamMessage_Msg()
+}
+
+type SayStreamMessage_Init struct {
+	Init *SayRequestInit `protobuf:"bytes,1,opt,name=init,proto3,oneof"`
+}
+
+type SayStreamMessage_Heartbeat struct {
+	Heartbeat *SayHeartbeat `protobuf:"bytes,2,opt,name=heartbeat,proto3,oneof"`
+}
+
+func (*SayStreamMessage_Init) isSayStreamMessage_Msg() {}
+
+func (*SayStreamMessage_Heartbeat) isSayStreamMessage_Msg() {}
+
+type SayRequestInit struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	PlayerInput   string                 `protobuf:"bytes,2,opt,name=player_input,json=playerInput,proto3" json:"player_input,omitempty"`
+	SessionId     string                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	TraceId       string                 `protobuf:"bytes,4,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	Context       []*ContextMessage      `protobuf:"bytes,5,rep,name=context,proto3" json:"context,omitempty"`
+	PlayerId      string                 `protobuf:"bytes,6,opt,name=player_id,json=playerId,proto3" json:"player_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SayRequestInit) Reset() {
+	*x = SayRequestInit{}
+	mi := &file_a2a_v1_a2a_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SayRequestInit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SayRequestInit) ProtoMessage() {}
+
+func (x *SayRequestInit) ProtoReflect() protoreflect.Message {
+	mi := &file_a2a_v1_a2a_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SayRequestInit.ProtoReflect.Descriptor instead.
+func (*SayRequestInit) Descriptor() ([]byte, []int) {
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *SayRequestInit) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+func (x *SayRequestInit) GetPlayerInput() string {
+	if x != nil {
+		return x.PlayerInput
+	}
+	return ""
+}
+
+func (x *SayRequestInit) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *SayRequestInit) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+func (x *SayRequestInit) GetContext() []*ContextMessage {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *SayRequestInit) GetPlayerId() string {
+	if x != nil {
+		return x.PlayerId
+	}
+	return ""
+}
+
+type SayHeartbeat struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TsMs          int64                  `protobuf:"varint,1,opt,name=ts_ms,json=tsMs,proto3" json:"ts_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SayHeartbeat) Reset() {
+	*x = SayHeartbeat{}
+	mi := &file_a2a_v1_a2a_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SayHeartbeat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SayHeartbeat) ProtoMessage() {}
+
+func (x *SayHeartbeat) ProtoReflect() protoreflect.Message {
+	mi := &file_a2a_v1_a2a_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SayHeartbeat.ProtoReflect.Descriptor instead.
+func (*SayHeartbeat) Descriptor() ([]byte, []int) {
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *SayHeartbeat) GetTsMs() int64 {
+	if x != nil {
+		return x.TsMs
+	}
+	return 0
+}
+
+type SayBeat struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"` // "npc_say_stream" | "npc_say_stream_done"
+	NpcId         string                 `protobuf:"bytes,2,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	SessionId     string                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	SentenceIdx   *int32                 `protobuf:"varint,4,opt,name=sentence_idx,json=sentenceIdx,proto3,oneof" json:"sentence_idx,omitempty"`
+	Text          *string                `protobuf:"bytes,5,opt,name=text,proto3,oneof" json:"text,omitempty"`
+	Emotion       *string                `protobuf:"bytes,6,opt,name=emotion,proto3,oneof" json:"emotion,omitempty"`
+	SentenceCount *int32                 `protobuf:"varint,7,opt,name=sentence_count,json=sentenceCount,proto3,oneof" json:"sentence_count,omitempty"`
+	Complete      *bool                  `protobuf:"varint,8,opt,name=complete,proto3,oneof" json:"complete,omitempty"`
+	TsMs          int64                  `protobuf:"varint,9,opt,name=ts_ms,json=tsMs,proto3" json:"ts_ms,omitempty"`
+	TraceId       string                 `protobuf:"bytes,10,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SayBeat) Reset() {
+	*x = SayBeat{}
+	mi := &file_a2a_v1_a2a_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SayBeat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SayBeat) ProtoMessage() {}
+
+func (x *SayBeat) ProtoReflect() protoreflect.Message {
+	mi := &file_a2a_v1_a2a_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SayBeat.ProtoReflect.Descriptor instead.
+func (*SayBeat) Descriptor() ([]byte, []int) {
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SayBeat) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *SayBeat) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+func (x *SayBeat) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *SayBeat) GetSentenceIdx() int32 {
+	if x != nil && x.SentenceIdx != nil {
+		return *x.SentenceIdx
+	}
+	return 0
+}
+
+func (x *SayBeat) GetText() string {
+	if x != nil && x.Text != nil {
+		return *x.Text
+	}
+	return ""
+}
+
+func (x *SayBeat) GetEmotion() string {
+	if x != nil && x.Emotion != nil {
+		return *x.Emotion
+	}
+	return ""
+}
+
+func (x *SayBeat) GetSentenceCount() int32 {
+	if x != nil && x.SentenceCount != nil {
+		return *x.SentenceCount
+	}
+	return 0
+}
+
+func (x *SayBeat) GetComplete() bool {
+	if x != nil && x.Complete != nil {
+		return *x.Complete
+	}
+	return false
+}
+
+func (x *SayBeat) GetTsMs() int64 {
+	if x != nil {
+		return x.TsMs
+	}
+	return 0
+}
+
+func (x *SayBeat) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+type ContextMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Role          string                 `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContextMessage) Reset() {
+	*x = ContextMessage{}
+	mi := &file_a2a_v1_a2a_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContextMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContextMessage) ProtoMessage() {}
+
+func (x *ContextMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_a2a_v1_a2a_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContextMessage.ProtoReflect.Descriptor instead.
+func (*ContextMessage) Descriptor() ([]byte, []int) {
+	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ContextMessage) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *ContextMessage) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+var File_a2a_v1_a2a_proto protoreflect.FileDescriptor
+
+const file_a2a_v1_a2a_proto_rawDesc = "" +
 	"\n" +
-	"\ta2a.proto\x12\raicity.a2a.v1\"\xfc\x02\n" +
+	"\x10a2a/v1/a2a.proto\x12\raicity.a2a.v1\"\xfc\x02\n" +
 	"\tAgentCard\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -622,7 +1000,43 @@ const file_a2a_proto_rawDesc = "" +
 	"\x12FetchInboxResponse\x122\n" +
 	"\bmessages\x18\x01 \x03(\v2\x16.aicity.a2a.v1.MessageR\bmessages\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
-	"nextCursor2\xfc\x02\n" +
+	"nextCursor\"\x8b\x01\n" +
+	"\x10SayStreamMessage\x123\n" +
+	"\x04init\x18\x01 \x01(\v2\x1d.aicity.a2a.v1.SayRequestInitH\x00R\x04init\x12;\n" +
+	"\theartbeat\x18\x02 \x01(\v2\x1b.aicity.a2a.v1.SayHeartbeatH\x00R\theartbeatB\x05\n" +
+	"\x03msg\"\xda\x01\n" +
+	"\x0eSayRequestInit\x12\x15\n" +
+	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12!\n" +
+	"\fplayer_input\x18\x02 \x01(\tR\vplayerInput\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x03 \x01(\tR\tsessionId\x12\x19\n" +
+	"\btrace_id\x18\x04 \x01(\tR\atraceId\x127\n" +
+	"\acontext\x18\x05 \x03(\v2\x1d.aicity.a2a.v1.ContextMessageR\acontext\x12\x1b\n" +
+	"\tplayer_id\x18\x06 \x01(\tR\bplayerId\"#\n" +
+	"\fSayHeartbeat\x12\x13\n" +
+	"\x05ts_ms\x18\x01 \x01(\x03R\x04tsMs\"\xf6\x02\n" +
+	"\aSayBeat\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12\x15\n" +
+	"\x06npc_id\x18\x02 \x01(\tR\x05npcId\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x03 \x01(\tR\tsessionId\x12&\n" +
+	"\fsentence_idx\x18\x04 \x01(\x05H\x00R\vsentenceIdx\x88\x01\x01\x12\x17\n" +
+	"\x04text\x18\x05 \x01(\tH\x01R\x04text\x88\x01\x01\x12\x1d\n" +
+	"\aemotion\x18\x06 \x01(\tH\x02R\aemotion\x88\x01\x01\x12*\n" +
+	"\x0esentence_count\x18\a \x01(\x05H\x03R\rsentenceCount\x88\x01\x01\x12\x1f\n" +
+	"\bcomplete\x18\b \x01(\bH\x04R\bcomplete\x88\x01\x01\x12\x13\n" +
+	"\x05ts_ms\x18\t \x01(\x03R\x04tsMs\x12\x19\n" +
+	"\btrace_id\x18\n" +
+	" \x01(\tR\atraceIdB\x0f\n" +
+	"\r_sentence_idxB\a\n" +
+	"\x05_textB\n" +
+	"\n" +
+	"\b_emotionB\x11\n" +
+	"\x0f_sentence_countB\v\n" +
+	"\t_complete\">\n" +
+	"\x0eContextMessage\x12\x12\n" +
+	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent2\xcd\x03\n" +
 	"\n" +
 	"A2AGateway\x12I\n" +
 	"\fRegisterCard\x12\x18.aicity.a2a.v1.AgentCard\x1a\x1f.aicity.a2a.v1.RegisterResponse\x12K\n" +
@@ -630,22 +1044,23 @@ const file_a2a_proto_rawDesc = "" +
 	"\vSendMessage\x12\x16.aicity.a2a.v1.Message\x1a\x1e.aicity.a2a.v1.MessageResponse\x12<\n" +
 	"\x06Stream\x12\x16.aicity.a2a.v1.Message\x1a\x16.aicity.a2a.v1.Message(\x010\x01\x12Q\n" +
 	"\n" +
-	"FetchInbox\x12 .aicity.a2a.v1.FetchInboxRequest\x1a!.aicity.a2a.v1.FetchInboxResponseB-Z+github.com/aicity/proto/gen/go/a2a/v1;a2av1b\x06proto3"
+	"FetchInbox\x12 .aicity.a2a.v1.FetchInboxRequest\x1a!.aicity.a2a.v1.FetchInboxResponse\x12O\n" +
+	"\x10SayStreamForward\x12\x1f.aicity.a2a.v1.SayStreamMessage\x1a\x16.aicity.a2a.v1.SayBeat(\x010\x01B-Z+github.com/aicity/proto/gen/go/a2a/v1;a2av1b\x06proto3"
 
 var (
-	file_a2a_proto_rawDescOnce sync.Once
-	file_a2a_proto_rawDescData []byte
+	file_a2a_v1_a2a_proto_rawDescOnce sync.Once
+	file_a2a_v1_a2a_proto_rawDescData []byte
 )
 
-func file_a2a_proto_rawDescGZIP() []byte {
-	file_a2a_proto_rawDescOnce.Do(func() {
-		file_a2a_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_a2a_proto_rawDesc), len(file_a2a_proto_rawDesc)))
+func file_a2a_v1_a2a_proto_rawDescGZIP() []byte {
+	file_a2a_v1_a2a_proto_rawDescOnce.Do(func() {
+		file_a2a_v1_a2a_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_a2a_v1_a2a_proto_rawDesc), len(file_a2a_v1_a2a_proto_rawDesc)))
 	})
-	return file_a2a_proto_rawDescData
+	return file_a2a_v1_a2a_proto_rawDescData
 }
 
-var file_a2a_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
-var file_a2a_proto_goTypes = []any{
+var file_a2a_v1_a2a_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_a2a_v1_a2a_proto_goTypes = []any{
 	(*AgentCard)(nil),          // 0: aicity.a2a.v1.AgentCard
 	(*RegisterResponse)(nil),   // 1: aicity.a2a.v1.RegisterResponse
 	(*DiscoverRequest)(nil),    // 2: aicity.a2a.v1.DiscoverRequest
@@ -654,49 +1069,64 @@ var file_a2a_proto_goTypes = []any{
 	(*MessageResponse)(nil),    // 5: aicity.a2a.v1.MessageResponse
 	(*FetchInboxRequest)(nil),  // 6: aicity.a2a.v1.FetchInboxRequest
 	(*FetchInboxResponse)(nil), // 7: aicity.a2a.v1.FetchInboxResponse
-	nil,                        // 8: aicity.a2a.v1.AgentCard.AuthEntry
+	(*SayStreamMessage)(nil),   // 8: aicity.a2a.v1.SayStreamMessage
+	(*SayRequestInit)(nil),     // 9: aicity.a2a.v1.SayRequestInit
+	(*SayHeartbeat)(nil),       // 10: aicity.a2a.v1.SayHeartbeat
+	(*SayBeat)(nil),            // 11: aicity.a2a.v1.SayBeat
+	(*ContextMessage)(nil),     // 12: aicity.a2a.v1.ContextMessage
+	nil,                        // 13: aicity.a2a.v1.AgentCard.AuthEntry
 }
-var file_a2a_proto_depIdxs = []int32{
-	8, // 0: aicity.a2a.v1.AgentCard.auth:type_name -> aicity.a2a.v1.AgentCard.AuthEntry
-	0, // 1: aicity.a2a.v1.DiscoverResponse.cards:type_name -> aicity.a2a.v1.AgentCard
-	4, // 2: aicity.a2a.v1.FetchInboxResponse.messages:type_name -> aicity.a2a.v1.Message
-	0, // 3: aicity.a2a.v1.A2AGateway.RegisterCard:input_type -> aicity.a2a.v1.AgentCard
-	2, // 4: aicity.a2a.v1.A2AGateway.Discover:input_type -> aicity.a2a.v1.DiscoverRequest
-	4, // 5: aicity.a2a.v1.A2AGateway.SendMessage:input_type -> aicity.a2a.v1.Message
-	4, // 6: aicity.a2a.v1.A2AGateway.Stream:input_type -> aicity.a2a.v1.Message
-	6, // 7: aicity.a2a.v1.A2AGateway.FetchInbox:input_type -> aicity.a2a.v1.FetchInboxRequest
-	1, // 8: aicity.a2a.v1.A2AGateway.RegisterCard:output_type -> aicity.a2a.v1.RegisterResponse
-	3, // 9: aicity.a2a.v1.A2AGateway.Discover:output_type -> aicity.a2a.v1.DiscoverResponse
-	5, // 10: aicity.a2a.v1.A2AGateway.SendMessage:output_type -> aicity.a2a.v1.MessageResponse
-	4, // 11: aicity.a2a.v1.A2AGateway.Stream:output_type -> aicity.a2a.v1.Message
-	7, // 12: aicity.a2a.v1.A2AGateway.FetchInbox:output_type -> aicity.a2a.v1.FetchInboxResponse
-	8, // [8:13] is the sub-list for method output_type
-	3, // [3:8] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+var file_a2a_v1_a2a_proto_depIdxs = []int32{
+	13, // 0: aicity.a2a.v1.AgentCard.auth:type_name -> aicity.a2a.v1.AgentCard.AuthEntry
+	0,  // 1: aicity.a2a.v1.DiscoverResponse.cards:type_name -> aicity.a2a.v1.AgentCard
+	4,  // 2: aicity.a2a.v1.FetchInboxResponse.messages:type_name -> aicity.a2a.v1.Message
+	9,  // 3: aicity.a2a.v1.SayStreamMessage.init:type_name -> aicity.a2a.v1.SayRequestInit
+	10, // 4: aicity.a2a.v1.SayStreamMessage.heartbeat:type_name -> aicity.a2a.v1.SayHeartbeat
+	12, // 5: aicity.a2a.v1.SayRequestInit.context:type_name -> aicity.a2a.v1.ContextMessage
+	0,  // 6: aicity.a2a.v1.A2AGateway.RegisterCard:input_type -> aicity.a2a.v1.AgentCard
+	2,  // 7: aicity.a2a.v1.A2AGateway.Discover:input_type -> aicity.a2a.v1.DiscoverRequest
+	4,  // 8: aicity.a2a.v1.A2AGateway.SendMessage:input_type -> aicity.a2a.v1.Message
+	4,  // 9: aicity.a2a.v1.A2AGateway.Stream:input_type -> aicity.a2a.v1.Message
+	6,  // 10: aicity.a2a.v1.A2AGateway.FetchInbox:input_type -> aicity.a2a.v1.FetchInboxRequest
+	8,  // 11: aicity.a2a.v1.A2AGateway.SayStreamForward:input_type -> aicity.a2a.v1.SayStreamMessage
+	1,  // 12: aicity.a2a.v1.A2AGateway.RegisterCard:output_type -> aicity.a2a.v1.RegisterResponse
+	3,  // 13: aicity.a2a.v1.A2AGateway.Discover:output_type -> aicity.a2a.v1.DiscoverResponse
+	5,  // 14: aicity.a2a.v1.A2AGateway.SendMessage:output_type -> aicity.a2a.v1.MessageResponse
+	4,  // 15: aicity.a2a.v1.A2AGateway.Stream:output_type -> aicity.a2a.v1.Message
+	7,  // 16: aicity.a2a.v1.A2AGateway.FetchInbox:output_type -> aicity.a2a.v1.FetchInboxResponse
+	11, // 17: aicity.a2a.v1.A2AGateway.SayStreamForward:output_type -> aicity.a2a.v1.SayBeat
+	12, // [12:18] is the sub-list for method output_type
+	6,  // [6:12] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
-func init() { file_a2a_proto_init() }
-func file_a2a_proto_init() {
-	if File_a2a_proto != nil {
+func init() { file_a2a_v1_a2a_proto_init() }
+func file_a2a_v1_a2a_proto_init() {
+	if File_a2a_v1_a2a_proto != nil {
 		return
 	}
+	file_a2a_v1_a2a_proto_msgTypes[8].OneofWrappers = []any{
+		(*SayStreamMessage_Init)(nil),
+		(*SayStreamMessage_Heartbeat)(nil),
+	}
+	file_a2a_v1_a2a_proto_msgTypes[11].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_a2a_proto_rawDesc), len(file_a2a_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_a2a_v1_a2a_proto_rawDesc), len(file_a2a_v1_a2a_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_a2a_proto_goTypes,
-		DependencyIndexes: file_a2a_proto_depIdxs,
-		MessageInfos:      file_a2a_proto_msgTypes,
+		GoTypes:           file_a2a_v1_a2a_proto_goTypes,
+		DependencyIndexes: file_a2a_v1_a2a_proto_depIdxs,
+		MessageInfos:      file_a2a_v1_a2a_proto_msgTypes,
 	}.Build()
-	File_a2a_proto = out.File
-	file_a2a_proto_goTypes = nil
-	file_a2a_proto_depIdxs = nil
+	File_a2a_v1_a2a_proto = out.File
+	file_a2a_v1_a2a_proto_goTypes = nil
+	file_a2a_v1_a2a_proto_depIdxs = nil
 }

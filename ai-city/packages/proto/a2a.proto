@@ -20,6 +20,11 @@ service A2AGateway {
 
   // Sprint 7：拉取 a2a_inbox（store-and-forward）
   rpc FetchInbox(FetchInboxRequest) returns (FetchInboxResponse);
+
+  // B1: 跨城流式转发。client (A 城) → server (B 城)。
+  // client 首帧必须为 SayRequestInit；之后可发 SayHeartbeat 保活。
+  // server 持续返回 SayBeat 流（npc_say_stream + npc_say_stream_done）。
+  rpc SayStreamForward(stream SayStreamMessage) returns (stream SayBeat);
 }
 
 message AgentCard {
@@ -80,4 +85,44 @@ message FetchInboxRequest {
 message FetchInboxResponse {
   repeated Message messages = 1;   // 与 a2av1.Message 同构（8 字段 + signature）
   string next_cursor = 2;          // 空 = 拉完；非空 = 还有
+}
+
+// B1: 跨城流式转发消息类型。
+
+message SayStreamMessage {
+  oneof msg {
+    SayRequestInit init = 1;
+    SayHeartbeat   heartbeat = 2;
+  }
+}
+
+message SayRequestInit {
+  string npc_id = 1;
+  string player_input = 2;
+  string session_id = 3;
+  string trace_id = 4;
+  repeated ContextMessage context = 5;
+  string player_id = 6;
+}
+
+message SayHeartbeat {
+  int64 ts_ms = 1;
+}
+
+message SayBeat {
+  string type = 1;                    // "npc_say_stream" | "npc_say_stream_done"
+  string npc_id = 2;
+  string session_id = 3;
+  optional int32  sentence_idx = 4;
+  optional string text = 5;
+  optional string emotion = 6;
+  optional int32  sentence_count = 7;
+  optional bool   complete = 8;
+  int64  ts_ms = 9;
+  string trace_id = 10;
+}
+
+message ContextMessage {
+  string role = 1;
+  string content = 2;
 }
