@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings>=2.5",
     "pyyaml>=6.0",
     "litellm>=1.50",
+    "asyncpg>=0.30",
 ]
 
 [project.optional-dependencies]
