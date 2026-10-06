@@ -1,4 +1,13 @@
-"""Emotion settings loaded from env vars. Single source of truth."""
+"""Emotion settings loaded from env vars. Single source of truth.
+
+Env vars:
+  - EMOTION_TAU_PLAYER_SECONDS (default 7200)
+  - EMOTION_TAU_GLOBAL_SECONDS (default 86400)
+  - EMOTION_PLAYER_LIMIT (default 50)
+  - EMOTION_GLOBAL_LIMIT (default 100)
+  - EMOTION_INJECT_ENABLED (default true)
+  - OCEAN_BIAS_ENABLED (default true)  # A.3: Phase A OCEAN baseline injection kill switch
+"""
 from __future__ import annotations
 
 import os
@@ -12,6 +21,7 @@ class EmotionSettings:
     player_limit: int
     global_limit: int
     inject_enabled: bool
+    ocean_bias_enabled: bool
 
     @classmethod
     def from_env(cls) -> "EmotionSettings":
@@ -20,12 +30,14 @@ class EmotionSettings:
         p_lim = _parse_int("EMOTION_PLAYER_LIMIT", default=50, min_val=1)
         g_lim = _parse_int("EMOTION_GLOBAL_LIMIT", default=100, min_val=1)
         enabled = os.getenv("EMOTION_INJECT_ENABLED", "true").lower() in ("true", "1", "yes")
+        ocean_bias_enabled = os.getenv("OCEAN_BIAS_ENABLED", "true").lower() in ("true", "1", "yes")
         return cls(
             tau_player_seconds=tau_p,
             tau_global_seconds=tau_g,
             player_limit=p_lim,
             global_limit=g_lim,
             inject_enabled=enabled,
+            ocean_bias_enabled=ocean_bias_enabled,
         )
 
 
