@@ -238,6 +238,4 @@ def create_app(config: Config | None = None) -> FastAPI:
     # B2-T08: expose emotion wiring on app.state. emotion_repo is None when
     # PG_DSN is unset or pool init failed (graceful degradation).
     app.state.emotion_settings = emotion_settings
-    # Stash pg_dsn so lifespan can read it (avoids re-importing os.getenv).
-    app.state.pg_dsn = pg_dsn
     return app

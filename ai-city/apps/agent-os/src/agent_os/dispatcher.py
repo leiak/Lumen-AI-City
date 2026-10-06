@@ -231,12 +231,14 @@ class ActionDispatcher:
         # B2-T08: fetch emotion distributions for prompt injection (best-effort).
         # Failure → log warning + fall back to None (pre-B2 prompt shape).
         # Respects EMOTION_INJECT_ENABLED kill switch (settings.inject_enabled).
+        # Aggregation latency + row counts logged at INFO (spec §9 #5).
         recent_dist = None
         global_dist = None
         inject_enabled = bool(
             self.emotion_settings and self.emotion_settings.inject_enabled,
         )
         if self.emotion_repo is not None and inject_enabled:
+            t0 = time.monotonic()
             try:
                 recent_dist = await self.emotion_repo.fetch_player_distribution(
                     npc_id, effective_player_id,
@@ -255,6 +257,15 @@ class ActionDispatcher:
                     "— falling back to no-injection",
                     npc_id, store_sid, e,
                 )
+            elapsed_ms = (time.monotonic() - t0) * 1000.0
+            _logger.info(
+                "emotion aggregate npc=%s latency_ms=%.3f recent_rows=%d "
+                "global_rows=%d repo=%s",
+                npc_id, elapsed_ms,
+                recent_dist.total_rows if recent_dist else 0,
+                global_dist.total_rows if global_dist else 0,
+                type(self.emotion_repo).__name__,
+            )
 
         prompt = get_npc_stream_prompt(
             npc_id,

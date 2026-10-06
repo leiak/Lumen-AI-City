@@ -142,18 +142,8 @@ def test_say_stream_fetches_distributions_when_enabled(fake_repo, fake_settings_
         yield {"text": "<emotion=happy>好</emotion>", "finish_reason": None}
         yield {"text": "<end>", "finish_reason": "stop"}
 
-    publisher = MagicMock()
-    publisher.publish_beat = AsyncMock()
-    publisher.publish_done = AsyncMock()
-    llm = MagicMock()
-    llm.stream = fake_stream
-
-    dispatcher = ActionDispatcher(
-        llm_client=llm,
-        publisher=publisher,
-        emotion_repo=fake_repo,
-        emotion_settings=fake_settings_enabled,
-    )
+    dispatcher = _build_dispatcher_with_repo(fake_repo, fake_settings_enabled)
+    dispatcher.llm_client.stream = fake_stream
 
     async def run():
         async for _ in dispatcher.say_stream(
@@ -186,18 +176,8 @@ def test_say_stream_skips_fetch_when_disabled(fake_repo, fake_settings_disabled)
         yield {"text": "<emotion=happy>好</emotion>", "finish_reason": None}
         yield {"text": "<end>", "finish_reason": "stop"}
 
-    publisher = MagicMock()
-    publisher.publish_beat = AsyncMock()
-    publisher.publish_done = AsyncMock()
-    llm = MagicMock()
-    llm.stream = fake_stream
-
-    dispatcher = ActionDispatcher(
-        llm_client=llm,
-        publisher=publisher,
-        emotion_repo=fake_repo,
-        emotion_settings=fake_settings_disabled,
-    )
+    dispatcher = _build_dispatcher_with_repo(fake_repo, fake_settings_disabled)
+    dispatcher.llm_client.stream = fake_stream
 
     async def run():
         async for _ in dispatcher.say_stream(
@@ -230,22 +210,12 @@ def test_say_stream_logs_warning_on_repo_failure(
         yield {"text": "<emotion=happy>好</emotion>", "finish_reason": None}
         yield {"text": "<end>", "finish_reason": "stop"}
 
-    publisher = MagicMock()
-    publisher.publish_beat = AsyncMock()
-    publisher.publish_done = AsyncMock()
-    llm = MagicMock()
-    llm.stream = fake_stream
-
     repo = AsyncMock()
     repo.fetch_player_distribution.side_effect = ConnectionError("PG down")
     repo.fetch_global_distribution.side_effect = ConnectionError("PG down")
 
-    dispatcher = ActionDispatcher(
-        llm_client=llm,
-        publisher=publisher,
-        emotion_repo=repo,
-        emotion_settings=fake_settings_enabled,
-    )
+    dispatcher = _build_dispatcher_with_repo(repo, fake_settings_enabled)
+    dispatcher.llm_client.stream = fake_stream
 
     async def run():
         async for _ in dispatcher.say_stream(
@@ -267,7 +237,7 @@ def test_say_stream_logs_warning_on_repo_failure(
         f"expected warning mentioning 'emotion aggregate', got: {[r.message for r in warnings]}"
     )
     # Stream completed normally (publish_done called)
-    publisher.publish_done.assert_called_once()
+    dispatcher.publisher.publish_done.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -282,12 +252,6 @@ def test_say_stream_passes_distributions_to_prompt(fake_repo, fake_settings_enab
         yield {"text": "<emotion=happy>好</emotion>", "finish_reason": None}
         yield {"text": "<end>", "finish_reason": "stop"}
 
-    publisher = MagicMock()
-    publisher.publish_beat = AsyncMock()
-    publisher.publish_done = AsyncMock()
-    llm = MagicMock()
-    llm.stream = fake_stream
-
     recent = EmotionDistribution(
         weights={"happy": 0.6, "neutral": 0.4},
         raw_counts={"happy": 3, "neutral": 2},
@@ -301,12 +265,8 @@ def test_say_stream_passes_distributions_to_prompt(fake_repo, fake_settings_enab
     fake_repo.fetch_player_distribution.return_value = recent
     fake_repo.fetch_global_distribution.return_value = global_d
 
-    dispatcher = ActionDispatcher(
-        llm_client=llm,
-        publisher=publisher,
-        emotion_repo=fake_repo,
-        emotion_settings=fake_settings_enabled,
-    )
+    dispatcher = _build_dispatcher_with_repo(fake_repo, fake_settings_enabled)
+    dispatcher.llm_client.stream = fake_stream
 
     captured = {}
 
@@ -438,3 +398,52 @@ def test_app_lifespan_closes_pool_on_shutdown(monkeypatch, templates_dir: Path):
         pass  # forces lifespan startup + shutdown
 
     mock_pool.close.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# Test 9: say_stream logs aggregation latency at INFO (spec §9 #5)
+# ---------------------------------------------------------------------------
+
+
+def test_say_stream_logs_aggregation_latency(
+    fake_repo, fake_settings_enabled, caplog: pytest.LogCaptureFixture,
+):
+    """When inject_enabled=True, one INFO log per say_stream call records
+    npc_id, latency_ms, recent_rows, global_rows, repo class name."""
+    import logging
+
+    async def fake_stream(req):
+        yield {"text": "<emotion=happy>好</emotion>", "finish_reason": None}
+        yield {"text": "<end>", "finish_reason": "stop"}
+
+    dispatcher = _build_dispatcher_with_repo(fake_repo, fake_settings_enabled)
+    dispatcher.llm_client.stream = fake_stream
+
+    async def run():
+        async for _ in dispatcher.say_stream(
+            npc_id="npc_wang_boss_001",
+            player_input="点菜",
+            npc_context=[],
+            session_id="sess-latency",
+            trace_id="tr-latency",
+            player_id="player-latency",
+        ):
+            pass
+
+    with caplog.at_level(logging.INFO, logger="agent_os.dispatcher"):
+        asyncio.run(run())
+
+    # Find the aggregation latency log
+    matches = [r for r in caplog.records if "emotion aggregate" in r.message]
+    assert matches, (
+        f"expected at least one INFO log mentioning 'emotion aggregate', "
+        f"got: {[r.message for r in caplog.records]}"
+    )
+    msg = matches[0].message
+    assert matches[0].levelno == logging.INFO
+    assert "latency_ms" in msg
+    assert "recent_rows=" in msg
+    assert "global_rows=" in msg
+    assert "npc=npc_wang_boss_001" in msg
+    # repo class name appears (AsyncMock → "AsyncMock")
+    assert "repo=" in msg
