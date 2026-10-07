@@ -88,3 +88,73 @@ describe('GET /api/economy/transactions/[user_id] proxy', () => {
     );
   });
 });
+
+const { POST: POST_EMIT } = await import('@/app/api/economy/admin/emit/route');
+const { POST: POST_SINK } = await import('@/app/api/economy/admin/sink/route');
+
+describe('POST /api/economy/admin/emit proxy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.ADMIN_PORTAL_ECONOMY_URL = 'http://economy-service:8005';
+    process.env.ADMIN_PORTAL_ADMIN_TOKEN = 'test-token';
+  });
+
+  it('adds Bearer token from env and proxies POST', async () => {
+    mockFetch.mockResolvedValueOnce({
+      status: 200,
+      json: async () => ({ amount: 100, active_players: 5 }),
+    });
+    const req = new Request('http://localhost/api/economy/admin/emit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'daily_emit' }),
+    });
+    const res = await POST_EMIT(req);
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://economy-service:8005/api/v1/admin/central-bank/emit',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-token',
+          'Content-Type': 'application/json',
+        }),
+      })
+    );
+  });
+
+  it('returns 503 when ADMIN_TOKEN env not set', async () => {
+    delete process.env.ADMIN_PORTAL_ADMIN_TOKEN;
+    const req = new Request('http://localhost/api/economy/admin/emit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const res = await POST_EMIT(req);
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.error.code).toBe('R_503');
+  });
+
+  it('POST /sink proxies body and Bearer token', async () => {
+    mockFetch.mockResolvedValueOnce({
+      status: 200,
+      json: async () => ({ user_id: 'alice', sunk: 50, balance_after: 950 }),
+    });
+    const req = new Request('http://localhost/api/economy/admin/sink', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: 'alice', amount: 50, reason: 'admin' }),
+    });
+    const res = await POST_SINK(req);
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://economy-service:8005/api/v1/admin/central-bank/sink',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ user_id: 'alice', amount: 50, reason: 'admin' }),
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      })
+    );
+  });
+});
