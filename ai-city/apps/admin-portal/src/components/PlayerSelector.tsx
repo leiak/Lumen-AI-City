@@ -13,13 +13,26 @@ export function PlayerSelector() {
   const selectedId = usePlayerStore((s) => s.selectedPlayerId);
   const setSelected = usePlayerStore((s) => s.setSelected);
 
-  const { data, isLoading } = useQuery<{ players: Player[] }>({
+  const { data, isLoading, isError, refetch } = useQuery<{ players: Player[] }>({
     queryKey: ['players'],
     queryFn: () => fetch('/api/players').then((r) => r.json()),
     staleTime: 5 * 60 * 1000, // 5 min
+    retry: 1,
   });
 
   if (isLoading) return <span className="text-sm text-gray-500">加载玩家…</span>;
+
+  if (isError) {
+    return (
+      <button
+        onClick={() => refetch()}
+        className="text-sm text-red-600 underline"
+        title="加载玩家列表失败，点击重试"
+      >
+        加载失败 — 重试
+      </button>
+    );
+  }
 
   const players = data?.players ?? [];
 
