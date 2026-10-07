@@ -58,8 +58,12 @@ export async function GET(_req: Request) {
     );
     return NextResponse.json({ players: result.rows });
   } catch (err) {
+    console.error('[api/players] DB error', err);
+    const msg = process.env.NODE_ENV === 'production'
+      ? 'DB query failed'
+      : `DB query failed: ${(err as Error).message}`;
     return NextResponse.json(
-      { error: { code: 'R_500', msg: `DB query failed: ${(err as Error).message}` } },
+      { error: { code: 'R_500', msg } },
       { status: 500 }
     );
   } finally {
