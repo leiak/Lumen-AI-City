@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { usePlayerStore } from '@/lib/usePlayerStore';
-import { txTypeBadge, type TxType } from '@/lib/formatTxType';
+import { formatTxType, txTypeBadge, type TxType } from '@/lib/formatTxType';
 
 interface TxItem {
   id: number;
@@ -124,14 +124,14 @@ export function TransactionsClient() {
               </td>
               <td className="px-3 py-2">
                 <span className={`px-2 py-0.5 rounded text-xs ${txTypeBadge(tx.type as TxType)}`}>
-                  {tx.type}
+                  {formatTxType(tx.type as TxType)}
                 </span>
               </td>
               <td className="px-3 py-2 text-right text-gray-600">{tx.currency}</td>
               <td className={`px-3 py-2 text-right ${tx.amount < 0 ? 'text-red-600' : 'text-green-700'}`}>
-                {tx.amount}
+                {tx.amount >= 0 ? '+' : ''}{formatAmount(tx.amount)}
               </td>
-              <td className="px-3 py-2 text-right text-gray-600">{tx.balance_after}</td>
+              <td className="px-3 py-2 text-right text-gray-600">{formatAmount(tx.balance_after)}</td>
               <td className="px-3 py-2 text-gray-600 text-xs">
                 {tx.memo ?? (tx.counterparty_id && `对方 ${tx.counterparty_id.slice(0, 8)}…`) ?? (tx.product_id != null && `商品 #${tx.product_id}`) ?? ''}
               </td>

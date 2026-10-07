@@ -36,13 +36,14 @@ describe('TransactionsClient', () => {
     });
     renderWithQuery(<TransactionsClient />);
     await waitFor(() => {
-      expect(screen.getByText('player_transfer')).toBeInTheDocument();
+      expect(screen.getByText('玩家转账')).toBeInTheDocument();
     });
-    expect(screen.getByText('npc_purchase')).toBeInTheDocument();
-    expect(screen.getByText('central_bank_emit')).toBeInTheDocument();
-    // amount formatting: 100 / -50 / 50
-    expect(screen.getByText('100')).toBeInTheDocument();
+    expect(screen.getByText('NPC 购买')).toBeInTheDocument();
+    expect(screen.getByText('中央银行发钞')).toBeInTheDocument();
+    // amount formatting: +100 / -50 / +50 (sign prefix for non-negative, formatted)
+    expect(screen.getByText('+100')).toBeInTheDocument();
     expect(screen.getByText('-50')).toBeInTheDocument();
+    expect(screen.getByText('+50')).toBeInTheDocument();
   });
 
   it('pagination next button increases offset', async () => {
