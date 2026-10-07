@@ -50,11 +50,8 @@ test.describe('admin-portal wallet + admin flow', () => {
     // ---- 1. Login as admin/adminpass ----
     await loginAsAdmin(page);
 
-    // ---- 2. Navigate to /wallet ----
+    // ---- 2. Navigate to /wallet (heading only appears after player + data load) ----
     await page.goto('/wallet');
-    await expect(page.getByRole('heading', { name: 'Wallet' })).toBeVisible({
-      timeout: 15_000,
-    });
 
     // ---- 3. Pick demo player via header selector ----
     const playerSelector = page.getByTestId('player-selector');
@@ -78,6 +75,9 @@ test.describe('admin-portal wallet + admin flow', () => {
     // ---- 4. Verify both balance cards render a number ----
     const goldBalance = page.getByTestId('balance-gold-balance');
     const tokenBalance = page.getByTestId('balance-token-balance');
+    await expect(page.getByRole('heading', { name: 'Wallet' })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(goldBalance).toBeVisible({ timeout: 15_000 });
     await expect(tokenBalance).toBeVisible({ timeout: 15_000 });
     // formatNumber() always produces a non-empty digits string.
@@ -93,7 +93,7 @@ test.describe('admin-portal wallet + admin flow', () => {
     });
 
     // ---- 6. Fill emit reason + submit ----
-    await page.getByLabel('Reason').fill('e2e_test_emit');
+    await page.locator('#emit-reason').fill('e2e_test_emit');
     await page.getByRole('button', { name: '触发 emit' }).click();
 
     // ---- 7. Verify success OR error feedback ----
