@@ -9,23 +9,38 @@ interface Wallet {
   token_balance: number;
 }
 
+interface ApiError {
+  code: string;
+  msg: string;
+}
+
 function formatNumber(n: number): string {
   return n.toLocaleString('en-US');
 }
 
-function BalanceCard({ label, value, onRefresh }: { label: string; value: number; onRefresh: () => void }) {
+/** Unwrap a `{ error: { code, msg } }` envelope that was JSON.stringify'd into
+ *  the thrown Error's message. Falls back to UNKNOWN + the raw string. */
+function describeError(e: unknown): { code: string; msg: string } {
+  const raw = (e as Error)?.message ?? String(e);
+  try {
+    const parsed = JSON.parse(raw);
+    const errObj = parsed?.error as ApiError | undefined;
+    return {
+      code: errObj?.code ?? 'UNKNOWN',
+      msg: errObj?.msg ?? raw,
+    };
+  } catch {
+    return { code: 'UNKNOWN', msg: raw };
+  }
+}
+
+function BalanceCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="bg-white p-6 rounded-lg border border-gray-200">
       <div className="text-sm text-gray-600 mb-1">{label}</div>
       <div data-testid={`balance-${label.toLowerCase().replace(' ', '-')}`} className="text-3xl font-bold">
         {formatNumber(value)}
       </div>
-      <button
-        onClick={onRefresh}
-        className="mt-3 px-3 py-3 text-sm border border-gray-300 rounded hover:bg-gray-100"
-      >
-        刷新
-      </button>
     </div>
   );
 }
@@ -35,9 +50,19 @@ export function WalletClient() {
 
   const { data, isLoading, error, refetch } = useQuery<Wallet>({
     queryKey: ['wallet', playerId],
-    queryFn: () =>
-      fetch(`/api/economy/wallet/${encodeURIComponent(playerId!)}`).then((r) => r.json()),
+    queryFn: async () => {
+      const pid = playerId;
+      if (!pid) throw new Error('playerId missing');
+      const r = await fetch(`/api/economy/wallet/${encodeURIComponent(pid)}`);
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(JSON.stringify(body));
+      }
+      return r.json();
+    },
     enabled: !!playerId,
+    retry: 1,
+    staleTime: 10_000,
   });
 
   if (!playerId) {
@@ -50,16 +75,29 @@ export function WalletClient() {
 
   if (isLoading) return <p className="text-gray-500">加载中…</p>;
 
-  if (error || !data) {
-    return <p className="text-red-600">错误: {String(error ?? 'no data')}</p>;
+  if (error) {
+    const { code, msg } = describeError(error);
+    return (
+      <p className="text-red-600">
+        错误 [{code}]: {msg}
+      </p>
+    );
   }
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-4">Wallet</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Wallet</h1>
+        <button
+          onClick={() => refetch()}
+          className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
+        >
+          刷新
+        </button>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
-        <BalanceCard label="Gold Balance" value={data.gold_balance} onRefresh={() => refetch()} />
-        <BalanceCard label="Token Balance" value={data.token_balance} onRefresh={() => refetch()} />
+        <BalanceCard label="Gold Balance" value={data!.gold_balance} />
+        <BalanceCard label="Token Balance" value={data!.token_balance} />
       </div>
     </div>
   );
