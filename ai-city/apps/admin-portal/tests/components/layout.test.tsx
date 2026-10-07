@@ -23,4 +23,10 @@ describe('Layout', () => {
     renderWithQuery(<Layout><div data-testid="child">hello</div></Layout>);
     expect(screen.getByTestId('child')).toBeInTheDocument();
   });
+
+  it('Header shows login link when no session (default state)', async () => {
+    // fetch('/api/auth/me') will fail in test env (no backend) → Header stays logged-out
+    renderWithQuery(<Layout><div>test</div></Layout>);
+    expect(await screen.findByText('管理员登录')).toBeInTheDocument();
+  });
 });

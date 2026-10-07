@@ -13,10 +13,21 @@ export function Header() {
   const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
-    const hasToken = document.cookie.includes('admin-token=');
-    if (hasToken) {
-      setSession({ username: 'admin', role: 'admin' });
-    }
+    // Use /api/auth/me server endpoint (cookie is httpOnly so document.cookie
+    // can't see it). The browser attaches the cookie automatically.
+    let cancelled = false;
+    fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data && data.username) setSession({ username: data.username, role: data.role });
+      })
+      .catch(() => {
+        // Stay logged-out on error.
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
