@@ -1,11 +1,6 @@
 /** Shared helpers for proxying requests to economy-service. */
-
-export interface EconomyProxyResult<T> {
-  ok: boolean;
-  status: number;
-  data?: T;
-  error?: { code: string; msg: string };
-}
+import { cookies } from 'next/headers';
+import { COOKIE_NAME, decodeToken, isAdmin } from '@/lib/auth';
 
 export async function proxyGet<T>(path: string): Promise<Response> {
   const base = process.env.ADMIN_PORTAL_ECONOMY_URL;
@@ -41,7 +36,7 @@ export async function proxyPost<T>(path: string, body: unknown, withAdminToken =
     if (!token) {
       return Response.json(
         { error: { code: 'R_503', msg: 'ADMIN_PORTAL_ADMIN_TOKEN not configured' } },
-        { status: 500 }
+        { status: 503 }
       );
     }
     headers['Authorization'] = `Bearer ${token}`;
@@ -64,8 +59,6 @@ export async function proxyPost<T>(path: string, body: unknown, withAdminToken =
 }
 
 export async function requireAdmin(): Promise<Response | null> {
-  const { cookies } = await import('next/headers');
-  const { COOKIE_NAME, decodeToken, isAdmin } = await import('@/lib/auth');
   const getJwtSecret = () =>
     process.env.ADMIN_PORTAL_JWT_SECRET ||
     process.env.JWT_SECRET ||
