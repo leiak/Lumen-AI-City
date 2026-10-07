@@ -19,10 +19,8 @@ describe('usePlayerStore', () => {
     expect(usePlayerStore.getState().selectedPlayerId).toBeNull();
   });
 
-  it('selectedPlayerId persists across store re-imports (sessionStorage)', async () => {
+  it('selectedPlayerId is written to sessionStorage', () => {
     usePlayerStore.getState().setSelected('persist-uuid-456');
-    // Wait for persist middleware to write
-    await new Promise(resolve => setTimeout(resolve, 10));
     const raw = sessionStorage.getItem('admin-portal-player');
     expect(raw).toBeTruthy();
     const parsed = JSON.parse(raw!);
