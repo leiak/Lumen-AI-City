@@ -136,7 +136,31 @@ describe('POST /api/economy/admin/emit proxy', () => {
     expect(body.error.code).toBe('R_503');
   });
 
-  it('POST /sink proxies body and Bearer token', async () => {
+  it('returns 401 when session is not admin', async () => {
+    const { isAdmin } = await import('@/lib/auth');
+    (isAdmin as any).mockReturnValueOnce(false);
+    const req = new Request('http://localhost/api/economy/admin/emit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const res = await POST_EMIT(req);
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error.code).toBe('R_401');
+    // economy-service must not be touched on auth failure
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/economy/admin/sink proxy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.ADMIN_PORTAL_ECONOMY_URL = 'http://economy-service:8005';
+    process.env.ADMIN_PORTAL_ADMIN_TOKEN = 'test-token';
+  });
+
+  it('proxies body and Bearer token', async () => {
     mockFetch.mockResolvedValueOnce({
       status: 200,
       json: async () => ({ user_id: 'alice', sunk: 50, balance_after: 950 }),
@@ -155,6 +179,26 @@ describe('POST /api/economy/admin/emit proxy', () => {
         body: JSON.stringify({ user_id: 'alice', amount: 50, reason: 'admin' }),
         headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
       })
+    );
+  });
+
+  it('forwards malformed JSON as empty body (current contract)', async () => {
+    // Documents the existing .catch(() => ({})) behavior: the routes accept
+    // malformed JSON silently and forward {} upstream. If a future change
+    // wants strict 400 parsing, this test will fail and force a contract update.
+    mockFetch.mockResolvedValueOnce({
+      status: 200,
+      json: async () => ({ ok: true }),
+    });
+    const req = new Request('http://localhost/api/economy/admin/sink', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not-json',
+    });
+    await POST_SINK(req);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ body: '{}' })
     );
   });
 });
