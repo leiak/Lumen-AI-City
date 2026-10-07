@@ -52,3 +52,39 @@ describe('GET /api/economy/wallet/[user_id] proxy', () => {
     expect(body.error.code).toBe('R_502');
   });
 });
+
+const { GET: GET_TXNS } = await import('@/app/api/economy/transactions/[user_id]/route');
+
+describe('GET /api/economy/transactions/[user_id] proxy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.ADMIN_PORTAL_ECONOMY_URL = 'http://economy-service:8005';
+  });
+
+  it('forwards limit and offset query params', async () => {
+    mockFetch.mockResolvedValueOnce({
+      status: 200,
+      json: async () => ({ transactions: [], total: 0, limit: 10, offset: 20 }),
+    });
+    const req = new Request('http://localhost/api/economy/transactions/alice?limit=10&offset=20');
+    const res = await GET_TXNS(req, { params: Promise.resolve({ user_id: 'alice' }) });
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://economy-service:8005/api/v1/transactions/alice?limit=10&offset=20',
+      expect.objectContaining({ method: 'GET' })
+    );
+  });
+
+  it('defaults to limit=50&offset=0 when query params missing', async () => {
+    mockFetch.mockResolvedValueOnce({
+      status: 200,
+      json: async () => ({ transactions: [], total: 0 }),
+    });
+    const req = new Request('http://localhost/api/economy/transactions/alice');
+    await GET_TXNS(req, { params: Promise.resolve({ user_id: 'alice' }) });
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://economy-service:8005/api/v1/transactions/alice?limit=50&offset=0',
+      expect.anything()
+    );
+  });
+});
