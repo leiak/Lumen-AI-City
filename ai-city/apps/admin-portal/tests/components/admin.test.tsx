@@ -49,9 +49,8 @@ describe('AdminClient', () => {
     });
 
     await waitFor(() => {
-      // cache should be invalidated (queries removed)
-      expect(qc.getQueryData(['wallet', 'alice-uuid'])).toBeUndefined();
-      expect(qc.getQueryData(['transactions', 'alice-uuid', 50, 0])).toBeUndefined();
+      expect(qc.getQueryState(['wallet', 'alice-uuid'])?.isInvalidated).toBe(true);
+      expect(qc.getQueryState(['transactions', 'alice-uuid', 50, 0])?.isInvalidated).toBe(true);
     });
   });
 

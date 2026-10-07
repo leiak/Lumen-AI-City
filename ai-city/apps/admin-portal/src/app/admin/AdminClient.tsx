@@ -24,8 +24,8 @@ export function AdminClient() {
   const [sinkReason, setSinkReason] = useState('');
 
   const invalidateAll = () => {
-    queryClient.removeQueries({ queryKey: ['wallet'] });
-    queryClient.removeQueries({ queryKey: ['transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['wallet'] });
+    queryClient.invalidateQueries({ queryKey: ['transactions'] });
   };
 
   const emitMut = useMutation({
