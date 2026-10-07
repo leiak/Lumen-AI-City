@@ -1,5 +1,33 @@
 # CHANGELOG — 3.0 经济系统
 
+## 2026-10-07 — 3.0 v2 admin-portal 钱包 UI GA
+
+14 commits implementing T1-T14:
+
+- **Layout**: sidebar + 顶部 player_id selector (zustand + sessionStorage persist)
+- **/wallet**: 余额卡片（gold + token）+ 手动刷新 + 错误/loading/empty states
+- **/transactions**: 表格（time/type/currency/amount/balance_after/memo）+ 分页 (50/page) + 类型色标
+- **/admin**: emit + sink forms，server 错误码展示，success 后 invalidate wallet+transactions
+- **Backend proxies**: /api/players (PG), /api/economy/wallet/[id], /transactions/[id], /admin/emit, /admin/sink
+- **错误处理**: 统一的 `{error: {code, msg}}` envelope + describeError helper
+- **docker-compose**: admin-portal service 新增 (8081 → 8081)，env vars (ECONOMY_URL, ADMIN_TOKEN, JWT_SECRET, DATABASE_URL)
+- **Dockerfile**: 修复 builder stage corepack enable + 提交 pnpm-lock.yaml
+- **测试**: 92 vitest unit + 1 Playwright E2E
+
+**DoD**:
+- `pnpm test` → 92/92 pass
+- `pnpm typecheck` → 0 errors
+- `pnpm playwright test e2e/wallet-admin.spec.ts` → 1 case pass (requires stack)
+- `docker compose up -d --build admin-portal` → healthy
+- 手动验收：admin login → 选 demo → 看到余额 → /admin emit → 返回 /wallet 刷新 → 余额变化
+
+**已知 gap**:
+- v1 YAGNI（按 spec）：玩家间转账 UI、NPC 商品目录浏览、WebSocket 实时事件、移动端、多语言货币切换
+
+**ADR**: `docs/adr/ADR-0009-admin-portal-wallet-ui.md`
+
+---
+
 ## 3.0.0 (2026-10-07) — v1 GA
 
 ### Highlights
