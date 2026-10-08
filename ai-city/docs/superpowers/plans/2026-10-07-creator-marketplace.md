@@ -1214,7 +1214,7 @@ git commit -m "feat(admin-portal): /market browse page (NPC + Saga tabs)"
 - Create: `apps/admin-portal/src/app/market/npc-templates/[id]/page.tsx` + `NpcTemplateDetail.tsx`
 - Test: `apps/admin-portal/tests/market/npc-detail.test.tsx`
 
-- [ ] **Step 1-3:** OCEAN radar chart SVG + 商品 list + 购买按钮
+- [x] **Step 1-3:** OCEAN radar chart SVG + 商品 list + 购买按钮
 
 ```bash
 git commit -m "feat(admin-portal): /market/npc-templates/{id} detail page"
