@@ -894,7 +894,7 @@ git commit -m "feat(market): purchase + inventory + revenue API endpoints"
 - Modify: `apps/admin-portal/src/lib/auth.ts`
 - Test: `apps/admin-portal/tests/lib/auth.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```typescript
 import { decodeToken } from '@/lib/auth';
@@ -903,7 +903,7 @@ const session = decodeToken(token, 'secret');
 expect(session.role).toBe('creator');
 ```
 
-- [ ] **Step 2: Update decodeToken**
+- [x] **Step 2: Update decodeToken**
 
 ```typescript
 // In apps/admin-portal/src/lib/auth.ts — add role field
@@ -923,7 +923,7 @@ export function decodeToken(token: string, secret: string): Session | null {
 }
 ```
 
-- [ ] **Step 3: Tests + verify + commit**
+- [x] **Step 3: Tests + verify + commit**
 
 ```bash
 git commit -m "feat(admin-portal): JWT decode role claim (player/creator/admin)"

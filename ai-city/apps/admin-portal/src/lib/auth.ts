@@ -5,10 +5,9 @@
  *  dependency surface tight per the C.4 constraint of "NO 3rd-party auth lib".
  *
  *  **Why hand-roll?** The api-gateway already uses HS256 (golang-jwt/jwt/v5)
- *  with ``sub`` / ``uname`` / ``exp`` / ``iat`` claims. We don't share the
- *  secret for admin-portal's cookie session — admin-portal issues its own
- *  token with an extra ``role`` claim so middleware can gate /bt-editor
- *  and /api/bt/* without round-tripping to api-gateway.
+ *  with ``sub`` / ``uname`` / ``exp`` / ``iat`` claims. Tokens may carry a
+ *  ``role`` claim; tokens from before creator-marketplace support default
+ *  to ``player``.
  *
  *  Security notes:
  *    - alg is hard-pinned to HS256. Tokens with ``alg=none`` or any other
@@ -16,12 +15,12 @@
  *      the classic "alg confusion" attack).
  *    - Signature is timing-safe compared via ``crypto.timingSafeEqual``.
  *    - ``decodeToken`` returns ``null`` for any failure mode (expired,
- *      wrong secret, missing role, malformed). Callers branch on null.
+ *      wrong secret, malformed). Unknown role claims are rejected.
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-export type Role = 'player' | 'admin';
+export type Role = 'player' | 'creator' | 'admin';
 
 export interface Session {
   username: string;
@@ -69,7 +68,7 @@ export function signToken(
 
 /**
  * Verify a HS256 JWT and return the decoded session, or null on any failure
- * (bad signature, expired, wrong alg, missing role, malformed).
+ * (bad signature, expired, wrong alg, unknown role, malformed).
  */
 export function decodeToken(token: string, secret: string): Session | null {
   if (!token || !secret) return null;
@@ -110,14 +109,22 @@ export function decodeToken(token: string, secret: string): Session | null {
   if (typeof payload.username !== 'string' || payload.username.length === 0) {
     return null;
   }
-  if (payload.role !== 'player' && payload.role !== 'admin') return null;
+  if (
+    payload.role !== undefined &&
+    payload.role !== null &&
+    payload.role !== 'player' &&
+    payload.role !== 'creator' &&
+    payload.role !== 'admin'
+  ) {
+    return null;
+  }
   if (typeof payload.exp !== 'number') return null;
   // Allow a 30s clock skew for the expiry check.
   if (payload.exp < Math.floor(Date.now() / 1000) - 30) return null;
 
   return {
     username: payload.username,
-    role: payload.role,
+    role: payload.role ?? 'player',
     exp: payload.exp,
   };
 }

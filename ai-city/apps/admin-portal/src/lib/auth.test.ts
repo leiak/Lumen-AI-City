@@ -3,11 +3,13 @@
  *  Tests cover:
  *   - signToken + decodeToken roundtrip for admin role
  *   - signToken + decodeToken roundtrip for player role
+ *   - signToken + decodeToken roundtrip for creator role
+ *   - decodeToken defaults a legacy token without role to player
  *   - decodeToken returns null for expired token
  *   - decodeToken returns null for wrong-secret signature
  *   - decodeToken returns null for malformed/garbage input
  *   - decodeToken returns null for alg=none (security guard)
- *   - decodeToken returns null when role claim is missing or unknown
+ *   - decodeToken returns null when role claim is unknown
  *   - isAdmin true/false for both roles
  *   - COOKIE_NAME + SESSION_MAX_AGE constants are exported
  */
@@ -59,6 +61,38 @@ describe('signToken + decodeToken roundtrip', () => {
     expect(decoded?.username).toBe('demo');
     expect(decoded?.role).toBe('player');
   });
+
+  it('roundtrips a creator session', () => {
+    const token = signToken(
+      { username: 'creator', role: 'creator' },
+      SECRET,
+      3600,
+    );
+    const decoded = decodeToken(token, SECRET);
+    expect(decoded?.username).toBe('creator');
+    expect(decoded?.role).toBe('creator');
+  });
+
+  it('defaults legacy tokens without a role claim to player', () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+      .toString('base64url');
+    const payload = Buffer.from(
+      JSON.stringify({
+        username: 'legacy',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    ).toString('base64url');
+    const signature = require('node:crypto')
+      .createHmac('sha256', SECRET)
+      .update(`${header}.${payload}`)
+      .digest('base64url');
+
+    expect(decodeToken(`${header}.${payload}.${signature}`, SECRET)).toEqual({
+      username: 'legacy',
+      role: 'player',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    });
+  });
 });
 
 describe('decodeToken failure modes', () => {
@@ -105,26 +139,7 @@ describe('decodeToken failure modes', () => {
     expect(decodeToken(token, SECRET)).toBeNull();
   });
 
-  it('returns null when role claim is missing', () => {
-    // Forge a token without a "role" field — older api-gateway tokens
-    // lack role; admin-portal must refuse them.
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
-      .toString('base64url');
-    const payload = Buffer.from(
-      JSON.stringify({
-        username: 'demo',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-      }),
-    ).toString('base64url');
-    const sig = require('node:crypto')
-      .createHmac('sha256', SECRET)
-      .update(`${header}.${payload}`)
-      .digest('base64url');
-    const token = `${header}.${payload}.${sig}`;
-    expect(decodeToken(token, SECRET)).toBeNull();
-  });
-
-  it('returns null when role is neither player nor admin', () => {
+  it('returns null when role is unknown', () => {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
       .toString('base64url');
     const payload = Buffer.from(
