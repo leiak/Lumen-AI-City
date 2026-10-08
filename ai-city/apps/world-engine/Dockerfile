@@ -4,7 +4,7 @@
 # 布局刻意还原仓库结构：crate 在 /src/apps/world-engine，proto 在
 # /src/packages/proto，这样 build.rs:8 的相对路径 ../../packages/proto 成立。
 
-FROM rust:1.82-alpine AS builder
+FROM rust:1.85-alpine AS builder
 
 # protobuf-dev 提供 /usr/bin/protoc —— Cargo.lock 里 prost-build 0.13.5
 # 不含 vendored protoc。

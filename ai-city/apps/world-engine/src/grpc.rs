@@ -87,13 +87,13 @@ pub fn load_tls_config() -> Result<rustls::ServerConfig, Box<dyn std::error::Err
         roots.add(ca).map_err(|e| format!("add CA to trust store: {}", e))?;
     }
 
-    let verifier = rustls::server::WebPkiClientVerifier::builder(roots)
+    let verifier = rustls::server::WebPkiClientVerifier::builder(Arc::new(roots))
         .build()
         .map_err(|e| format!("build client cert verifier: {}", e))?;
 
     let config = rustls::ServerConfig::builder()
         .with_client_cert_verifier(verifier)
-        .with_single_cert(certs, keys.remove(0))
+        .with_single_cert(certs, rustls::pki_types::PrivateKeyDer::Pkcs8(keys.remove(0)))
         .map_err(|e| format!("build server TLS config: {}", e))?;
 
     Ok(config)

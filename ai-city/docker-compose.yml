@@ -103,7 +103,7 @@ services:
       context: .
       dockerfile: apps/api-gateway/Dockerfile
     ports:
-      - '8080:8080'
+      - '${API_GATEWAY_HOST_PORT:-8080}:8080'
     environment:
       API_GATEWAY_PORT: '8080'
       DATABASE_URL: postgresql://aicity:aicity_dev@postgres:5432/aicity
@@ -279,7 +279,7 @@ services:
     healthcheck:
       # /healthz 不依赖 redis 真活着（app.py:82）—— 只看进程是否在 listen。
       # 用 wget 而非 curl：镜像走 python:3.12-slim 不带 curl，wget 在 busybox。
-      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8084/healthz']
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8084/healthz', timeout=3)"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -378,13 +378,12 @@ services:
       - minio
     healthcheck:
       # milvusdb/milvus 镜像基于 Ubuntu，自带 curl（不同于本仓库 alpine busybox）。
-      # 9091/health 端点由 milvus 内置；返回 body 含 "OK"。
-      test: ['CMD', 'curl', '-f', 'http://localhost:9091/health']
+      # 9091/healthz 端点由 milvus 内置；返回 body 含 "OK"。
+      test: ['CMD', 'curl', '-f', 'http://localhost:9091/healthz']
       interval: 30s
       timeout: 10s
       retries: 3
     volumes:
-      - ./apps/milvus/configs/milvus.yaml:/milvus/configs/milvus.yaml
       - milvus_data:/var/lib/milvus
 
   etcd:
@@ -448,7 +447,7 @@ services:
       - milvus
       - postgres
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9200/healthz"]
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9200/healthz', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -491,7 +490,7 @@ services:
       - saga-orchestrator
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9101/healthz"]
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9101/healthz', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 3

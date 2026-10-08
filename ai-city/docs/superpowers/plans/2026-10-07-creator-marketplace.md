@@ -1343,7 +1343,7 @@ git commit -m "docs(3.0 v3): ADR-0010 + ROADMAP v3 section + CHANGELOG entry"
 
 ### Task 25: Final smoke — docker compose + full test suite
 
-- [ ] **Step 1:** Run `docker compose up -d --build` — all containers healthy
+- [x] **Step 1:** Run `docker compose up -d --build` — all containers healthy
 
 - [x] **Step 2:** `cd apps/economy-service && PYTHONPATH=src pytest tests/ -v` — 30+ unit + 8+ e2e pass
 

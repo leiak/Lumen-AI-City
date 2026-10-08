@@ -24,12 +24,15 @@ async def startup():
 
 
 async def consume_loop():
-    consumer = KafkaConsumer(
-        TOPIC, bootstrap_servers=KAFKA_BROKERS.split(","),
+    consumer = await asyncio.to_thread(
+        KafkaConsumer,
+        TOPIC,
+        bootstrap_servers=KAFKA_BROKERS.split(","),
         group_id=f"saga-worker-{WORKER_ID}",
         auto_offset_reset="earliest",
     )
-    for msg in consumer:
+    while True:
+        msg = await asyncio.to_thread(next, consumer)
         event = json.loads(msg.value.decode())
         await process_event(event)
 
