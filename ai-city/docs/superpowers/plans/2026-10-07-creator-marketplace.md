@@ -1242,7 +1242,7 @@ git commit -m "feat(admin-portal): /market/saga-templates/{id} detail page"
 - Create: `apps/admin-portal/src/app/inventory/page.tsx` + `InventoryClient.tsx`
 - Test: `apps/admin-portal/tests/inventory.test.tsx`
 
-- [ ] **Step 1-3:** 列出 template_purchase
+- [x] **Step 1-3:** 列出 template_purchase
 
 ```bash
 git commit -m "feat(admin-portal): /inventory page (purchased templates)"
