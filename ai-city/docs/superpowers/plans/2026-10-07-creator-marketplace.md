@@ -14,6 +14,8 @@
 
 ## W1 — PG schema + role 扩展
 
+> **执行修正（2026-10-08）**：`player.id` 是 UUID，模板外键改为 UUID；`role` 已在 Phase C.4 存在，迁移补充 `player/creator/admin` 约束。schema/seed 挂载使用 slot 09/10（slot 07/08 已被 economy 占用）。服务鉴权改为校验 HS256 JWT `sub` 并查询 DB 角色。
+
 ### Task 1: player.role 列扩展 + seeds
 
 **Files:**
