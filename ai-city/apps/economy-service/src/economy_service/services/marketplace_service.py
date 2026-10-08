@@ -281,6 +281,57 @@ class MarketplaceService:
             )
         return purchase_id
 
+    async def list_inventory(
+        self,
+        user_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    p.id AS purchase_id,
+                    p.template_kind,
+                    p.template_id,
+                    p.price_paid_gold,
+                    p.created_at
+                FROM template_purchase AS p
+                WHERE p.user_id = $1
+                ORDER BY p.created_at DESC
+                LIMIT $2 OFFSET $3
+                """,
+                user_id,
+                limit,
+                offset,
+            )
+        return [dict(row) for row in rows]
+
+    async def list_creator_revenue(
+        self,
+        creator_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    r.purchase_id,
+                    r.amount_gold,
+                    r.platform_cut_gold,
+                    r.created_at
+                FROM creator_revenue AS r
+                WHERE r.creator_id = $1
+                ORDER BY r.created_at DESC
+                LIMIT $2 OFFSET $3
+                """,
+                creator_id,
+                limit,
+                offset,
+            )
+        return [dict(row) for row in rows]
+
     async def list_saga_templates(
         self,
         status: str = "live",

@@ -821,7 +821,7 @@ git commit -m "feat(market): purchase service (transaction + idempotency + Kafka
 - Create: `apps/economy-service/src/economy_service/api/v1/marketplace/purchase.py`
 - Modify: `apps/economy-service/src/economy_service/app.py`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```python
 # apps/economy-service/src/economy_service/api/v1/marketplace/purchase.py
@@ -878,7 +878,7 @@ async def revenue(creator_id: str, authorization: str = Header(...)):
     return [dict(r) for r in rows]
 ```
 
-- [ ] **Step 2: Tests + verify + commit**
+- [x] **Step 2: Tests + verify + commit**
 
 ```bash
 git commit -m "feat(market): purchase + inventory + revenue API endpoints"

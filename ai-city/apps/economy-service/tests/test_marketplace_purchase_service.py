@@ -54,6 +54,10 @@ class FakeConnection:
         elif "INSERT INTO transaction" in sql:
             self.logs.append(params)
 
+    async def fetch(self, sql, *params):
+        self.last_fetch = (sql, params)
+        return [{"purchase_id": 71, "amount_gold": 100}]
+
     def transaction(self):
         return FakeTransaction()
 
@@ -205,3 +209,31 @@ async def test_purchase_sends_event_after_commit():
             "price_paid_gold": 100,
         },
     )]
+
+
+@pytest.mark.asyncio
+async def test_list_inventory_queries_owned_purchases():
+    pool, conn = make_pool()
+    service = MarketplaceService(pool)
+
+    items = await service.list_inventory(BUYER_ID, limit=20, offset=5)
+
+    assert items == [{"purchase_id": 71, "amount_gold": 100}]
+    sql, params = conn.last_fetch
+    assert "FROM template_purchase" in sql
+    assert "WHERE p.user_id = $1" in sql
+    assert tuple(params) == (BUYER_ID, 20, 5)
+
+
+@pytest.mark.asyncio
+async def test_list_creator_revenue_queries_creator_ledger():
+    pool, conn = make_pool()
+    service = MarketplaceService(pool)
+
+    items = await service.list_creator_revenue(CREATOR_ID, limit=10, offset=2)
+
+    assert items == [{"purchase_id": 71, "amount_gold": 100}]
+    sql, params = conn.last_fetch
+    assert "FROM creator_revenue" in sql
+    assert "WHERE r.creator_id = $1" in sql
+    assert tuple(params) == (CREATOR_ID, 10, 2)
