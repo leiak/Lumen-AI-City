@@ -1272,9 +1272,9 @@ git commit -m "feat(admin-portal): Sidebar adds Creator/Market/Inventory + take-
 **Files:**
 - Create: `apps/admin-portal/e2e/creator-market.spec.ts`
 
-- [ ] **Step 1: Write the spec** — login as creator → create template → login as buyer → buy → assert creator revenue increased
+- [x] **Step 1: Write the spec** — login as creator → create template → login as buyer → buy → assert creator revenue increased
 
-- [ ] **Step 2: Verify `--list` + commit**
+- [x] **Step 2: Verify `--list` + commit**
 
 ```bash
 git commit -m "test(admin-portal): Playwright E2E for creator marketplace"
