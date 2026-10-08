@@ -18,6 +18,7 @@ from economy_service.schemas.marketplace_npc import (
     OceanJson,
     ProductItem,
 )
+from economy_service.schemas.marketplace_saga import SagaTemplateCreate
 
 __all__ = [
     "Currency",
@@ -28,6 +29,7 @@ __all__ = [
     "Product",
     "ProductItem",
     "PurchaseRequest",
+    "SagaTemplateCreate",
     "SinkRequest",
     "TransferRequest",
     "TxListResponse",
