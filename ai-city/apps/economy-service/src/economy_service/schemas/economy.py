@@ -1,16 +1,16 @@
-# apps/economy-service/src/economy_service/schemas.py
-"""Pydantic v2 models for economy-service."""
-from __future__ import annotations
-from enum import Enum
+"""Core economy schemas."""
+
+from enum import StrEnum
+
 from pydantic import BaseModel, Field
 
 
-class Currency(str, Enum):
+class Currency(StrEnum):
     GOLD = "gold"
     TOKEN = "token"
 
 
-class TxType(str, Enum):
+class TxType(StrEnum):
     PLAYER_TRANSFER = "player_transfer"
     NPC_PURCHASE = "npc_purchase"
     CENTRAL_BANK_EMIT = "central_bank_emit"
@@ -63,7 +63,7 @@ class Product(BaseModel):
     name: str
     price_gold: int = Field(ge=0)
     price_token: int | None = Field(default=None, ge=0)
-    stock: int | None = None  # None = unlimited
+    stock: int | None = None
     enabled: bool
 
 
@@ -76,7 +76,6 @@ class PurchaseRequest(BaseModel):
 
 
 class SinkRequest(BaseModel):
-    """Admin central-bank sink body."""
     user_id: str = Field(min_length=1)
     amount: int = Field(gt=0)
     reason: str = "admin"
