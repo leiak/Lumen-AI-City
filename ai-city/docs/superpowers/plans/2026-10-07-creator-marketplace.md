@@ -1228,7 +1228,7 @@ git commit -m "feat(admin-portal): /market/npc-templates/{id} detail page"
 - Create: `apps/admin-portal/src/app/market/saga-templates/[id]/page.tsx` + `SagaTemplateDetail.tsx`
 - Test: `apps/admin-portal/tests/market/saga-detail.test.tsx`
 
-- [ ] **Step 1-3:** yaml preview + NPC deps list + 购买按钮
+- [x] **Step 1-3:** yaml preview + NPC deps list + 购买按钮
 
 ```bash
 git commit -m "feat(admin-portal): /market/saga-templates/{id} detail page"
