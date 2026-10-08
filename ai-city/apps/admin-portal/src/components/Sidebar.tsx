@@ -11,6 +11,10 @@ const navItems = [
   { href: '/admin', label: 'Admin Tools' },
   { href: '/bt-editor', label: 'BT Editor' },
   { href: '/saga-viz', label: 'Saga Viz' },
+  { href: '/creator/npc-templates', label: 'Creator Templates' },
+  { href: '/creator/saga-templates', label: 'Saga Templates' },
+  { href: '/market', label: 'Market' },
+  { href: '/inventory', label: 'Inventory' },
 ];
 
 export function Sidebar() {

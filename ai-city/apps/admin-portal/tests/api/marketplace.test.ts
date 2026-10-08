@@ -35,6 +35,12 @@ const { GET: GET_INVENTORY } = await import(
 const { GET: GET_REVENUE } = await import(
   '@/app/api/marketplace/revenue/[creator_id]/route'
 );
+const { POST: POST_NPC_TAKE_DOWN } = await import(
+  '@/app/api/marketplace/npc-templates/[id]/take-down/route'
+);
+const { POST: POST_SAGA_TAKE_DOWN } = await import(
+  '@/app/api/marketplace/saga-templates/[id]/take-down/route'
+);
 
 function jsonResponse(status: number, body: unknown) {
   return {
@@ -301,5 +307,77 @@ describe('marketplace action proxies', () => {
 
     expect(response.status).toBe(403);
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('POST npc template take-down requires admin and proxies', async () => {
+    decodeToken.mockReturnValueOnce({
+      username: 'creator',
+      role: 'creator',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    });
+
+    const creatorResponse = await POST_NPC_TAKE_DOWN(
+      new Request('http://localhost/api/marketplace/npc-templates/42/take-down', {
+        method: 'POST',
+      }),
+      { params: Promise.resolve({ id: '42' }) },
+    );
+
+    expect(creatorResponse.status).toBe(403);
+    expect(await creatorResponse.json()).toMatchObject({
+      error: { code: 'R_026' },
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { status: 'taken_down' }));
+    const adminResponse = await POST_NPC_TAKE_DOWN(
+      new Request('http://localhost/api/marketplace/npc-templates/42/take-down', {
+        method: 'POST',
+      }),
+      { params: Promise.resolve({ id: '42' }) },
+    );
+
+    expect(adminResponse.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://economy-service:8005/v1/marketplace/npc-templates/42/take-down',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('POST saga template take-down requires admin and proxies', async () => {
+    decodeToken.mockReturnValueOnce({
+      username: 'creator',
+      role: 'creator',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    });
+
+    const creatorResponse = await POST_SAGA_TAKE_DOWN(
+      new Request(
+        'http://localhost/api/marketplace/saga-templates/43/take-down',
+        { method: 'POST' },
+      ),
+      { params: Promise.resolve({ id: '43' }) },
+    );
+
+    expect(creatorResponse.status).toBe(403);
+    expect(await creatorResponse.json()).toMatchObject({
+      error: { code: 'R_026' },
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { status: 'taken_down' }));
+    const adminResponse = await POST_SAGA_TAKE_DOWN(
+      new Request(
+        'http://localhost/api/marketplace/saga-templates/43/take-down',
+        { method: 'POST' },
+      ),
+      { params: Promise.resolve({ id: '43' }) },
+    );
+
+    expect(adminResponse.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://economy-service:8005/v1/marketplace/saga-templates/43/take-down',
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 });

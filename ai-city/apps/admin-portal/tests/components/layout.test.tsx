@@ -9,7 +9,7 @@ function renderWithQuery(ui: React.ReactNode) {
 }
 
 describe('Layout', () => {
-  it('sidebar renders 6 nav items', () => {
+  it('sidebar renders all workspace nav items', () => {
     renderWithQuery(<Layout><div>test</div></Layout>);
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Wallet')).toBeInTheDocument();
@@ -17,6 +17,10 @@ describe('Layout', () => {
     expect(screen.getByText('Admin Tools')).toBeInTheDocument();
     expect(screen.getByText('BT Editor')).toBeInTheDocument();
     expect(screen.getByText('Saga Viz')).toBeInTheDocument();
+    expect(screen.getByText('Creator Templates')).toBeInTheDocument();
+    expect(screen.getByText('Saga Templates')).toBeInTheDocument();
+    expect(screen.getByText('Market')).toBeInTheDocument();
+    expect(screen.getByText('Inventory')).toBeInTheDocument();
   });
 
   it('renders children in main content area', () => {

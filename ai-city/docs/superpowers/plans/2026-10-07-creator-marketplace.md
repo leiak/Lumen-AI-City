@@ -1257,9 +1257,9 @@ git commit -m "feat(admin-portal): /inventory page (purchased templates)"
 - Create: `apps/admin-portal/src/app/api/marketplace/npc-templates/[id]/take-down/route.ts`
 - Create: `apps/admin-portal/src/app/api/marketplace/saga-templates/[id]/take-down/route.ts`
 
-- [ ] **Step 1:** Add Creator / Market / Inventory links to Sidebar
+- [x] **Step 1:** Add Creator / Market / Inventory links to Sidebar
 
-- [ ] **Step 2:** 2 take-down proxy routes (admin role check)
+- [x] **Step 2:** 2 take-down proxy routes (admin role check)
 
 ```bash
 git commit -m "feat(admin-portal): Sidebar adds Creator/Market/Inventory + take-down proxies"

@@ -24,7 +24,12 @@ export async function requireMarketplaceSession(
   }
   if (!allowedRoles.includes(session.role)) {
     return Response.json(
-      { error: { code: 'R_027', msg: 'insufficient role' } },
+      {
+        error: {
+          code: allowedRoles.length === 1 && allowedRoles[0] === 'admin' ? 'R_026' : 'R_027',
+          msg: 'insufficient role',
+        },
+      },
       { status: 403 },
     );
   }
