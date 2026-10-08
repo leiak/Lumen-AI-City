@@ -1351,9 +1351,9 @@ git commit -m "docs(3.0 v3): ADR-0010 + ROADMAP v3 section + CHANGELOG entry"
 
 - [x] **Step 4:** `cd apps/admin-portal && pnpm exec tsc --noEmit` — 0 errors
 
-- [ ] **Step 5:** `cd apps/admin-portal && pnpm exec playwright test e2e/creator-market.spec.ts` — 1 pass
+- [x] **Step 5:** `cd apps/admin-portal && pnpm exec playwright test e2e/creator-market.spec.ts` — 1 pass
 
-- [ ] **Step 6:** `docker compose exec -T economy-service python scripts/acceptance_creator_market_v1.py` — 10/10 PASS
+- [x] **Step 6:** `docker compose exec -T economy-service python scripts/acceptance_creator_market_v1.py` — 10/10 PASS
 
 ---
 
