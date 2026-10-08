@@ -1291,7 +1291,7 @@ git commit -m "test(admin-portal): Playwright E2E for creator marketplace"
 - Create: `apps/economy-service/tests/test_e2e_saga_purchase.py`
 - Create: `apps/economy-service/tests/test_e2e_takedown.py`
 
-- [ ] **Step 1-3:** Per spec §测试策略 — full flow tests
+- [x] **Step 1-3:** Per spec §测试策略 — full flow tests
 
 ```bash
 git commit -m "test(market): e2e tests for NPC purchase + Saga deps + take-down"
