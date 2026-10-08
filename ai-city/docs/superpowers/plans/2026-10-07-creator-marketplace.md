@@ -1200,7 +1200,7 @@ git commit -m "feat(admin-portal): /creator/saga-templates list + edit form"
 - Create: `apps/admin-portal/src/app/market/page.tsx` + `MarketClient.tsx`
 - Test: `apps/admin-portal/tests/market.test.tsx`
 
-- [ ] **Step 1-3:** Tab 切换 NPC / Saga + 卡片网格 + 搜索
+- [x] **Step 1-3:** Tab 切换 NPC / Saga + 卡片网格 + 搜索
 
 ```bash
 git commit -m "feat(admin-portal): /market browse page (NPC + Saga tabs)"
