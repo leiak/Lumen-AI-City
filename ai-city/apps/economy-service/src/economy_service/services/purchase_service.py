@@ -13,7 +13,7 @@ from economy_service.clients.kafka_producer import (
 )
 from economy_service.clients.redis_client import RedisClient
 from economy_service.errors import (
-    InsufficientBalance, ProductNotFound, ProductOutOfStock,
+    InsufficientBalance, ProductNotFoundError, ProductOutOfStockError,
 )
 
 # Module-level clients (injected via set_clients()).
@@ -62,10 +62,10 @@ class PurchaseService:
                     product_id,
                 )
                 if product is None or not product["enabled"]:
-                    raise ProductNotFound(f"product {product_id} not found / disabled")
+                    raise ProductNotFoundError(f"product {product_id} not found / disabled")
 
                 if product["stock"] is not None and product["stock"] <= 0:
-                    raise ProductOutOfStock(f"product {product_id} out of stock")
+                    raise ProductOutOfStockError(f"product {product_id} out of stock")
 
                 price = (
                     product["price_gold"] if currency == "gold"

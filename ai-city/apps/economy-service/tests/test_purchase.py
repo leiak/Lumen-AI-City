@@ -1,7 +1,7 @@
 import pytest
 from economy_service.services.purchase_service import PurchaseService
 from economy_service.errors import (
-    InsufficientBalance, ProductNotFound, ProductOutOfStock,
+    InsufficientBalance, ProductNotFoundError, ProductOutOfStockError,
 )
 
 
@@ -83,7 +83,7 @@ async def test_purchase_out_of_stock_raises(pool):
          "price_gold": 50, "price_token": None, "stock": 0, "enabled": True},
     ]
     svc = PurchaseService(pool)
-    with pytest.raises(ProductOutOfStock):
+    with pytest.raises(ProductOutOfStockError):
         await svc.purchase("alice", 1, "gold", "key-2")
 
 
@@ -94,7 +94,7 @@ async def test_purchase_not_found_raises(pool):
         None,  # product not found
     ]
     svc = PurchaseService(pool)
-    with pytest.raises(ProductNotFound):
+    with pytest.raises(ProductNotFoundError):
         await svc.purchase("alice", 999, "gold", "key-3")
 
 
@@ -120,5 +120,5 @@ async def test_purchase_disabled_raises_not_found(pool):
          "price_gold": 50, "price_token": None, "stock": 10, "enabled": False},
     ]
     svc = PurchaseService(pool)
-    with pytest.raises(ProductNotFound):
+    with pytest.raises(ProductNotFoundError):
         await svc.purchase("alice", 1, "gold", "key-5")
