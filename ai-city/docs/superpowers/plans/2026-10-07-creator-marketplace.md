@@ -1345,11 +1345,11 @@ git commit -m "docs(3.0 v3): ADR-0010 + ROADMAP v3 section + CHANGELOG entry"
 
 - [ ] **Step 1:** Run `docker compose up -d --build` — all containers healthy
 
-- [ ] **Step 2:** `cd apps/economy-service && PYTHONPATH=src pytest tests/ -v` — 30+ unit + 8+ e2e pass
+- [x] **Step 2:** `cd apps/economy-service && PYTHONPATH=src pytest tests/ -v` — 30+ unit + 8+ e2e pass
 
-- [ ] **Step 3:** `cd apps/admin-portal && pnpm exec vitest run` — 9+ vitest pass
+- [x] **Step 3:** `cd apps/admin-portal && pnpm exec vitest run` — 9+ vitest pass
 
-- [ ] **Step 4:** `cd apps/admin-portal && pnpm exec tsc --noEmit` — 0 errors
+- [x] **Step 4:** `cd apps/admin-portal && pnpm exec tsc --noEmit` — 0 errors
 
 - [ ] **Step 5:** `cd apps/admin-portal && pnpm exec playwright test e2e/creator-market.spec.ts` — 1 pass
 
