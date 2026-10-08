@@ -941,7 +941,7 @@ git commit -m "feat(admin-portal): JWT decode role claim (player/creator/admin)"
 - Create: `apps/admin-portal/src/app/api/marketplace/inventory/[user_id]/route.ts`
 - Create: `apps/admin-portal/src/app/api/marketplace/revenue/[creator_id]/route.ts`
 
-- [ ] **Step 1: marketplace.ts helper**
+- [x] **Step 1: marketplace.ts helper**
 
 ```typescript
 // apps/admin-portal/src/lib/marketplace.ts
@@ -963,7 +963,7 @@ export async function proxyMarketplace(path: string, init?: RequestInit) {
 }
 ```
 
-- [ ] **Step 2: 5 proxy routes** (each forwards to economy-service)
+- [x] **Step 2: 5 proxy routes** (each forwards to economy-service)
 
 For each proxy, follow the established pattern from T3-T5 (proxyGet/proxyPost + JWT from cookie). Example:
 
@@ -1000,7 +1000,7 @@ export async function POST(req: NextRequest) {
 }
 ```
 
-- [ ] **Step 3: Tests + verify + commit**
+- [x] **Step 3: Tests + verify + commit**
 
 ```bash
 git commit -m "feat(admin-portal): marketplace proxy routes (npc/saga/purchase/inventory/revenue)"
