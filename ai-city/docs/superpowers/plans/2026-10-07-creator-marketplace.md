@@ -1064,7 +1064,7 @@ git commit -m "feat(admin-portal): /creator/npc-templates/new edit form"
 - Create: `apps/admin-portal/src/app/creator/saga-templates/new/SagaTemplateEdit.tsx`
 - Test: `apps/admin-portal/tests/creator/saga-template.test.tsx`
 
-- [ ] **Step 1: Write failing test (list + edit)**
+- [x] **Step 1: Write failing test (list + edit)**
 
 ```typescript
 import { renderWithQuery } from '@/tests/test-utils';
@@ -1085,7 +1085,7 @@ test('edit form has yaml textarea + NPC deps + version', () => {
 });
 ```
 
-- [ ] **Step 2: SagaTemplateList.tsx**
+- [x] **Step 2: SagaTemplateList.tsx**
 
 ```tsx
 'use client';
@@ -1123,7 +1123,7 @@ import SagaTemplateList from './SagaTemplateList';
 export default function Page() { return <SagaTemplateList />; }
 ```
 
-- [ ] **Step 3: SagaTemplateEdit.tsx**
+- [x] **Step 3: SagaTemplateEdit.tsx**
 
 ```tsx
 'use client';
@@ -1180,7 +1180,7 @@ import SagaTemplateEdit from './SagaTemplateEdit';
 export default function Page() { return <SagaTemplateEdit />; }
 ```
 
-- [ ] **Step 4: Verify tests + commit**
+- [x] **Step 4: Verify tests + commit**
 
 ```bash
 cd apps/admin-portal && pnpm exec vitest run tests/creator/saga-template.test.tsx
