@@ -75,3 +75,72 @@ class MarketplaceService:
                 """,
                 template_id,
             )
+
+    async def create_saga_template(
+        self,
+        creator_id: str,
+        name: str,
+        yaml_content: str,
+        semantic_version: str,
+        icon_url: str | None = None,
+        description: str | None = None,
+        npc_deps: list[str] | None = None,
+    ) -> int:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO saga_template (
+                    creator_id, name, icon_url, description,
+                    yaml_content, npc_deps, semantic_version
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING id
+                """,
+                creator_id,
+                name,
+                icon_url,
+                description,
+                yaml_content,
+                npc_deps or [],
+                semantic_version,
+            )
+        return row["id"]
+
+    async def list_saga_templates(
+        self,
+        status: str = "live",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM saga_template
+                WHERE status = $1
+                ORDER BY created_at DESC
+                LIMIT $2 OFFSET $3
+                """,
+                status,
+                limit,
+                offset,
+            )
+        return [dict(row) for row in rows]
+
+    async def get_saga_template(self, template_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM saga_template WHERE id = $1",
+                template_id,
+            )
+        return dict(row) if row is not None else None
+
+    async def take_down_saga_template(self, template_id: int, admin_id: str) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE saga_template
+                SET status = 'taken_down', updated_at = NOW()
+                WHERE id = $1
+                """,
+                template_id,
+            )
