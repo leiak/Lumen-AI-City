@@ -1041,11 +1041,11 @@ git commit -m "feat(admin-portal): /creator/npc-templates list page + 2 tests"
 - Create: `apps/admin-portal/src/app/creator/npc-templates/new/NpcTemplateEdit.tsx`
 - Test: `apps/admin-portal/tests/creator/npc-template-edit.test.tsx`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
-- [ ] **Step 2: Implement form** (OCEAN sliders + BT textarea + 商品 list + price)
+- [x] **Step 2: Implement form** (OCEAN sliders + BT textarea + 商品 list + price)
 
-- [ ] **Step 3: Verify + commit**
+- [x] **Step 3: Verify + commit**
 
 ```bash
 git commit -m "feat(admin-portal): /creator/npc-templates/new edit form"

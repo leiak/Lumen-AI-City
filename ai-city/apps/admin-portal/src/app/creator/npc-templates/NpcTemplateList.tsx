@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 
 interface ApiError {
@@ -95,12 +96,12 @@ export function NpcTemplateList() {
             刷新
           </button>
           {canCreate && (
-            <a
+            <Link
               href="/creator/npc-templates/new"
               className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               创建
-            </a>
+            </Link>
           )}
         </div>
       </div>
