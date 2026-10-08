@@ -1304,15 +1304,15 @@ git commit -m "test(market): e2e tests for NPC purchase + Saga deps + take-down"
 **Files:**
 - Create: `apps/economy-service/scripts/acceptance_creator_market_v1.py`
 
-- [ ] **Step 1:** Follow pattern of `acceptance_economy_v1.py` (existing 3.0 v1) — 10 steps per spec
+- [x] **Step 1:** Follow pattern of `acceptance_economy_v1.py` (existing 3.0 v1) — 10 steps per spec
 
-- [ ] **Step 2: Run + verify 10/10 PASS**
+- [x] **Step 2: Run + verify 10/10 PASS**
 
 ```bash
 docker compose exec -T economy-service python scripts/acceptance_creator_market_v1.py
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git commit -m "test(market): acceptance_creator_market_v1.py (10 steps PASS)"

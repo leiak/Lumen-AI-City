@@ -160,7 +160,7 @@ class MarketplaceService:
             if template["status"] != "live":
                 raise TemplateTakenDownError(f"template taken down: {template_id}")
 
-            creator_id = template["creator_id"]
+            creator_id = str(template["creator_id"])
             price = template["price_gold"]
             if creator_id == user_id:
                 raise SelfPurchaseError(f"creator cannot purchase template: {template_id}")

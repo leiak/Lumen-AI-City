@@ -1,4 +1,5 @@
 import pytest
+import uuid
 from economy_service.errors import (
     InsufficientBalance,
     SelfPurchaseError,
@@ -115,6 +116,24 @@ async def test_purchase_transfers_gold_and_records_revenue(template_kind, templa
     assert conn.revenues == [(CREATOR_ID, 71, 100)]
     assert len(conn.logs) == 2
     assert conn.purchases[IDEMPOTENCY_KEY] == {"id": 71}
+
+
+@pytest.mark.asyncio
+async def test_purchase_accepts_uuid_creator_from_pg():
+    pool, conn = make_pool()
+    pg_uuid_creator = uuid.UUID(CREATOR_ID)
+    conn.templates[("npc_template", 42)]["creator_id"] = pg_uuid_creator
+    service = MarketplaceService(pool)
+
+    await service.purchase_template(
+        user_id=BUYER_ID,
+        template_kind="npc",
+        template_id=42,
+        idempotency_key=IDEMPOTENCY_KEY,
+    )
+
+    assert conn.wallets[CREATOR_ID] == 100
+    assert conn.revenues[0][0] == CREATOR_ID
 
 
 @pytest.mark.asyncio
