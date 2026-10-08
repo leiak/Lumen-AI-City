@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from economy_service.api.v1.admin import router as admin_router
+from economy_service.api.v1.marketplace.npc_templates import router as npc_templates_router
 from economy_service.api.v1.products import router as products_router
 from economy_service.api.v1.transactions import router as transactions_router
 from economy_service.api.v1.wallet import router as wallet_router
@@ -49,6 +50,7 @@ app.include_router(wallet_router)
 app.include_router(products_router)
 app.include_router(admin_router)
 app.include_router(transactions_router)
+app.include_router(npc_templates_router)
 
 
 @app.exception_handler(EconomyError)

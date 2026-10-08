@@ -40,6 +40,10 @@ services:
       - ./packages/proto/pg-schema-3.0-economy.sql:/docker-entrypoint-initdb.d/07-economy.sql:ro
       # Phase 3.0: demo / admin 钱包种子（1000 gold + 100 token，幂等）
       - ./db/seed/seed-economy.sql:/docker-entrypoint-initdb.d/08-seed-economy.sql:ro
+      # Phase 3.0 v3: 创作者市场模板/购买/分成表
+      - ./packages/proto/pg-schema-3.0-creator-market.sql:/docker-entrypoint-initdb.d/09-creator-market.sql:ro
+      # Phase 3.0 v3: creator demo 身份与钱包种子
+      - ./db/seed/seed-creator-market.sql:/docker-entrypoint-initdb.d/10-seed-creator-market.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U aicity']
       interval: 5s
@@ -298,6 +302,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       # 与 api/v1/admin.py:12 默认值一致；admin 路由验签用 secrets.compare_digest
       ADMIN_TOKEN: "${ADMIN_TOKEN:-dev-admin-token}"
+      # marketplace 路由复用 api-gateway 的 HS256 JWT secret
+      JWT_SECRET: "${JWT_SECRET:-dev-secret-change-me}"
       # scheduler.py:12 默认 6 小时一轮中央银行 emit；env 可覆盖
       EMIT_INTERVAL_HOURS: "${EMIT_INTERVAL_HOURS:-6}"
       PYTHONUNBUFFERED: "1"
