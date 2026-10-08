@@ -1,0 +1,1564 @@
+{
+  "components": {
+    "schemas": {
+      "Currency": {
+        "enum": [
+          "gold",
+          "token"
+        ],
+        "title": "Currency",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "NpcTemplateCreate": {
+        "properties": {
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "bt_skeleton": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bt Skeleton"
+          },
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "ocean_json": {
+            "$ref": "#/components/schemas/OceanJson"
+          },
+          "price_gold": {
+            "minimum": 10.0,
+            "title": "Price Gold",
+            "type": "integer"
+          },
+          "product_catalog": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ProductItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Catalog"
+          }
+        },
+        "required": [
+          "name",
+          "ocean_json",
+          "price_gold"
+        ],
+        "title": "NpcTemplateCreate",
+        "type": "object"
+      },
+      "OceanJson": {
+        "properties": {
+          "A": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "A",
+            "type": "number"
+          },
+          "C": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "C",
+            "type": "number"
+          },
+          "E": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "E",
+            "type": "number"
+          },
+          "N": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "N",
+            "type": "number"
+          },
+          "O": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "O",
+            "type": "number"
+          }
+        },
+        "required": [
+          "O",
+          "C",
+          "E",
+          "A",
+          "N"
+        ],
+        "title": "OceanJson",
+        "type": "object"
+      },
+      "Product": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "npc_id": {
+            "title": "Npc Id",
+            "type": "string"
+          },
+          "price_gold": {
+            "minimum": 0.0,
+            "title": "Price Gold",
+            "type": "integer"
+          },
+          "price_token": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Token"
+          },
+          "stock": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock"
+          }
+        },
+        "required": [
+          "id",
+          "npc_id",
+          "name",
+          "price_gold",
+          "enabled"
+        ],
+        "title": "Product",
+        "type": "object"
+      },
+      "ProductItem": {
+        "properties": {
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "price_gold": {
+            "minimum": 0.0,
+            "title": "Price Gold",
+            "type": "integer"
+          },
+          "stock": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock"
+          }
+        },
+        "required": [
+          "name",
+          "price_gold"
+        ],
+        "title": "ProductItem",
+        "type": "object"
+      },
+      "SagaTemplateCreate": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          },
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "npc_deps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Npc Deps",
+            "type": "array"
+          },
+          "price_gold": {
+            "minimum": 10.0,
+            "title": "Price Gold",
+            "type": "integer"
+          },
+          "semantic_version": {
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "title": "Semantic Version",
+            "type": "string"
+          },
+          "yaml_content": {
+            "minLength": 1,
+            "title": "Yaml Content",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "yaml_content",
+          "price_gold",
+          "semantic_version"
+        ],
+        "title": "SagaTemplateCreate",
+        "type": "object"
+      },
+      "SinkRequest": {
+        "properties": {
+          "amount": {
+            "exclusiveMinimum": 0.0,
+            "title": "Amount",
+            "type": "integer"
+          },
+          "reason": {
+            "default": "admin",
+            "title": "Reason",
+            "type": "string"
+          },
+          "user_id": {
+            "minLength": 1,
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "amount"
+        ],
+        "title": "SinkRequest",
+        "type": "object"
+      },
+      "TransferRequest": {
+        "properties": {
+          "amount": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100000.0,
+            "title": "Amount",
+            "type": "integer"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "from_user_id": {
+            "title": "From User Id",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "maxLength": 64,
+            "minLength": 8,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memo"
+          },
+          "to_user_id": {
+            "title": "To User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_user_id",
+          "to_user_id",
+          "currency",
+          "amount",
+          "idempotency_key"
+        ],
+        "title": "TransferRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WalletResponse": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "gold_balance": {
+            "minimum": 0.0,
+            "title": "Gold Balance",
+            "type": "integer"
+          },
+          "token_balance": {
+            "minimum": 0.0,
+            "title": "Token Balance",
+            "type": "integer"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "gold_balance",
+          "token_balance",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WalletResponse",
+        "type": "object"
+      },
+      "economy_service__api__v1__marketplace__purchase__PurchaseRequest": {
+        "properties": {
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "template_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Template Id",
+            "type": "integer"
+          },
+          "template_kind": {
+            "enum": [
+              "npc",
+              "saga"
+            ],
+            "title": "Template Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_kind",
+          "template_id",
+          "idempotency_key"
+        ],
+        "title": "PurchaseRequest",
+        "type": "object"
+      },
+      "economy_service__schemas__economy__PurchaseRequest": {
+        "properties": {
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "idempotency_key": {
+            "maxLength": 64,
+            "minLength": 8,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "product_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Product Id",
+            "type": "integer"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "product_id",
+          "currency",
+          "idempotency_key"
+        ],
+        "title": "PurchaseRequest",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "AI City - Economy Service",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/admin/central-bank/emit": {
+      "post": {
+        "operationId": "admin_emit_api_v1_admin_central_bank_emit_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Admin Emit Api V1 Admin Central Bank Emit Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Emit",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/central-bank/sink": {
+      "post": {
+        "operationId": "admin_sink_api_v1_admin_central_bank_sink_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Admin Sink Api V1 Admin Central Bank Sink Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Sink",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/products/{npc_id}": {
+      "get": {
+        "operationId": "list_products_api_v1_products__npc_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "npc_id",
+            "required": true,
+            "schema": {
+              "title": "Npc Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Product"
+                  },
+                  "title": "Response List Products Api V1 Products  Npc Id  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Products",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/v1/transactions/{user_id}": {
+      "get": {
+        "description": "Return transaction history for `user_id` (newest first), paginated.",
+        "operationId": "list_transactions_api_v1_transactions__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Transactions Api V1 Transactions  User Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Transactions",
+        "tags": [
+          "transactions"
+        ]
+      }
+    },
+    "/api/v1/wallet/purchase": {
+      "post": {
+        "operationId": "purchase_api_v1_wallet_purchase_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/economy_service__schemas__economy__PurchaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Purchase Api V1 Wallet Purchase Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Purchase",
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/api/v1/wallet/transfer": {
+      "post": {
+        "operationId": "transfer_api_v1_wallet_transfer_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transfer",
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/api/v1/wallet/{user_id}": {
+      "get": {
+        "operationId": "get_wallet_api_v1_wallet__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Wallet",
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/v1/marketplace/inventory/{user_id}": {
+      "get": {
+        "operationId": "list_inventory_v1_marketplace_inventory__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Inventory V1 Marketplace Inventory  User Id  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Inventory",
+        "tags": [
+          "marketplace"
+        ]
+      }
+    },
+    "/v1/marketplace/npc-templates": {
+      "get": {
+        "operationId": "list_npc_templates_v1_marketplace_npc_templates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "live",
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Npc Templates V1 Marketplace Npc Templates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Npc Templates",
+        "tags": [
+          "marketplace"
+        ]
+      },
+      "post": {
+        "operationId": "create_npc_template_v1_marketplace_npc_templates_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NpcTemplateCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Npc Template V1 Marketplace Npc Templates Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Npc Template",
+        "tags": [
+          "marketplace"
+        ]
+      }
+    },
+    "/v1/marketplace/npc-templates/{template_id}": {
+      "get": {
+        "operationId": "get_npc_template_v1_marketplace_npc_templates__template_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "title": "Template Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Npc Template V1 Marketplace Npc Templates  Template Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Npc Template",
+        "tags": [
+          "marketplace"
+        ]
+      }
+    },
+    "/v1/marketplace/npc-templates/{template_id}/take-down": {
+      "post": {
+        "operationId": "take_down_npc_template_v1_marketplace_npc_templates__template_id__take_down_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "title": "Template Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Take Down Npc Template V1 Marketplace Npc Templates  Template Id  Take Down Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Take Down Npc Template",
+        "tags": [
+          "marketplace"
+        ]
+      }
+    },
+    "/v1/marketplace/purchase": {
+      "post": {
+        "operationId": "purchase_template_v1_marketplace_purchase_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/economy_service__api__v1__marketplace__purchase__PurchaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Purchase Template V1 Marketplace Purchase Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Purchase Template",
+        "tags": [
+          "marketplace"
+        ]
+      }
+    },
+    "/v1/marketplace/revenue/{creator_id}": {
+      "get": {
+        "operationId": "list_creator_revenue_v1_marketplace_revenue__creator_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "creator_id",
+            "required": true,
+            "schema": {
+              "title": "Creator Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Creator Revenue V1 Marketplace Revenue  Creator Id  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Creator Revenue",
+        "tags": [
+          "marketplace"
+        ]
+      }
+    },
+    "/v1/marketplace/saga-templates": {
+      "get": {
+        "operationId": "list_saga_templates_v1_marketplace_saga_templates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "live",
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Saga Templates V1 Marketplace Saga Templates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Saga Templates",
+        "tags": [
+          "marketplace"
+        ]
+      },
+      "post": {
+        "operationId": "create_saga_template_v1_marketplace_saga_templates_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SagaTemplateCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Saga Template V1 Marketplace Saga Templates Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Saga Template",
+        "tags": [
+          "marketplace"
+        ]
+      }
+    },
+    "/v1/marketplace/saga-templates/{template_id}": {
+      "get": {
+        "operationId": "get_saga_template_v1_marketplace_saga_templates__template_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "title": "Template Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Saga Template V1 Marketplace Saga Templates  Template Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Saga Template",
+        "tags": [
+          "marketplace"
+        ]
+      }
+    },
+    "/v1/marketplace/saga-templates/{template_id}/take-down": {
+      "post": {
+        "operationId": "take_down_saga_template_v1_marketplace_saga_templates__template_id__take_down_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "title": "Template Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Take Down Saga Template V1 Marketplace Saga Templates  Template Id  Take Down Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Take Down Saga Template",
+        "tags": [
+          "marketplace"
+        ]
+      }
+    }
+  }
+}
