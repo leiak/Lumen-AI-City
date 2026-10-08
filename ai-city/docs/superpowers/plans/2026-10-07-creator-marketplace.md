@@ -1015,18 +1015,18 @@ git commit -m "feat(admin-portal): marketplace proxy routes (npc/saga/purchase/i
 - Create: `apps/admin-portal/src/app/creator/npc-templates/NpcTemplateList.tsx`
 - Test: `apps/admin-portal/tests/creator/npc-template-list.test.tsx`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```typescript
 // Renders list of templates + "创建" button when role=creator
 // Uses existing renderWithQuery pattern
 ```
 
-- [ ] **Step 2: Implement NpcTemplateList + page.tsx** (thin wrapper)
+- [x] **Step 2: Implement NpcTemplateList + page.tsx** (thin wrapper)
 
 Use WalletClient pattern: `'use client'`, useQuery, describeError, empty/loading/error states.
 
-- [ ] **Step 3: Verify + commit**
+- [x] **Step 3: Verify + commit**
 
 ```bash
 git commit -m "feat(admin-portal): /creator/npc-templates list page + 2 tests"
