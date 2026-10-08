@@ -28,6 +28,7 @@ async def test_create_saga_template_serializes_npc_deps(pool):
     template_id = await service.create_saga_template(
         creator_id="00000000-0000-0000-0000-000000000003",
         name="Welcome Saga",
+        price_gold=100,
         yaml_content=YAML_CONTENT,
         semantic_version="1.0.0",
         npc_deps=["npc_wang_boss_001"],
@@ -39,8 +40,9 @@ async def test_create_saga_template_serializes_npc_deps(pool):
     sql, *params = pool._conn.fetchrow.call_args.args
     assert "INSERT INTO saga_template" in sql
     assert params[0] == "00000000-0000-0000-0000-000000000003"
-    assert params[5] == ["npc_wang_boss_001"]
-    assert params[6] == "1.0.0"
+    assert params[2] == 100
+    assert params[6] == ["npc_wang_boss_001"]
+    assert params[7] == "1.0.0"
 
 
 @pytest.mark.asyncio

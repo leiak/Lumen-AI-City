@@ -7,4 +7,5 @@ class SagaTemplateCreate(BaseModel):
     description: str | None = None
     yaml_content: str = Field(min_length=1)
     npc_deps: list[str] = Field(default_factory=list)
+    price_gold: int = Field(ge=10)
     semantic_version: str = Field(pattern=r"^\d+\.\d+\.\d+$")

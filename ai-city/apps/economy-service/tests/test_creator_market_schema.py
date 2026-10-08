@@ -31,6 +31,7 @@ def test_creator_market_migration_uses_player_uuid_foreign_keys() -> None:
 
     assert "CREATE TABLE IF NOT EXISTS saga_template" in sql
     assert "npc_deps TEXT[] NOT NULL DEFAULT '{}'" in compact_sql
+    assert "price_gold BIGINT NOT NULL CHECK (price_gold >= 10)" in compact_sql
 
     assert "CREATE TABLE IF NOT EXISTS template_purchase" in sql
     assert "user_id UUID NOT NULL REFERENCES player(id)" in compact_sql
@@ -40,6 +41,17 @@ def test_creator_market_migration_uses_player_uuid_foreign_keys() -> None:
     assert "CREATE TABLE IF NOT EXISTS creator_revenue" in sql
     assert "creator_id UUID NOT NULL REFERENCES player(id)" in compact_sql
     assert "platform_cut_gold BIGINT NOT NULL DEFAULT 0" in sql
+
+
+def test_saga_template_price_can_be_altered_on_existing_databases() -> None:
+    sql = MIGRATION.read_text(encoding="utf-8")
+    compact_sql = normalized(sql)
+
+    assert (
+        "ALTER TABLE saga_template ADD COLUMN IF NOT EXISTS price_gold "
+        "BIGINT NOT NULL DEFAULT 10"
+    ) in compact_sql
+    assert "ADD CONSTRAINT saga_template_price_min CHECK (price_gold >= 10)" in compact_sql
 
 
 def test_role_extension_allows_creator_without_backsliding_admin() -> None:

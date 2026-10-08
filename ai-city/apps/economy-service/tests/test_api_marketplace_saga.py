@@ -58,6 +58,7 @@ def test_create_saga_template_validates_yaml(client):
         json={
             "name": "Broken Saga",
             "yaml_content": "name: 'foo",
+            "price_gold": 100,
             "semantic_version": "1.0.0",
         },
         headers=auth_header(CREATOR_ID),
@@ -79,6 +80,7 @@ def test_create_saga_template_returns_id(client):
         json={
             "name": "Welcome Saga",
             "yaml_content": VALID_YAML,
+            "price_gold": 100,
             "semantic_version": "1.0.0",
             "npc_deps": ["npc_wang_boss_001"],
         },

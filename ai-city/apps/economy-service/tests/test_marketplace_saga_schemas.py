@@ -33,6 +33,7 @@ def test_saga_template_create_valid():
     template = SagaTemplateCreate(
         name="Welcome Saga",
         yaml_content=VALID_YAML,
+        price_gold=100,
         npc_deps=["npc_wang_boss_001"],
         semantic_version="1.0.0",
     )
@@ -46,5 +47,16 @@ def test_saga_template_create_rejects_bad_semver():
         SagaTemplateCreate(
             name="Welcome Saga",
             yaml_content=VALID_YAML,
+            price_gold=100,
             semantic_version="1.0",
+        )
+
+
+def test_saga_template_create_rejects_price_below_minimum():
+    with pytest.raises(ValidationError, match="greater_than_equal"):
+        SagaTemplateCreate(
+            name="Too Cheap Saga",
+            yaml_content=VALID_YAML,
+            price_gold=9,
+            semantic_version="1.0.0",
         )

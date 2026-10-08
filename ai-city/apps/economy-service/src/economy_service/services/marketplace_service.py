@@ -2,6 +2,23 @@ import json
 
 from asyncpg import Pool
 
+from economy_service.clients.kafka_producer import KafkaProducer
+from economy_service.errors import (
+    InsufficientBalance,
+    SelfPurchaseError,
+    TemplateNotFoundError,
+    TemplateTakenDownError,
+    WalletNotFound,
+)
+
+_kafka: KafkaProducer | None = None
+_TOPIC_MARKET_PURCHASED = "econ.market.purchased"
+
+
+def set_clients(kafka: KafkaProducer | None = None) -> None:
+    global _kafka
+    _kafka = kafka
+
 
 class MarketplaceService:
     def __init__(self, pool: Pool):
@@ -80,6 +97,7 @@ class MarketplaceService:
         self,
         creator_id: str,
         name: str,
+        price_gold: int,
         yaml_content: str,
         semantic_version: str,
         icon_url: str | None = None,
@@ -90,14 +108,15 @@ class MarketplaceService:
             row = await conn.fetchrow(
                 """
                 INSERT INTO saga_template (
-                    creator_id, name, icon_url, description,
+                    creator_id, name, price_gold, icon_url, description,
                     yaml_content, npc_deps, semantic_version
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING id
                 """,
                 creator_id,
                 name,
+                price_gold,
                 icon_url,
                 description,
                 yaml_content,
@@ -105,6 +124,162 @@ class MarketplaceService:
                 semantic_version,
             )
         return row["id"]
+
+    async def purchase_template(
+        self,
+        user_id: str,
+        template_kind: str,
+        template_id: int,
+        idempotency_key: str,
+    ) -> int:
+        async with self.pool.acquire() as conn, conn.transaction():
+            existing = await conn.fetchrow(
+                "SELECT id FROM template_purchase WHERE idempotency_key = $1",
+                idempotency_key,
+            )
+            if existing is not None:
+                return existing["id"]
+
+            if template_kind == "npc":
+                template = await conn.fetchrow(
+                    "SELECT creator_id, price_gold, status FROM npc_template "
+                    "WHERE id = $1 FOR UPDATE",
+                    template_id,
+                )
+            elif template_kind == "saga":
+                template = await conn.fetchrow(
+                    "SELECT creator_id, price_gold, status FROM saga_template "
+                    "WHERE id = $1 FOR UPDATE",
+                    template_id,
+                )
+            else:
+                raise TemplateNotFoundError("unsupported template kind")
+
+            if template is None:
+                raise TemplateNotFoundError(f"template not found: {template_id}")
+            if template["status"] != "live":
+                raise TemplateTakenDownError(f"template taken down: {template_id}")
+
+            creator_id = template["creator_id"]
+            price = template["price_gold"]
+            if creator_id == user_id:
+                raise SelfPurchaseError(f"creator cannot purchase template: {template_id}")
+
+            buyer = await conn.fetchrow(
+                "SELECT gold_balance FROM wallet WHERE user_id = $1 FOR UPDATE",
+                user_id,
+            )
+            if buyer is None:
+                raise WalletNotFound(f"wallet not found: {user_id}")
+            if buyer["gold_balance"] < price:
+                raise InsufficientBalance(
+                    f"gold balance {buyer['gold_balance']} < {price}"
+                )
+
+            purchase = await conn.fetchrow(
+                """
+                INSERT INTO template_purchase (
+                    user_id, template_kind, template_id,
+                    price_paid_gold, idempotency_key
+                )
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (idempotency_key) DO NOTHING
+                RETURNING id
+                """,
+                user_id,
+                template_kind,
+                template_id,
+                price,
+                idempotency_key,
+            )
+            if purchase is None:
+                existing = await conn.fetchrow(
+                    "SELECT id FROM template_purchase WHERE idempotency_key = $1",
+                    idempotency_key,
+                )
+                if existing is None:
+                    raise TemplateNotFoundError("purchase lost after idempotency conflict")
+                return existing["id"]
+            purchase_id = purchase["id"]
+
+            new_buyer_balance = buyer["gold_balance"] - price
+            await conn.execute(
+                "UPDATE wallet SET gold_balance = $1 WHERE user_id = $2",
+                new_buyer_balance,
+                user_id,
+            )
+            await conn.execute(
+                "INSERT INTO wallet (user_id) VALUES ($1) "
+                "ON CONFLICT (user_id) DO NOTHING",
+                creator_id,
+            )
+            creator = await conn.fetchrow(
+                "SELECT gold_balance FROM wallet WHERE user_id = $1 FOR UPDATE",
+                creator_id,
+            )
+            if creator is None:
+                raise WalletNotFound(f"wallet not found: {creator_id}")
+            new_creator_balance = creator["gold_balance"] + price
+            await conn.execute(
+                "UPDATE wallet SET gold_balance = $1 WHERE user_id = $2",
+                new_creator_balance,
+                creator_id,
+            )
+
+            await conn.execute(
+                """
+                INSERT INTO creator_revenue (
+                    creator_id, purchase_id, amount_gold, platform_cut_gold
+                )
+                VALUES ($1, $2, $3, 0)
+                """,
+                creator_id,
+                purchase_id,
+                price,
+            )
+
+            await conn.execute(
+                """
+                INSERT INTO transaction (
+                    tx_type, user_id, counterparty_id, currency, amount,
+                    balance_after, trace_id
+                )
+                VALUES ('player_transfer', $1, $2, 'gold', $3, $4, $5)
+                """,
+                user_id,
+                creator_id,
+                -price,
+                new_buyer_balance,
+                f"market:{purchase_id}",
+            )
+            await conn.execute(
+                """
+                INSERT INTO transaction (
+                    tx_type, user_id, counterparty_id, currency, amount,
+                    balance_after, trace_id
+                )
+                VALUES ('player_transfer', $1, $2, 'gold', $3, $4, $5)
+                """,
+                creator_id,
+                user_id,
+                price,
+                new_creator_balance,
+                f"market:{purchase_id}",
+            )
+
+        if _kafka is not None:
+            await _kafka.send(
+                _TOPIC_MARKET_PURCHASED,
+                {
+                    "purchase_id": purchase_id,
+                    "user_id": user_id,
+                    "creator_id": creator_id,
+                    "template_kind": template_kind,
+                    "template_id": template_id,
+                    "price_paid_gold": price,
+                },
+            )
+        return purchase_id
 
     async def list_saga_templates(
         self,

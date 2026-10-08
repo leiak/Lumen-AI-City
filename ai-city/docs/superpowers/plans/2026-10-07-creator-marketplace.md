@@ -253,7 +253,7 @@ git commit -m "feat(market): NPC template Pydantic schemas"
 - Create: `apps/economy-service/src/economy_service/services/template_validator.py`
 - Test: `apps/economy-service/tests/test_template_validator.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 from economy_service.services.template_validator import validate_bt_skeleton, BTInvalidError
@@ -277,7 +277,7 @@ def test_too_many_nodes_bt():
         validate_bt_skeleton(bt)
 ```
 
-- [ ] **Step 2: Implement**
+- [x] **Step 2: Implement**
 
 ```python
 import json
@@ -308,7 +308,7 @@ def _walk(node: Any, depth: int, nodes: list[int]):
             _walk(child, depth + 1, nodes)
 ```
 
-- [ ] **Step 3: Verify + Commit**
+- [x] **Step 3: Verify + Commit**
 
 ```bash
 git commit -m "feat(market): BT skeleton validator (depth ≤ 10 + nodes ≤ 50)"

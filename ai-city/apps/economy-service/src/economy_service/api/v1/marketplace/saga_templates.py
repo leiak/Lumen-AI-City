@@ -29,6 +29,7 @@ async def create_saga_template(
     template_id = await service.create_saga_template(
         creator_id=player.id,
         name=body.name,
+        price_gold=body.price_gold,
         yaml_content=body.yaml_content,
         semantic_version=body.semantic_version,
         icon_url=body.icon_url,

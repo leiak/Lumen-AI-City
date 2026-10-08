@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS saga_template (
     description      TEXT,
     yaml_content     TEXT NOT NULL,
     npc_deps         TEXT[] NOT NULL DEFAULT '{}',
+    price_gold       BIGINT NOT NULL DEFAULT 10
+                     CONSTRAINT saga_template_price_min CHECK (price_gold >= 10),
     semantic_version TEXT NOT NULL,
     status           TEXT NOT NULL DEFAULT 'live'
                      CHECK (status IN ('live', 'taken_down')),
@@ -64,6 +66,24 @@ CREATE INDEX IF NOT EXISTS idx_saga_template_creator
 CREATE INDEX IF NOT EXISTS idx_saga_template_live
     ON saga_template(status)
     WHERE status = 'live';
+
+ALTER TABLE saga_template
+    ADD COLUMN IF NOT EXISTS price_gold BIGINT NOT NULL DEFAULT 10;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'saga_template_price_min'
+          AND conrelid = 'saga_template'::regclass
+    ) THEN
+        ALTER TABLE saga_template
+            ADD CONSTRAINT saga_template_price_min
+            CHECK (price_gold >= 10);
+    END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS template_purchase (
     id              BIGSERIAL PRIMARY KEY,

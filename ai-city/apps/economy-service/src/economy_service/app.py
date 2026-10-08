@@ -17,7 +17,12 @@ from economy_service.clients.redis_client import RedisClient
 from economy_service.db import close_pool, get_pool
 from economy_service.errors import EconomyError
 from economy_service.scheduler import start_scheduler
-from economy_service.services import central_bank, purchase_service, wallet_service
+from economy_service.services import (
+    central_bank,
+    marketplace_service,
+    purchase_service,
+    wallet_service,
+)
 
 
 @asynccontextmanager
@@ -30,6 +35,7 @@ async def lifespan(app: FastAPI):
     await redis_client.start()
     wallet_service.set_clients(kafka=kafka_producer, redis=redis_client)
     purchase_service.set_clients(kafka=kafka_producer, redis=redis_client)
+    marketplace_service.set_clients(kafka=kafka_producer)
     central_bank.set_clients(kafka=kafka_producer, redis=redis_client)
     task = start_scheduler()  # 启动中央银行 scheduler
     try:
