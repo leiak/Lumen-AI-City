@@ -1327,13 +1327,13 @@ git commit -m "test(market): acceptance_creator_market_v1.py (10 steps PASS)"
 - Modify: `docs/3.0-ROADMAP.md`
 - Modify: `CHANGELOG-3.0.md`
 
-- [ ] **Step 1: ADR-0010** — follow ADR-0009 structure (293 lines), document the 8 design decisions + 3-role identity + 即时分账 + platform_npc_pool Saga deps
+- [x] **Step 1: ADR-0010** — follow ADR-0009 structure (293 lines), document the 8 design decisions + 3-role identity + 即时分账 + platform_npc_pool Saga deps
 
-- [ ] **Step 2: ROADMAP** — add §3.0 v3 创作者市场 (GA 2026-XX-XX)
+- [x] **Step 2: ROADMAP** — add §3.0 v3 创作者市场 (GA 2026-XX-XX)
 
-- [ ] **Step 3: CHANGELOG** — prepend v3 entry
+- [x] **Step 3: CHANGELOG** — prepend v3 entry
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git commit -m "docs(3.0 v3): ADR-0010 + ROADMAP v3 section + CHANGELOG entry"

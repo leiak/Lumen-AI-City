@@ -1,5 +1,32 @@
 # CHANGELOG — 3.0 经济系统
 
+## 2026-10-08 — 3.0 v3 creator marketplace GA
+
+Creator marketplace v1 is complete:
+
+- **Templates**: NPC and Saga publish/browse/detail flows with OCEAN, BT
+  skeleton, safe YAML, and dependency metadata.
+- **Purchase**: transactional, idempotent purchase with atomic buyer debit,
+  creator credit, purchase row, revenue row, transfer rows, and Kafka event.
+- **Identity**: `player/creator/admin` roles enforced by economy-service;
+  marketplace-capable admin-portal sessions carry the player UUID `sub`.
+- **Admin controls**: admin-only soft take-down removes templates from the live
+  market while preserving owned inventory and purchase history.
+- **Admin portal**: Creator Templates, Saga Templates, Market, and Inventory
+  pages plus authenticated marketplace proxies.
+- **Verification**: 136 admin-portal tests, 107 relevant economy tests,
+  typecheck passes, and creator-market acceptance reports 10/10 PASS.
+
+**Fixed**: convert PG UUID `npc_template.creator_id` to the TEXT wallet /
+transaction user ID at the service boundary.
+
+**Known follow-up**: Saga runtime consumption of `npc_deps` from the platform
+NPC pool remains outside v3; the persisted dependency contract is ready.
+
+**ADR**: `docs/adr/ADR-0010-creator-marketplace.md`
+
+---
+
 ## 2026-10-07 — 3.0 v2 admin-portal 钱包 UI GA
 
 14 commits implementing T1-T14:
