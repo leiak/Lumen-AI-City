@@ -74,7 +74,7 @@ git commit -m "feat(a2a): add cross-city gold transfer contract"
 
 - Produces: `cross_city_transfer`, `bridge_position`, `bridge_ledger_entry`; extends `transaction.tx_type`.
 
-- [ ] **Step 1: Write the schema test**
+- [x] **Step 1: Write the schema test**
 
 ```python
 def test_cross_city_schema_contains_bridge_tables():
@@ -89,25 +89,25 @@ def test_cross_city_schema_contains_bridge_tables():
         assert token in sql
 ```
 
-- [ ] **Step 2: Add the migration**
+- [x] **Step 2: Add the migration**
 
 Use the full SQL contract in the spec, including all constraints and indexes.
 
-- [ ] **Step 3: Apply against PostgreSQL**
+- [x] **Step 3: Apply against PostgreSQL**
 
 ```bash
 docker compose exec -T postgres psql -U aicity -d aicity \
   < packages/proto/pg-schema-3.0-cross-city-gold.sql
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 cd apps/economy-service
 PYTHONPATH=src python -m pytest tests/test_cross_city_schema.py -q
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/proto/pg-schema-3.0-cross-city-gold.sql apps/economy-service/tests/test_cross_city_schema.py
