@@ -105,6 +105,7 @@ class CrossCityTransferResponse(BaseModel):
     destination_user_id: str
     currency: str
     amount: int
+    idempotency_key: str
     trace_id: str | None = None
     expires_at: datetime
     reserved_at: datetime | None = None

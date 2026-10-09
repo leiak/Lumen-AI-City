@@ -117,6 +117,20 @@ async def list_expired_transfers(
     return [CrossCityTransferResponse(**transfer) for transfer in transfers]
 
 
+@router.post("/{global_id}/refund", response_model=CrossCityTransferResponse)
+async def refund_transfer(
+    global_id: str,
+    _: Annotated[None, Depends(require_service_token)],
+    pool: Annotated[Pool, Depends(get_pool)],
+) -> CrossCityTransferResponse:
+    service = CrossCityService(pool)
+    try:
+        transfer = await service.refund(global_id)
+    except EconomyError as exc:
+        raise _error(exc) from exc
+    return CrossCityTransferResponse(**transfer)
+
+
 @router.post("/{global_id}/settle", response_model=CrossCityTransferResponse)
 async def settle_transfer(
     global_id: str,

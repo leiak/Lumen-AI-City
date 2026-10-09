@@ -122,6 +122,7 @@ func main() {
 		&http.Client{Timeout: 5 * time.Second},
 	)
 	svc.SetMoneyClient(moneyClient, cityID)
+	svc.SetPeerCityID(peerCityID)
 	var stopReconciler context.CancelFunc = func() {}
 	if peerCityID != "" && peerA2AEndpoint != "" {
 		peerConn, peerErr := crosscity.Dial(peerA2AEndpoint)
@@ -168,11 +169,22 @@ func main() {
 	log.Printf("a2a-gateway: Forwarder wired (b_city=%s subscriber=real channel=%s)", bCityURL, forwarder.Channel)
 
 	// gRPC server
+	serverCertPath := getEnv("TLS_CERT", "")
+	serverKeyPath := getEnv("TLS_KEY", "")
+	clientCAPath := getEnv("CLIENT_CA", "")
+	expectedPeerCN := getEnv("A2A_EXPECTED_PEER_CN", "")
+	serverOptions, err := crosscity.LoadServerOptions(serverCertPath, serverKeyPath, clientCAPath, expectedPeerCN)
+	if err != nil {
+		log.Fatalf("grpc server tls: %v", err)
+	}
+	if peerA2AEndpoint != "" && len(serverOptions) == 0 {
+		log.Fatalf("grpc server tls required when PEER_A2A_ENDPOINT is configured")
+	}
 	grpcLis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
 		log.Fatalf("grpc listen %s: %v", grpcAddr, err)
 	}
-	grpcSrv := grpc.NewServer()
+	grpcSrv := grpc.NewServer(serverOptions...)
 	a2av1.RegisterA2AGatewayServer(grpcSrv, svc)
 
 	// HTTP server

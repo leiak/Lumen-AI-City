@@ -10,19 +10,21 @@ import (
 )
 
 type fakeMoneyGateway struct {
-	called      bool
-	creditCalls int
-	transfer    *crosscity.EconomyTransfer
-	err         error
+	called        bool
+	creditCalls   int
+	transfer      *crosscity.EconomyTransfer
+	creditRequest *crosscity.EconomyTransfer
+	err           error
 }
 
 func (f *fakeMoneyGateway) Reserve(context.Context, *crosscity.EconomyTransfer) (*crosscity.EconomyTransfer, error) {
 	return f.transfer, f.err
 }
 
-func (f *fakeMoneyGateway) CreditInbound(context.Context, *crosscity.EconomyTransfer) (*crosscity.EconomyTransfer, error) {
+func (f *fakeMoneyGateway) CreditInbound(_ context.Context, request *crosscity.EconomyTransfer) (*crosscity.EconomyTransfer, error) {
 	f.called = true
 	f.creditCalls++
+	f.creditRequest = request
 	return f.transfer, f.err
 }
 
@@ -82,6 +84,9 @@ func TestTransferCrossCityCallsEconomyCredit(t *testing.T) {
 	if !gateway.called {
 		t.Fatal("economy credit endpoint was not called")
 	}
+	if gateway.creditRequest.IdempotencyKey != "cross-key-1" {
+		t.Fatalf("inbound idempotency key = %q, want %q", gateway.creditRequest.IdempotencyKey, "cross-key-1")
+	}
 	if response.GetStatus() != a2av1.CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_CREDITED {
 		t.Fatalf("unexpected status: %s", response.GetStatus())
 	}
@@ -116,6 +121,22 @@ func TestTransferCrossCityRejectsPeerMismatchWithoutEconomyCall(t *testing.T) {
 	}
 	if response.GetErrorCode() != "CROSS_CITY_PEER_MISMATCH" {
 		t.Fatalf("unexpected error code: %s", response.GetErrorCode())
+	}
+}
+
+func TestTransferCrossCityRejectsSourceCityIdentityMismatch(t *testing.T) {
+	gateway := &fakeMoneyGateway{}
+	service := newMoneyService(gateway)
+	service.SetPeerCityID("city_c")
+	response, err := service.TransferCrossCity(context.Background(), transferRequest())
+	if err != nil {
+		t.Fatalf("TransferCrossCity() error = %v", err)
+	}
+	if response.GetErrorCode() != "CROSS_CITY_PEER_MISMATCH" {
+		t.Fatalf("error code = %q, want %q", response.GetErrorCode(), "CROSS_CITY_PEER_MISMATCH")
+	}
+	if gateway.called {
+		t.Fatal("economy called for mismatched source city")
 	}
 }
 

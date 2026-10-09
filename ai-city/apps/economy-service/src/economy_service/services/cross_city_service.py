@@ -61,6 +61,7 @@ def _response(row) -> dict:
         "destination_user_id": row["destination_user_id"],
         "currency": row["currency"],
         "amount": row["amount"],
+        "idempotency_key": row["idempotency_key"],
         "trace_id": row["trace_id"],
         "expires_at": row["expires_at"],
         "reserved_at": row["reserved_at"],

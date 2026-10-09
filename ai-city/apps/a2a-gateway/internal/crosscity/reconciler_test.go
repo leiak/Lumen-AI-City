@@ -16,8 +16,12 @@ type fakeLocalMoney struct {
 	expired  []EconomyTransfer
 }
 
-func (f *fakeLocalMoney) Reserve(context.Context, *EconomyTransfer) (*EconomyTransfer, error) {
-	f.reserved = &EconomyTransfer{GlobalID: "936aea10-0000-4000-8000-000000000001", Status: "reserved"}
+func (f *fakeLocalMoney) Reserve(_ context.Context, request *EconomyTransfer) (*EconomyTransfer, error) {
+	f.reserved = &EconomyTransfer{
+		GlobalID:       "936aea10-0000-4000-8000-000000000001",
+		IdempotencyKey: request.IdempotencyKey,
+		Status:         "reserved",
+	}
 	return f.reserved, nil
 }
 
@@ -54,10 +58,12 @@ type fakeRemoteMoney struct {
 	errorCode string
 	err       error
 	called    bool
+	request   *a2av1.TransferCrossCityRequest
 }
 
-func (f *fakeRemoteMoney) TransferCrossCity(context.Context, *a2av1.TransferCrossCityRequest) (*RemoteTransfer, error) {
+func (f *fakeRemoteMoney) TransferCrossCity(_ context.Context, req *a2av1.TransferCrossCityRequest) (*RemoteTransfer, error) {
 	f.called = true
+	f.request = req
 	return &RemoteTransfer{TransferID: "936aea10-0000-4000-8000-000000000001", Status: f.status, ErrorCode: f.errorCode}, f.err
 }
 
@@ -73,18 +79,23 @@ func newReconciler(local *fakeLocalMoney, remote *fakeRemoteMoney) *Reconciler {
 func TestOrchestrateReservesRemoteCreditsThenSettles(t *testing.T) {
 	local := &fakeLocalMoney{}
 	remote := &fakeRemoteMoney{status: a2av1.CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_CREDITED}
-	transfer, err := newReconciler(local, remote).Orchestrate(context.Background(), &EconomyTransfer{
+	request := &EconomyTransfer{
 		SourceCityID:      "city_a",
 		DestinationCityID: "city_b",
 		Currency:          "gold",
 		Amount:            100,
+		IdempotencyKey:    "cross-city-gold-key",
 		ExpiresAt:         time.Now().Add(time.Minute).UTC(),
-	})
+	}
+	transfer, err := newReconciler(local, remote).Orchestrate(context.Background(), request)
 	if err != nil {
 		t.Fatalf("Orchestrate() error = %v", err)
 	}
 	if local.settled != 1 || !remote.called || transfer.Status != "settled" {
 		t.Fatalf("unexpected saga state local=%+v remote=%v transfer=%+v", local, remote.called, transfer)
+	}
+	if remote.request.GetIdempotencyKey() != request.IdempotencyKey {
+		t.Fatalf("remote idempotency key = %q, want %q", remote.request.GetIdempotencyKey(), request.IdempotencyKey)
 	}
 }
 

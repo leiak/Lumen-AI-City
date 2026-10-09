@@ -30,6 +30,7 @@ subjectAltName = @alt_names
 [alt_names]
 DNS.1 = $SERVICE
 DNS.2 = localhost
+DNS.3 = host.docker.internal
 IP.1 = 127.0.0.1
 EOF
 

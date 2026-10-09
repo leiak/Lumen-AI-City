@@ -37,6 +37,11 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
  && CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" \
       -o /out/acceptance_2_2 ./apps/a2a-gateway/cmd/acceptance_2_2
 
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" \
+      -o /out/acceptance_cross_city_gold ./apps/a2a-gateway/cmd/acceptance_cross_city_gold
+
 FROM alpine:3.19
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
@@ -56,6 +61,7 @@ COPY --from=builder /out/acceptance_1_0 /app/acceptance_1_0
 COPY --from=builder /out/acceptance_2_0 /app/acceptance_2_0
 COPY --from=builder /out/acceptance_2_1 /app/acceptance_2_1
 COPY --from=builder /out/acceptance_2_2 /app/acceptance_2_2
+COPY --from=builder /out/acceptance_cross_city_gold /app/acceptance_cross_city_gold
 
 EXPOSE 50061 8083
 ENTRYPOINT ["/app/a2a-gateway"]

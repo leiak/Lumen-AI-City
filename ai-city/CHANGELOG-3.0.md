@@ -1,6 +1,6 @@
 # CHANGELOG — 3.0 经济系统
 
-## 2026-10-09 — 3.0 v4 cross-city gold implemented
+## 2026-10-09 — 3.0 v4 cross-city gold two-city GA
 
 Approved the protocol and bridge-ledger design for roadmap subtrack #2:
 
@@ -12,12 +12,19 @@ Approved the protocol and bridge-ledger design for roadmap subtrack #2:
 - **Failure model**: source reserve, destination idempotent credit, source
   settle, and source refund only after expiry plus destination not-found
   confirmation. No distributed 2PC.
+- **Transport**: server-side mTLS with `RequireAndVerifyClientCert`, TLS 1.2+,
+  and peer-certificate CN enforcement.
+- **Two-city drill**: City B uses an isolated PostgreSQL, Redis, economy
+  service, and a2a gateway. City A and City B communicate over mTLS gRPC.
 
-**Status**: implementation complete; local acceptance is 8/8 PASS. A
-multi-city federation GA drill is still required before declaring GA.
+**Status**: GA. The two-city acceptance binary passed reserve, local idempotent
+reserve, remote credit, remote retry, settlement, remote lookup, and expired
+refund. Gateway `go test ./...` passed and cross-city economy tests passed
+30/30.
 
 **ADR**: `docs/adr/ADR-0011-cross-city-gold-transfer.md`
-**Plan**: `docs/superpowers/plans/2026-10-09-cross-city-gold-transfer.md`
+**Two-City Plan**: `docs/superpowers/plans/2026-10-09-cross-city-gold-two-city-ga.md`
+**Two-City Acceptance**: `/app/acceptance_cross_city_gold`
 
 ---
 

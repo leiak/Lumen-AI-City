@@ -2,6 +2,7 @@ package crosscity
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
@@ -83,7 +84,7 @@ func (r *Reconciler) Orchestrate(ctx context.Context, transfer *EconomyTransfer)
 		return reserved, err
 	}
 	if remote == nil || remote.ErrorCode != "" || remote.Status != a2av1.CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_CREDITED {
-		return reserved, &MoneyError{Code: remoteTransferErrorCode(remote), Message: "remote credit rejected"}
+		return reserved, &MoneyError{Code: remoteTransferErrorCode(remote), Message: remoteCreditMessage(remote)}
 	}
 	return r.Local.SettleOutbound(ctx, reserved.GlobalID)
 }
@@ -145,6 +146,7 @@ func remoteTransferRequest(transfer *EconomyTransfer) *a2av1.TransferCrossCityRe
 		DestinationUserId: transfer.DestinationUserID,
 		Currency:          transfer.Currency,
 		Amount:            transfer.Amount,
+		IdempotencyKey:    transfer.IdempotencyKey,
 		TraceId:           transfer.TraceID,
 	}
 	if transfer.ReservedAt != nil {
@@ -159,4 +161,11 @@ func remoteTransferErrorCode(remote *RemoteTransfer) string {
 		return remote.ErrorCode
 	}
 	return "CROSS_CITY_REMOTE_REJECTED"
+}
+
+func remoteCreditMessage(remote *RemoteTransfer) string {
+	if remote == nil || remote.Message == "" {
+		return "remote credit rejected"
+	}
+	return fmt.Sprintf("remote credit rejected: %s", remote.Message)
 }

@@ -1,0 +1,128 @@
+services:
+  a2a-gateway:
+    environment:
+      TLS_CERT: /etc/a2a/certs/a2a-gateway-city-a.crt
+      TLS_KEY: /etc/a2a/certs/a2a-gateway-city-a.key
+      CLIENT_CA: /etc/a2a/certs/aicity-ca.crt
+      GRPC_TLS_CERT: /etc/a2a/certs/a2a-gateway-city-a.crt
+      GRPC_TLS_KEY: /etc/a2a/certs/a2a-gateway-city-a.key
+      GRPC_TLS_CA: /etc/a2a/certs/aicity-ca.crt
+      A2A_EXPECTED_PEER_CN: a2a-gateway-city-b
+      PEER_CITY_ID: city_b
+      PEER_A2A_ENDPOINT: host.docker.internal:50062
+
+  postgres-city-b:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aicity
+      POSTGRES_PASSWORD: aicity_dev
+      POSTGRES_DB: aicity
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - '127.0.0.1:5433:5432'
+    volumes:
+      - pg_city_b_data:/var/lib/postgresql/data
+      - ./packages/proto/pg-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./packages/proto/pg-schema-2.0.sql:/docker-entrypoint-initdb.d/02-schema-2.0.sql:ro
+      - ./packages/proto/pg-schema-2.0-bt-editor.sql:/docker-entrypoint-initdb.d/03-bt-editor.sql:ro
+      - ./packages/proto/pg-schema-2.0-bt-auth.sql:/docker-entrypoint-initdb.d/04-bt-auth.sql:ro
+      - ./db/seed/seed-admin.sql:/docker-entrypoint-initdb.d/05-seed-admin.sql:ro
+      - ./packages/proto/pg-schema-3.0-economy.sql:/docker-entrypoint-initdb.d/06-economy.sql:ro
+      - ./db/seed/seed-economy.sql:/docker-entrypoint-initdb.d/07-seed-economy.sql:ro
+      - ./packages/proto/pg-schema-3.0-creator-market.sql:/docker-entrypoint-initdb.d/08-creator-market.sql:ro
+      - ./db/seed/seed-creator-market.sql:/docker-entrypoint-initdb.d/09-seed-creator-market.sql:ro
+      - ./packages/proto/pg-schema-3.0-cross-city-gold.sql:/docker-entrypoint-initdb.d/10-cross-city-gold.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U aicity -d aicity']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  redis-city-b:
+    image: redis:7-alpine
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  economy-service-city-b:
+    build:
+      context: .
+      dockerfile: apps/economy-service/Dockerfile
+    container_name: aicity-economy-service-city-b
+    ports:
+      - '127.0.0.1:8006:8005'
+    environment:
+      DATABASE_URL: postgresql://aicity:aicity_dev@postgres-city-b:5432/aicity
+      REDIS_URL: redis://redis-city-b:6379/0
+      ADMIN_TOKEN: "${ADMIN_TOKEN:-dev-admin-token}"
+      CROSS_CITY_SERVICE_TOKEN: "${CROSS_CITY_SERVICE_TOKEN:-dev-cross-city-service-token}"
+      JWT_SECRET: "${JWT_SECRET:-dev-secret-change-me}"
+      EMIT_INTERVAL_HOURS: "876000"
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      postgres-city-b:
+        condition: service_healthy
+      redis-city-b:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8005/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  a2a-gateway-city-b:
+    build:
+      context: .
+      dockerfile: apps/a2a-gateway/Dockerfile
+    container_name: aicity-a2a-gateway-city-b
+    ports:
+      - '127.0.0.1:50062:50061'
+      - '127.0.0.1:18084:8083'
+    environment:
+      A2A_GRPC_ADDR: 0.0.0.0:50061
+      A2A_HTTP_ADDR: 0.0.0.0:8083
+      DATABASE_URL: postgresql://aicity:aicity_dev@postgres-city-b:5432/aicity
+      A2A_REPLAY_WINDOW_SEC: '300'
+      A2A_INBOX_TTL_HOURS: '168'
+      A2A_INBOX_CLEANUP_INTERVAL_SEC: '300'
+      A2A_ROUTING_TABLE: /app/data/a2a-routing-table.yaml
+      CITY_ID: city_b
+      ECONOMY_SERVICE_URL: http://economy-service-city-b:8005
+      CROSS_CITY_INTERNAL_TOKEN: "${CROSS_CITY_SERVICE_TOKEN:-dev-cross-city-service-token}"
+      CROSS_CITY_RESERVATION_TTL: 10m
+      TLS_CERT: /etc/a2a/certs/a2a-gateway-city-b.crt
+      TLS_KEY: /etc/a2a/certs/a2a-gateway-city-b.key
+      CLIENT_CA: /etc/a2a/certs/aicity-ca.crt
+      GRPC_TLS_CERT: /etc/a2a/certs/a2a-gateway-city-b.crt
+      GRPC_TLS_KEY: /etc/a2a/certs/a2a-gateway-city-b.key
+      GRPC_TLS_CA: /etc/a2a/certs/aicity-ca.crt
+      A2A_EXPECTED_PEER_CN: a2a-gateway-city-a
+      PEER_CITY_ID: city_a
+      PEER_A2A_ENDPOINT: host.docker.internal:50061
+    volumes:
+      - ./certs:/etc/a2a/certs:ro
+      - ./data/a2a-routing-table.yaml:/app/data/a2a-routing-table.yaml:ro
+    depends_on:
+      postgres-city-b:
+        condition: service_healthy
+      redis-city-b:
+        condition: service_healthy
+      economy-service-city-b:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8083/v1/healthz']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  pg_city_b_data:

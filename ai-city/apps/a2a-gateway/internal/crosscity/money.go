@@ -20,6 +20,7 @@ type EconomyTransfer struct {
 	DestinationUserID string     `json:"destination_user_id"`
 	Currency          string     `json:"currency"`
 	Amount            int64      `json:"amount"`
+	IdempotencyKey    string     `json:"idempotency_key"`
 	TraceID           string     `json:"trace_id"`
 	ExpiresAt         time.Time  `json:"expires_at"`
 	ReservedAt        *time.Time `json:"reserved_at"`
@@ -74,7 +75,7 @@ func (c *HTTPMoneyClient) SettleOutbound(ctx context.Context, globalID string) (
 }
 
 func (c *HTTPMoneyClient) RefundOutbound(ctx context.Context, globalID string) (*EconomyTransfer, error) {
-	return c.do(ctx, http.MethodPost, "/api/v1/cross-city-transfers/"+globalID+"/refund", nil)
+	return c.do(ctx, http.MethodPost, "/internal/v1/cross-city-transfers/"+globalID+"/refund", nil)
 }
 
 func (c *HTTPMoneyClient) GetOutbound(ctx context.Context, globalID string) (*EconomyTransfer, error) {

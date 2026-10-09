@@ -46,9 +46,10 @@ type Service struct {
 	acl        *ACL        // nil = 默认 allow（向后兼容 Sprint 7）
 	// mirror：B1 跨城流式回放 store。nil = 禁用 SayStreamForward 流式持久化
 	// （向后兼容：旧测试不依赖；T03 骨架可选注入）。
-	mirror *crosscity.MirrorStore
-	money  crosscity.MoneyGateway
-	cityID string
+	mirror     *crosscity.MirrorStore
+	money      crosscity.MoneyGateway
+	cityID     string
+	peerCityID string
 }
 
 // NewService 构造 service。
@@ -77,6 +78,10 @@ func (s *Service) SetMirrorStore(m *crosscity.MirrorStore) {
 func (s *Service) SetMoneyClient(money crosscity.MoneyGateway, cityID string) {
 	s.money = money
 	s.cityID = cityID
+}
+
+func (s *Service) SetPeerCityID(peerCityID string) {
+	s.peerCityID = peerCityID
 }
 
 // RegisterCard 注册 / 覆盖 AgentCard。
@@ -324,6 +329,9 @@ func (s *Service) TransferCrossCity(ctx context.Context, req *a2av1.TransferCros
 	if s.money == nil || s.cityID == "" {
 		return nil, status.Error(codes.FailedPrecondition, "CROSS_CITY_MONEY_CLIENT_REQUIRED")
 	}
+	if s.peerCityID != "" && req.GetSourceCityId() != s.peerCityID {
+		return crossCityErrorResponse(req, "CROSS_CITY_PEER_MISMATCH", "source city does not match peer identity")
+	}
 	if req == nil || req.GetTransferId() == "" || req.GetSourceCityId() == "" ||
 		req.GetDestinationCityId() == "" || req.GetIdempotencyKey() == "" {
 		return crossCityErrorResponse(req, "CROSS_CITY_VALIDATION_FAILED", "cross-city transfer request is incomplete")
@@ -344,6 +352,7 @@ func (s *Service) TransferCrossCity(ctx context.Context, req *a2av1.TransferCros
 		DestinationUserID: req.GetDestinationUserId(),
 		Currency:          req.GetCurrency(),
 		Amount:            req.GetAmount(),
+		IdempotencyKey:    req.GetIdempotencyKey(),
 		TraceID:           req.GetTraceId(),
 		ReservedAt:        timestamp(req.GetReservedAtMs()),
 		ExpiresAt:         expiresAt,
