@@ -1,6 +1,6 @@
 # CHANGELOG — 3.0 经济系统
 
-## 2026-10-09 — 3.0 v4 cross-city gold design accepted
+## 2026-10-09 — 3.0 v4 cross-city gold implemented
 
 Approved the protocol and bridge-ledger design for roadmap subtrack #2:
 
@@ -13,7 +13,8 @@ Approved the protocol and bridge-ledger design for roadmap subtrack #2:
   settle, and source refund only after expiry plus destination not-found
   confirmation. No distributed 2PC.
 
-**Status**: design accepted; implementation is not complete yet.
+**Status**: implementation complete; local acceptance is 8/8 PASS. A
+multi-city federation GA drill is still required before declaring GA.
 
 **ADR**: `docs/adr/ADR-0011-cross-city-gold-transfer.md`
 **Plan**: `docs/superpowers/plans/2026-10-09-cross-city-gold-transfer.md`

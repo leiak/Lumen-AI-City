@@ -452,24 +452,17 @@ class CrossCityService:
                 reserved_at,
                 now,
             )
-            await conn.execute(
+            new_balance = await conn.fetchval(
                 """
                 INSERT INTO wallet (user_id, gold_balance)
                 VALUES ($1, $2)
-                ON CONFLICT (user_id) DO NOTHING
-                """,
-                destination_user_id,
-                amount,
-            )
-            new_balance = await conn.fetchval(
-                """
-                UPDATE wallet
-                SET gold_balance = gold_balance + $1, updated_at = NOW()
-                WHERE user_id = $2
+                ON CONFLICT (user_id) DO UPDATE
+                SET gold_balance = wallet.gold_balance + EXCLUDED.gold_balance,
+                    updated_at = NOW()
                 RETURNING gold_balance
                 """,
-                amount,
                 destination_user_id,
+                amount,
             )
             bridge_balance = await conn.fetchval(
                 """

@@ -116,6 +116,9 @@ class FakeConn:
 
     async def fetchval(self, sql, *args):
         self.calls.append(("fetchval", sql, args))
+        if "INSERT INTO wallet" in sql:
+            self.destination_balance += args[1]
+            return self.destination_balance
         if "UPDATE wallet" in sql:
             self.destination_balance += args[0]
             return self.destination_balance

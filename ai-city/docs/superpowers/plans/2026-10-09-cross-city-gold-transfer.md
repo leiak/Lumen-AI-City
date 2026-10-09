@@ -320,7 +320,7 @@ git commit -m "feat(a2a): reconcile cross-city gold reservations"
 - Consumes: all prior tasks.
 - Produces: repeatable acceptance script and GA-ready documentation.
 
-- [ ] **Step 1: Add acceptance script**
+- [x] **Step 1: Add acceptance script**
 
 The script must verify in order:
 
@@ -335,7 +335,7 @@ The script must verify in order:
 8 get status is read-only
 ```
 
-- [ ] **Step 2: Run full regression**
+- [x] **Step 2: Run full regression**
 
 ```bash
 cd apps/economy-service
@@ -345,18 +345,18 @@ cd ../../apps/a2a-gateway
 go test ./...
 ```
 
-- [ ] **Step 3: Run acceptance**
+- [x] **Step 3: Run acceptance**
 
 ```bash
 docker compose exec -T economy-service \
   python scripts/acceptance_cross_city_gold_v1.py
 ```
 
-- [ ] **Step 4: Update roadmap and changelog**
+- [x] **Step 4: Update roadmap and changelog**
 
 Mark roadmap item #2 as **design accepted / implementation in progress** only when all implementation tasks are complete; do not mark GA before the acceptance script passes.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/economy-service ai-city/docs ai-city/CHANGELOG-3.0.md ai-city/README.md
@@ -365,11 +365,11 @@ git commit -m "feat(economy): cross-city gold acceptance and docs"
 
 ## Definition of Done
 
-- [ ] Proto contract and generated code are committed.
-- [ ] Bridge-ledger migration is idempotent and applied.
-- [ ] Economy reserve, credit, settle, and refund are transactional and tested.
+- [x] Proto contract and generated code are committed.
+- [x] Bridge-ledger migration is idempotent and applied.
+- [x] Economy reserve, credit, settle, and refund are transactional and tested.
 - [ ] A2A transfer and status RPCs use mTLS peer-city identity.
-- [ ] Source reconciler settles credited legs and refunds expired missing legs.
+- [x] Source reconciler settles credited legs and refunds expired missing legs.
 - [ ] Full economy and gateway test suites pass.
-- [ ] Cross-city acceptance script reports all steps PASS.
-- [ ] Roadmap, changelog, and ADR reflect implementation status.
+- [x] Cross-city acceptance script reports all steps PASS.
+- [x] Roadmap, changelog, and ADR reflect implementation status.
