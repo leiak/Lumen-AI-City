@@ -173,6 +173,11 @@ services:
       # 2.0 阶段 1：跨城 NPC 路由表（cmd/main.go:52 默认 data/a2a-routing-table.yaml，
       # 必须用 env 显式覆盖 + mount 到 /app/data/，否则容器内启动直接 fatal）
       A2A_ROUTING_TABLE: /app/data/a2a-routing-table.yaml
+      # 3.0 v2：跨城金币本地经济与远端 A2A RPC 接线。
+      CITY_ID: city_a
+      ECONOMY_SERVICE_URL: http://economy-service:8005
+      CROSS_CITY_INTERNAL_TOKEN: "${CROSS_CITY_SERVICE_TOKEN:-dev-cross-city-service-token}"
+      CROSS_CITY_RESERVATION_TTL: 10m
     volumes:
       # 2.0：mTLS 证书只读挂载；私钥不在容器内落盘，host 上也不归容器写。
       - ./certs:/etc/a2a/certs:ro
@@ -302,6 +307,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       # 与 api/v1/admin.py:12 默认值一致；admin 路由验签用 secrets.compare_digest
       ADMIN_TOKEN: "${ADMIN_TOKEN:-dev-admin-token}"
+      # 与 a2a-gateway 的 CROSS_CITY_INTERNAL_TOKEN 使用同一令牌
+      CROSS_CITY_SERVICE_TOKEN: "${CROSS_CITY_SERVICE_TOKEN:-dev-cross-city-service-token}"
       # marketplace 路由复用 api-gateway 的 HS256 JWT secret
       JWT_SECRET: "${JWT_SECRET:-dev-secret-change-me}"
       # scheduler.py:12 默认 6 小时一轮中央银行 emit；env 可覆盖

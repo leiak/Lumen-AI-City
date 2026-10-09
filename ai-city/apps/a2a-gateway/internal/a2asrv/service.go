@@ -2,25 +2,25 @@
 //
 // Sprint 5.5 行为：
 //   - RegisterCard: 调 Registry.Register；
-//                   缺字段 → gRPC InvalidArgument("F_001:...")；
-//                   auth["ed25519"] 解析失败 → gRPC InvalidArgument("F_006:...")；
-//                   重复 → 幂等覆盖（accepted:true，无错误码）。
+//     缺字段 → gRPC InvalidArgument("F_001:...")；
+//     auth["ed25519"] 解析失败 → gRPC InvalidArgument("F_006:...")；
+//     重复 → 幂等覆盖（accepted:true，无错误码）。
 //   - Discover:    Registry.Discover；空 capability → InvalidArgument("F_003:...")。
 //   - SendMessage: 校验 from/to 都已注册（F_005/F_004 走 MessageResponse.Error）；
-//                   verifier.Verify 发件方签名（F_007/F_008 走 MessageResponse.Error）；
-//                   dispatcher.Deliver 路由（F_009 走 MessageResponse.Error）。
+//     verifier.Verify 发件方签名（F_007/F_008 走 MessageResponse.Error）；
+//     dispatcher.Deliver 路由（F_009 走 MessageResponse.Error）。
 //   - Stream:      每条进来的消息同样走 verifier + dispatcher；
-//                  任何验签 / 时间窗 / 路由失败 → gRPC Unauthenticated + 关流。
+//     任何验签 / 时间窗 / 路由失败 → gRPC Unauthenticated + 关流。
 //
 // Sprint 7 新增：
 //   - FetchInbox:  从 a2a_inbox 拉取 store-and-forward 消息；agent_id 未注册 → F_013；
-//                  limit 越界 → F_014；读失败 → F_012。
+//     limit 越界 → F_014；读失败 → F_012。
 //
 // Sprint 8 新增：
 //   - Discover:    city_filter 真过滤（下沉到 Registry / CardStore SQL）。
 //   - SendMessage: verifier 之后插 ACL 门 —— 被拒 → "F_016:..." 走 MessageResponse.Error。
 //   - Stream:      同一 ACL 门；被拒 → gRPC PermissionDenied + 关流
-//                  （流内无法塞 MessageResponse.Error，与 F_007/F_008 同处理）。
+//     （流内无法塞 MessageResponse.Error，与 F_007/F_008 同处理）。
 package a2asrv
 
 import (
@@ -47,6 +47,8 @@ type Service struct {
 	// mirror：B1 跨城流式回放 store。nil = 禁用 SayStreamForward 流式持久化
 	// （向后兼容：旧测试不依赖；T03 骨架可选注入）。
 	mirror *crosscity.MirrorStore
+	money  crosscity.MoneyGateway
+	cityID string
 }
 
 // NewService 构造 service。
@@ -70,6 +72,11 @@ func NewService(reg *Registry, verifier *Verifier, dispatcher *Dispatcher, inbox
 // 缺省 nil：SayStreamForward 仍走通验证 + done 帧，仅不写入镜像。
 func (s *Service) SetMirrorStore(m *crosscity.MirrorStore) {
 	s.mirror = m
+}
+
+func (s *Service) SetMoneyClient(money crosscity.MoneyGateway, cityID string) {
+	s.money = money
+	s.cityID = cityID
 }
 
 // RegisterCard 注册 / 覆盖 AgentCard。
@@ -199,10 +206,11 @@ func (s *Service) Stream(stream a2av1.A2AGateway_StreamServer) error {
 // FetchInbox 从 a2a_inbox 拉取 store-and-forward 消息（Sprint 7）。
 //
 // 错误码（gRPC status）：
-//   F_001 agent_id 空 → InvalidArgument
-//   F_013 agent 未注册 → NotFound
-//   F_014 limit 越界 [1,500] → InvalidArgument
-//   F_012 inbox 读失败 → Internal
+//
+//	F_001 agent_id 空 → InvalidArgument
+//	F_013 agent 未注册 → NotFound
+//	F_014 limit 越界 [1,500] → InvalidArgument
+//	F_012 inbox 读失败 → Internal
 //
 // markRead=true 时拉取即标已读（同事务）。
 func (s *Service) FetchInbox(ctx context.Context, req *a2av1.FetchInboxRequest) (*a2av1.FetchInboxResponse, error) {
@@ -234,8 +242,8 @@ func (s *Service) FetchInbox(ctx context.Context, req *a2av1.FetchInboxRequest) 
 //   - client 首帧必须为 SayStreamMessage{init: SayRequestInit{...}}；
 //     后续可发 SayStreamMessage{heartbeat: ...} 保活（A 城随时可关 inbound）
 //   - 本服务持续返回 SayBeat 流：
-//       type="npc_say_stream"      每节拍一帧（带 text/emotion/sentence_idx）
-//       type="npc_say_stream_done" 流结束帧（complete=true 正常 / false 异常）
+//     type="npc_say_stream"      每节拍一帧（带 text/emotion/sentence_idx）
+//     type="npc_say_stream_done" 流结束帧（complete=true 正常 / false 异常）
 //
 // 初版（T03）骨架仅做：
 //   - 验首帧为 init 且 npc_id 非空（InvalidArgument "R_009:npc_id required"）
@@ -245,8 +253,9 @@ func (s *Service) FetchInbox(ctx context.Context, req *a2av1.FetchInboxRequest) 
 // 真实订阅 B 城 Redis + LLM 转发由 T06 补全（依赖 dispatcher client）。
 //
 // 错误码（gRPC status）：
-//   R_001 首帧不是 init 或 Recv 失败 → InvalidArgument
-//   R_009 npc_id 缺失 → InvalidArgument
+//
+//	R_001 首帧不是 init 或 Recv 失败 → InvalidArgument
+//	R_009 npc_id 缺失 → InvalidArgument
 func (s *Service) SayStreamForward(stream a2av1.A2AGateway_SayStreamForwardServer) error {
 	ctx := stream.Context()
 
@@ -309,4 +318,114 @@ func (s *Service) SayStreamForward(stream a2av1.A2AGateway_SayStreamForwardServe
 		return nil
 	}
 	return nil
+}
+
+func (s *Service) TransferCrossCity(ctx context.Context, req *a2av1.TransferCrossCityRequest) (*a2av1.TransferCrossCityResponse, error) {
+	if s.money == nil || s.cityID == "" {
+		return nil, status.Error(codes.FailedPrecondition, "CROSS_CITY_MONEY_CLIENT_REQUIRED")
+	}
+	if req == nil || req.GetTransferId() == "" || req.GetSourceCityId() == "" ||
+		req.GetDestinationCityId() == "" || req.GetIdempotencyKey() == "" {
+		return crossCityErrorResponse(req, "CROSS_CITY_VALIDATION_FAILED", "cross-city transfer request is incomplete")
+	}
+	if req.GetDestinationCityId() != s.cityID {
+		return crossCityErrorResponse(req, "CROSS_CITY_PEER_MISMATCH", "destination city does not match local city")
+	}
+	expiresAt := time.UnixMilli(req.GetExpiresAtMs()).UTC()
+	if req.GetExpiresAtMs() <= 0 || !expiresAt.After(time.Now().UTC()) {
+		return crossCityErrorResponse(req, "CROSS_CITY_EXPIRED", "cross-city transfer expired")
+	}
+
+	transfer := &crosscity.EconomyTransfer{
+		GlobalID:          req.GetTransferId(),
+		SourceCityID:      req.GetSourceCityId(),
+		SourceUserID:      req.GetSourceUserId(),
+		DestinationCityID: req.GetDestinationCityId(),
+		DestinationUserID: req.GetDestinationUserId(),
+		Currency:          req.GetCurrency(),
+		Amount:            req.GetAmount(),
+		TraceID:           req.GetTraceId(),
+		ReservedAt:        timestamp(req.GetReservedAtMs()),
+		ExpiresAt:         expiresAt,
+	}
+	credited, err := s.money.CreditInbound(ctx, transfer)
+	if err != nil {
+		return crossCityErrorFromMoney(req, err)
+	}
+	return crossCityResponseFromEconomy(credited)
+}
+
+func (s *Service) GetCrossCityTransfer(ctx context.Context, req *a2av1.GetCrossCityTransferRequest) (*a2av1.TransferCrossCityResponse, error) {
+	if s.money == nil {
+		return nil, status.Error(codes.FailedPrecondition, "CROSS_CITY_MONEY_CLIENT_REQUIRED")
+	}
+	if req == nil || req.GetTransferId() == "" {
+		return crossCityErrorResponse(nil, "CROSS_CITY_VALIDATION_FAILED", "transfer_id required")
+	}
+	transfer, err := s.money.GetInbound(ctx, req.GetTransferId())
+	if err != nil {
+		return crossCityErrorFromMoney(nil, err)
+	}
+	return crossCityResponseFromEconomy(transfer)
+}
+
+func crossCityErrorResponse(req *a2av1.TransferCrossCityRequest, code, message string) (*a2av1.TransferCrossCityResponse, error) {
+	transferID := ""
+	traceID := ""
+	if req != nil {
+		transferID = req.GetTransferId()
+		traceID = req.GetTraceId()
+	}
+	return &a2av1.TransferCrossCityResponse{
+		TransferId:   transferID,
+		ErrorCode:    code,
+		Message:      message,
+		OccurredAtMs: time.Now().UnixMilli(),
+		TraceId:      traceID,
+	}, nil
+}
+
+func crossCityErrorFromMoney(req *a2av1.TransferCrossCityRequest, err error) (*a2av1.TransferCrossCityResponse, error) {
+	moneyErr, ok := err.(*crosscity.MoneyError)
+	if !ok {
+		return crossCityErrorResponse(req, "CROSS_CITY_ECONOMY_UNAVAILABLE", err.Error())
+	}
+	return crossCityErrorResponse(req, moneyErr.Code, moneyErr.Message)
+}
+
+func crossCityResponseFromEconomy(transfer *crosscity.EconomyTransfer) (*a2av1.TransferCrossCityResponse, error) {
+	if transfer == nil {
+		return nil, status.Error(codes.Internal, "CROSS_CITY_EMPTY_RESPONSE")
+	}
+	return &a2av1.TransferCrossCityResponse{
+		TransferId:   transfer.GlobalID,
+		Status:       crossCityProtoStatus(transfer.Status),
+		OccurredAtMs: time.Now().UnixMilli(),
+		TraceId:      transfer.TraceID,
+	}, nil
+}
+
+func crossCityProtoStatus(statusName string) a2av1.CrossCityTransferStatus {
+	switch statusName {
+	case "reserved":
+		return a2av1.CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_RESERVED
+	case "credited":
+		return a2av1.CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_CREDITED
+	case "settled":
+		return a2av1.CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_SETTLED
+	case "refunded":
+		return a2av1.CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_REFUNDED
+	case "failed":
+		return a2av1.CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_FAILED
+	default:
+		return a2av1.CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_UNSPECIFIED
+	}
+}
+
+func timestamp(milliseconds int64) *time.Time {
+	if milliseconds <= 0 {
+		return nil
+	}
+	value := time.UnixMilli(milliseconds).UTC()
+	return &value
 }

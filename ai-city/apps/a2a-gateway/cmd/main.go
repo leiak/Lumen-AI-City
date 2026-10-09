@@ -10,16 +10,21 @@
 // 设计：docs/06-A2A协议.md §20；06-A2A-canonical.md（签名规范）。
 //
 // 环境变量：
-//   A2A_GRPC_ADDR                    默认 127.0.0.1:50061
-//   A2A_HTTP_ADDR                    默认 127.0.0.1:8083（HTTP gateway）
-//   A2A_HTTP_API_KEY                 非空 = 启用 Bearer 鉴权（dev 留空）
-//   A2A_REPLAY_WINDOW_SEC            ed25519 重放窗口秒数，默认 300
-//   A2A_INBOX_TTL_HOURS              inbox 行 TTL 小时数，默认 168（7 天）；0 = 用 PG DEFAULT 兜底
-//   A2A_INBOX_CLEANUP_INTERVAL_SEC   cleanup cron 间隔秒数，默认 300；0 = 禁用
-//   A2A_ROUTING_TABLE                跨城 NPC 路由表 yaml 路径，默认 data/a2a-routing-table.yaml
-//   BCITY_AGENT_OS_URL               B 城 agent-os 触发地址，默认 http://b-city:8081
-//   REDIS_URL                        Redis 连接串（跨城 SayStream 订阅频道），默认 redis://redis:6379/0
-//   DATABASE_URL                     PG 连接串（默认 postgresql://aicity:aicity_dev@localhost:5432/aicity）
+//
+//	A2A_GRPC_ADDR                    默认 127.0.0.1:50061
+//	A2A_HTTP_ADDR                    默认 127.0.0.1:8083（HTTP gateway）
+//	A2A_HTTP_API_KEY                 非空 = 启用 Bearer 鉴权（dev 留空）
+//	A2A_REPLAY_WINDOW_SEC            ed25519 重放窗口秒数，默认 300
+//	A2A_INBOX_TTL_HOURS              inbox 行 TTL 小时数，默认 168（7 天）；0 = 用 PG DEFAULT 兜底
+//	A2A_INBOX_CLEANUP_INTERVAL_SEC   cleanup cron 间隔秒数，默认 300；0 = 禁用
+//	A2A_ROUTING_TABLE                跨城 NPC 路由表 yaml 路径，默认 data/a2a-routing-table.yaml
+//	CITY_ID                          本地城市 ID，默认 city_a
+//	ECONOMY_SERVICE_URL              本地 economy-service 地址，默认 http://economy-service:8005
+//	CROSS_CITY_INTERNAL_TOKEN        economy 内部跨城服务令牌
+//	CROSS_CITY_RESERVATION_TTL       源城资金预留 TTL，默认 10m
+//	BCITY_AGENT_OS_URL               B 城 agent-os 触发地址，默认 http://b-city:8081
+//	REDIS_URL                        Redis 连接串（跨城 SayStream 订阅频道），默认 redis://redis:6379/0
+//	DATABASE_URL                     PG 连接串（默认 postgresql://aicity:aicity_dev@localhost:5432/aicity）
 package main
 
 import (
@@ -39,9 +44,9 @@ import (
 	"github.com/aicity/a2a-gateway/internal/handlers"
 	"github.com/aicity/a2a-gateway/internal/httpgw"
 	"github.com/aicity/a2a-gateway/internal/router"
+	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	a2av1 "github.com/aicity/proto/gen/go/a2a/v1"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 )
@@ -55,6 +60,10 @@ func main() {
 	cleanupInterval := parseCleanupInterval()
 	dbURL := getEnv("DATABASE_URL", "postgresql://aicity:aicity_dev@localhost:5432/aicity")
 	routingTablePath := getEnv("A2A_ROUTING_TABLE", "data/a2a-routing-table.yaml")
+	cityID := getEnv("CITY_ID", "city_a")
+	economyURL := getEnv("ECONOMY_SERVICE_URL", "http://economy-service:8005")
+	crossCityToken := getEnv("CROSS_CITY_INTERNAL_TOKEN", "dev-cross-city-service-token")
+	reservationTTL := parseCrossCityReservationTTL()
 
 	log.Printf("a2a-gateway starting: grpc=%s http=%s (replay_window=%ds api_key=%s db=%s inbox_ttl=%s cleanup_interval=%s routing_table=%s)",
 		grpcAddr, httpAddr, int(replaySec.Seconds()), redactKey(apiKey), redactDSN(dbURL), inboxTTL, cleanupInterval, routingTablePath)
@@ -105,7 +114,14 @@ func main() {
 	// 路径 defer MarkDone(complete=true)；T06 失败路径传 false。
 	mirrorStore := crosscity.NewMirrorStore(60 * time.Minute)
 	svc.SetMirrorStore(mirrorStore)
+	moneyClient := crosscity.NewHTTPMoneyClient(
+		economyURL,
+		crossCityToken,
+		&http.Client{Timeout: 5 * time.Second},
+	)
+	svc.SetMoneyClient(moneyClient, cityID)
 	log.Printf("a2a-gateway: MirrorStore wired (ttl=60m)")
+	log.Printf("a2a-gateway: CrossCityMoney wired (city=%s economy=%s ttl=%s)", cityID, economyURL, reservationTTL)
 
 	// B1-T06：跨城 SayStreamForwarder（A 城 a2a-gateway → B 城 agent-os）。
 	//
@@ -274,6 +290,15 @@ func parseInboxTTL() time.Duration {
 		return 168 * time.Hour
 	}
 	return time.Duration(n) * time.Hour
+}
+
+func parseCrossCityReservationTTL() time.Duration {
+	value, err := time.ParseDuration(getEnv("CROSS_CITY_RESERVATION_TTL", "10m"))
+	if err != nil || value <= 0 {
+		log.Printf("a2a-gateway: invalid CROSS_CITY_RESERVATION_TTL, fallback to 10m")
+		return 10 * time.Minute
+	}
+	return value
 }
 
 // parseCleanupInterval 读 A2A_INBOX_CLEANUP_INTERVAL_SEC；非法/缺失 → 300s。

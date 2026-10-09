@@ -221,7 +221,7 @@ git commit -m "feat(economy): credit and settle cross-city gold legs"
 - Consumes: generated `a2av1` messages and `CrossCityService` HTTP endpoints.
 - Produces: `TransferCrossCity`, `GetCrossCityTransfer`, and `MoneyClient`.
 
-- [ ] **Step 1: Write failing gateway tests**
+- [x] **Step 1: Write failing gateway tests**
 
 Cover:
 
@@ -233,11 +233,11 @@ duplicate request returns the original credited response
 GetCrossCityTransfer is read-only
 ```
 
-- [ ] **Step 2: Implement handlers and HTTP client**
+- [x] **Step 2: Implement handlers and HTTP client**
 
 Inject an `EconomyClient` into `a2asrv.Service`. Use context timeout, service token, and the configured local economy base URL. Map HTTP status and economy error codes to gRPC status codes while preserving `error_code` in the response.
 
-- [ ] **Step 3: Configure the service**
+- [x] **Step 3: Configure the service**
 
 Add environment variables:
 
@@ -248,7 +248,7 @@ CROSS_CITY_INTERNAL_TOKEN=dev-cross-city-token
 CROSS_CITY_RESERVATION_TTL=10m
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 cd apps/a2a-gateway
