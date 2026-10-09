@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from economy_service.api.v1.admin import router as admin_router
+from economy_service.api.v1.cross_city import router as cross_city_router
 from economy_service.api.v1.marketplace.npc_templates import router as npc_templates_router
 from economy_service.api.v1.marketplace.purchase import router as marketplace_purchase_router
 from economy_service.api.v1.marketplace.saga_templates import router as saga_templates_router
@@ -59,6 +60,7 @@ async def health():
 app.include_router(wallet_router)
 app.include_router(products_router)
 app.include_router(admin_router)
+app.include_router(cross_city_router)
 app.include_router(transactions_router)
 app.include_router(npc_templates_router)
 app.include_router(saga_templates_router)

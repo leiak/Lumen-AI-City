@@ -3,6 +3,8 @@
 from economy_service.schemas.economy import (
     Currency,
     ErrorResponse,
+    CrossCityTransferRequest,
+    CrossCityTransferResponse,
     Product,
     PurchaseRequest,
     SinkRequest,
@@ -23,6 +25,8 @@ from economy_service.schemas.marketplace_saga import SagaTemplateCreate
 __all__ = [
     "Currency",
     "ErrorResponse",
+    "CrossCityTransferRequest",
+    "CrossCityTransferResponse",
     "NpcTemplateCreate",
     "NpcTemplateResponse",
     "OceanJson",

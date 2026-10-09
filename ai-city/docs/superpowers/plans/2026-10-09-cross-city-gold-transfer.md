@@ -130,7 +130,7 @@ git commit -m "feat(economy): add cross-city bridge ledger schema"
 - Consumes: `WalletService`, `asyncpg.Pool`, Kafka producer.
 - Produces: `CrossCityService.reserve()`, `CrossCityService.refund()`, `CrossCityService.get()`, schemas `CrossCityTransferRequest` and `CrossCityTransferResponse`.
 
-- [ ] **Step 1: Write failing service tests**
+- [x] **Step 1: Write failing service tests**
 
 Cover:
 
@@ -142,15 +142,15 @@ refund credits sender, decrements bridge position, and marks refunded
 refund rejects a non-expired or already-settled leg
 ```
 
-- [ ] **Step 2: Implement the service**
+- [x] **Step 2: Implement the service**
 
 Use one `async with pool.acquire() as conn, conn.transaction():` block per mutation. Lock the wallet or transfer row before changing balances. Re-read an existing row on unique violation and compare all contract fields before returning it.
 
-- [ ] **Step 3: Add REST schemas and routes**
+- [x] **Step 3: Add REST schemas and routes**
 
 Expose reserve, get, and refund routes from the spec. Reserve requires the signed-in source user. Refund allows admin or the reconciler service identity.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 cd apps/economy-service

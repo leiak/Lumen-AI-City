@@ -84,3 +84,45 @@ class PurchaseDuplicateError(EconomyError):
     code = "R_034"
     http_status = 409
     default_msg = "purchase duplicate (idempotency)"
+
+
+class CrossCityValidationError(EconomyError):
+    code = "CROSS_CITY_VALIDATION_FAILED"
+    http_status = 400
+    default_msg = "cross-city transfer validation failed"
+
+
+class CrossCityUnsupportedCurrencyError(EconomyError):
+    code = "CROSS_CITY_UNSUPPORTED_CURRENCY"
+    http_status = 400
+    default_msg = "cross-city currency not enabled"
+
+
+class CrossCityAmountOutOfRangeError(EconomyError):
+    code = "CROSS_CITY_AMOUNT_OUT_OF_RANGE"
+    http_status = 400
+    default_msg = "cross-city amount out of range"
+
+
+class CrossCitySameCityError(EconomyError):
+    code = "CROSS_CITY_SAME_CITY"
+    http_status = 400
+    default_msg = "source and destination city must differ"
+
+
+class CrossCityIdempotencyConflictError(EconomyError):
+    code = "CROSS_CITY_IDEMPOTENCY_CONFLICT"
+    http_status = 409
+    default_msg = "idempotency key reused with different transfer payload"
+
+
+class CrossCityTransferNotFoundError(EconomyError):
+    code = "CROSS_CITY_SOURCE_NOT_FOUND"
+    http_status = 404
+    default_msg = "cross-city transfer not found"
+
+
+class CrossCityInvalidStateError(EconomyError):
+    code = "CROSS_CITY_INVALID_STATE"
+    http_status = 409
+    default_msg = "cross-city transfer state transition is not allowed"

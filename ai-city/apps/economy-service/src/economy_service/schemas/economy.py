@@ -2,6 +2,8 @@
 
 from enum import StrEnum
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -79,3 +81,32 @@ class SinkRequest(BaseModel):
     user_id: str = Field(min_length=1)
     amount: int = Field(gt=0)
     reason: str = "admin"
+
+
+class CrossCityTransferRequest(BaseModel):
+    source_city_id: str = Field(min_length=1, max_length=64)
+    source_user_id: str = Field(min_length=1, max_length=64)
+    destination_city_id: str = Field(min_length=1, max_length=64)
+    destination_user_id: str = Field(min_length=1, max_length=64)
+    currency: Currency = Currency.GOLD
+    amount: int = Field(gt=0, le=100000)
+    idempotency_key: str = Field(min_length=8, max_length=64)
+    trace_id: str | None = Field(default=None, max_length=200)
+
+
+class CrossCityTransferResponse(BaseModel):
+    global_id: str
+    direction: str
+    status: str
+    source_city_id: str
+    destination_city_id: str
+    source_user_id: str
+    destination_user_id: str
+    currency: str
+    amount: int
+    trace_id: str | None = None
+    expires_at: datetime
+    reserved_at: datetime | None = None
+    credited_at: datetime | None = None
+    settled_at: datetime | None = None
+    refunded_at: datetime | None = None
