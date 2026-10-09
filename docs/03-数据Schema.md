@@ -709,6 +709,61 @@ MERGE (laoli)-[:KNOWS {since: date('2020-05-01'), interaction_count: 42}]->(zhon
 
 ---
 
+### 17.16 经济系统当前 Schema（实现基准）
+
+> 本节记录 `ai-city` 已落地的经济表，优先级高于早期经济预案。实现 DDL：`ai-city/packages/proto/pg-schema-3.0-economy.sql`。
+
+#### `wallet`
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| `user_id` | `TEXT` | PK | 允许外部 Agent ID；当前由应用层校验归属 |
+| `gold_balance` | `BIGINT` | `>= 0` | 游戏 gold |
+| `token_balance` | `BIGINT` | `>= 0` | 付费 token |
+| `created_at` / `updated_at` | `TIMESTAMPTZ` | `NOT NULL` | 更新由 trigger 自动维护 |
+
+#### `transaction`
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| `id` | `BIGSERIAL` | PK | 流水号 |
+| `tx_type` | `TEXT` | `player_transfer / npc_purchase / central_bank_emit / npc_sink` | 交易类型 |
+| `user_id` | `TEXT` | `NOT NULL` | 主体钱包 |
+| `counterparty_id` | `TEXT` | nullable | 转账对手方 |
+| `currency` | `TEXT` | `gold / token` | 币种 |
+| `amount` | `BIGINT` | `!= 0` | 出账为负数，入账为正数 |
+| `balance_after` | `BIGINT` | `NOT NULL` | 本笔交易后的余额 |
+| `product_id` / `trace_id` | nullable | — | 商品购买与链路追踪 |
+
+该表通过 trigger 禁止 `UPDATE` / `DELETE`，属于 append-only 审计流水。
+
+#### `product`
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| `id` | `BIGSERIAL` | PK | 商品 ID |
+| `npc_id` + `name` | `TEXT` | `UNIQUE` | NPC 内唯一商品名 |
+| `price_gold` | `BIGINT` | `>= 0` | gold 售价 |
+| `price_token` | `BIGINT` | nullable, `>= 0` | token 售价；为空表示不支持 |
+| `stock` | `INTEGER` | nullable, `>= 0` | `NULL` 表示不限库存 |
+| `enabled` | `BOOLEAN` | `NOT NULL DEFAULT true` | 上架开关 |
+
+已建部分索引：`idx_product_npc` 只覆盖 `enabled = true`。种子数据由 `ai-city/db/seed/seed-economy.sql` 幂等写入。
+
+#### `central_bank_ledger`
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| `id` | `BIGSERIAL` | PK | 审计事件 ID |
+| `event_type` | `TEXT` | `emit / sink` | 发行或销毁 |
+| `currency` | `TEXT` | `gold / token` | 币种 |
+| `amount` | `BIGINT` | `> 0` | 变动数量 |
+| `reason` | `TEXT` | nullable | 发行周期、admin 操作等原因 |
+| `trigger_user_id` | `TEXT` | nullable | 触发用户 |
+| `created_at` | `TIMESTAMPTZ` | `NOT NULL` | 审计时间 |
+
+已建索引：`idx_cbl_created` 按 `created_at DESC` 排序，用于最近变动查询。
+
 ## 附：第三部分新增的 Schema（§25）
 
 > 在第三部分"图数据库异步化重构"中，我们扩充了关系存储结构（详见 [08-架构优化v1.md](08-架构优化v1.md)）：

@@ -656,6 +656,39 @@ active_websocket_connections  gauge
 
 ### 18.15 反爬与滥用防护
 
+### 18.16 经济服务当前 API（实现基准）
+
+> 本节记录 `economy-service` 已实现接口；早期章节保留为平台通用规范。
+
+| 方法 | 路径 | 用途 | 主要行为 |
+|---|---|---|---|
+| `GET` | `/api/v1/wallet/{user_id}` | 查询钱包 | 返回 gold/token 余额与时间戳；不存在返回 `404/R_018` |
+| `POST` | `/api/v1/wallet/transfer` | 玩家间转账 | 事务扣款/入账，写两条 append-only 流水；请求携带 `idempotency_key` |
+| `GET` | `/api/v1/products/{npc_id}` | 查询 NPC 商品 | 只返回 `enabled = true` 商品 |
+| `POST` | `/api/v1/wallet/purchase` | 购买 NPC 商品 | 事务内 `FOR UPDATE` 商品与钱包，扣款、扣库存、写 `npc_purchase` 流水；Redis 幂等 |
+
+购买请求字段：
+
+```json
+{
+  "user_id": "demo",
+  "product_id": 1,
+  "currency": "gold",
+  "idempotency_key": "purchase-demo-001",
+  "trace_id": "optional-trace-id"
+}
+```
+
+当前错误码：
+
+| HTTP | code | 场景 |
+|---|---|---|
+| 404 | `R_018` | 钱包不存在 |
+| 402 | `R_022` | 余额不足 |
+| 400 | `R_023` | 自己转给自己 |
+| 409 | `R_024` | 商品缺货 |
+| 404 | `R_025` | 商品不存在或已禁用 |
+
 | 攻击类型 | 防护 | 实现 |
 |---|---|---|
 | 撞库 | 登录失败计数 | Redis 5min 内失败 5 次 → 锁定 30min |
