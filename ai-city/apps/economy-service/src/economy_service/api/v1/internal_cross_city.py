@@ -10,7 +10,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from economy_service.db import get_pool
 from economy_service.errors import EconomyError
-from economy_service.schemas import CrossCityCreditRequest, CrossCityTransferResponse
+from economy_service.schemas import (
+    CrossCityCreditRequest,
+    CrossCityTransferRequest,
+    CrossCityTransferResponse,
+)
 from economy_service.services.cross_city_service import CrossCityService
 
 router = APIRouter(
@@ -74,6 +78,43 @@ async def credit_transfer(
     except EconomyError as exc:
         raise _error(exc) from exc
     return CrossCityTransferResponse(**transfer)
+
+
+@router.post("/reserve", response_model=CrossCityTransferResponse, status_code=201)
+async def reserve_transfer(
+    body: CrossCityTransferRequest,
+    _: Annotated[None, Depends(require_service_token)],
+    pool: Annotated[Pool, Depends(get_pool)],
+) -> CrossCityTransferResponse:
+    service = CrossCityService(pool)
+    try:
+        transfer = await service.reserve(
+            source_city_id=body.source_city_id,
+            source_user_id=body.source_user_id,
+            destination_city_id=body.destination_city_id,
+            destination_user_id=body.destination_user_id,
+            currency=body.currency,
+            amount=body.amount,
+            idempotency_key=body.idempotency_key,
+            trace_id=body.trace_id,
+        )
+    except EconomyError as exc:
+        raise _error(exc) from exc
+    return CrossCityTransferResponse(**transfer)
+
+
+@router.get("/expired", response_model=list[CrossCityTransferResponse])
+async def list_expired_transfers(
+    _: Annotated[None, Depends(require_service_token)],
+    pool: Annotated[Pool, Depends(get_pool)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+) -> list[CrossCityTransferResponse]:
+    service = CrossCityService(pool)
+    try:
+        transfers = await service.list_expired_outbound(limit)
+    except EconomyError as exc:
+        raise _error(exc) from exc
+    return [CrossCityTransferResponse(**transfer) for transfer in transfers]
 
 
 @router.post("/{global_id}/settle", response_model=CrossCityTransferResponse)

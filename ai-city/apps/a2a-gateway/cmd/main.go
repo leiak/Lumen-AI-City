@@ -64,6 +64,8 @@ func main() {
 	economyURL := getEnv("ECONOMY_SERVICE_URL", "http://economy-service:8005")
 	crossCityToken := getEnv("CROSS_CITY_INTERNAL_TOKEN", "dev-cross-city-service-token")
 	reservationTTL := parseCrossCityReservationTTL()
+	peerCityID := os.Getenv("PEER_CITY_ID")
+	peerA2AEndpoint := os.Getenv("PEER_A2A_ENDPOINT")
 
 	log.Printf("a2a-gateway starting: grpc=%s http=%s (replay_window=%ds api_key=%s db=%s inbox_ttl=%s cleanup_interval=%s routing_table=%s)",
 		grpcAddr, httpAddr, int(replaySec.Seconds()), redactKey(apiKey), redactDSN(dbURL), inboxTTL, cleanupInterval, routingTablePath)
@@ -120,6 +122,27 @@ func main() {
 		&http.Client{Timeout: 5 * time.Second},
 	)
 	svc.SetMoneyClient(moneyClient, cityID)
+	var stopReconciler context.CancelFunc = func() {}
+	if peerCityID != "" && peerA2AEndpoint != "" {
+		peerConn, peerErr := crosscity.Dial(peerA2AEndpoint)
+		if peerErr != nil {
+			log.Fatalf("peer a2a dial: %v", peerErr)
+		}
+		defer peerConn.Close()
+		reconcilerInterval := 30 * time.Second
+		if value, err := time.ParseDuration(getEnv("CROSS_CITY_RECONCILE_INTERVAL", "30s")); err == nil && value > 0 {
+			reconcilerInterval = value
+		}
+		stopReconciler = crosscity.StartCrossCityReconciler(context.Background(), &crosscity.Reconciler{
+			Local:      moneyClient,
+			Remote:     crosscity.NewGRPCMoneyGateway(peerConn),
+			PeerCityID: peerCityID,
+		}, reconcilerInterval)
+		log.Printf("a2a-gateway: CrossCityReconciler started (peer=%s interval=%s)", peerCityID, reconcilerInterval)
+	} else {
+		log.Printf("a2a-gateway: CrossCityReconciler disabled (PEER_CITY_ID/PEER_A2A_ENDPOINT unset)")
+	}
+	defer stopReconciler()
 	log.Printf("a2a-gateway: MirrorStore wired (ttl=60m)")
 	log.Printf("a2a-gateway: CrossCityMoney wired (city=%s economy=%s ttl=%s)", cityID, economyURL, reservationTTL)
 
@@ -218,6 +241,7 @@ func main() {
 
 	<-ctx.Done()
 	log.Printf("a2a-gateway shutting down ...")
+	stopReconciler()
 
 	// 双协议并行 graceful shutdown（HTTP 5s 限时）
 	httpShutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

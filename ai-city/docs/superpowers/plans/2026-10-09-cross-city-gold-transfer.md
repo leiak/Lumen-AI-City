@@ -157,7 +157,7 @@ cd apps/economy-service
 PYTHONPATH=src python -m pytest tests/test_cross_city_service.py tests/test_api_cross_city.py -q
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/economy-service/src/economy_service apps/economy-service/tests
@@ -255,7 +255,7 @@ cd apps/a2a-gateway
 go test ./...
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/a2a-gateway
@@ -276,7 +276,7 @@ git commit -m "feat(a2a): implement cross-city transfer RPC handlers"
 - Consumes: local economy reserve/settle/refund endpoints and remote A2A RPCs.
 - Produces: `StartCrossCityReconciler(ctx, deps, interval)`.
 
-- [ ] **Step 1: Add orchestration tests**
+- [x] **Step 1: Add orchestration tests**
 
 Cover:
 
@@ -288,11 +288,11 @@ expired not-found reservation refunds source
 unreachable peer leaves reservation pending
 ```
 
-- [ ] **Step 2: Implement reconciler**
+- [x] **Step 2: Implement reconciler**
 
 Poll every 30 seconds. Select expired outbound reservations from the local economy service. For each row, call remote `GetCrossCityTransfer`. Settle on `credited`, refund on not-found, and retry on transport failure.
 
-- [ ] **Step 3: Run tests**
+- [x] **Step 3: Run tests**
 
 ```bash
 cd apps/a2a-gateway

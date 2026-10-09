@@ -43,6 +43,10 @@ func (f *fakeMoneyGateway) GetInbound(context.Context, string) (*crosscity.Econo
 	return f.transfer, f.err
 }
 
+func (f *fakeMoneyGateway) ListExpiredOutbound(context.Context) ([]crosscity.EconomyTransfer, error) {
+	return nil, nil
+}
+
 func transferRequest() *a2av1.TransferCrossCityRequest {
 	return &a2av1.TransferCrossCityRequest{
 		TransferId:        "936aea10-0000-4000-8000-000000000001",

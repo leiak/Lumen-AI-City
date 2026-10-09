@@ -107,6 +107,13 @@ class FakeConn:
             return row
         return None
 
+    async def fetch(self, sql, *args):
+        self.calls.append(("fetch", sql, args))
+        if "direction = 'outbound'" in sql and "expires_at <= NOW()" in sql:
+            now = datetime.now(UTC)
+            return [row for row in self.rows if row["status"] == "reserved" and row["expires_at"] <= now]
+        return []
+
     async def fetchval(self, sql, *args):
         self.calls.append(("fetchval", sql, args))
         if "UPDATE wallet" in sql:
@@ -475,3 +482,14 @@ async def test_settle_outbound_rejects_refunded_leg():
 async def test_settle_outbound_not_found():
     with pytest.raises(CrossCityTransferNotFoundError):
         await CrossCityService(pool_for(FakeConn())).settle_outbound(str(uuid4()))
+
+
+@pytest.mark.asyncio
+async def test_list_expired_outbound_returns_reserved_rows():
+    conn = FakeConn()
+    active = transfer_row()
+    expired = transfer_row(expires_at=datetime.now(UTC) - timedelta(seconds=1))
+    conn.rows.extend([active, expired])
+    rows = await CrossCityService(pool_for(conn)).list_expired_outbound()
+
+    assert [row["global_id"] for row in rows] == [str(expired["global_id"])]

@@ -546,6 +546,21 @@ class CrossCityService:
             )
         return _response(row) if row is not None else None
 
+    async def list_expired_outbound(self, limit: int = 100) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM cross_city_transfer
+                WHERE direction = 'outbound'
+                  AND status = 'reserved'
+                  AND expires_at <= NOW()
+                ORDER BY expires_at
+                LIMIT $1
+                """,
+                limit,
+            )
+        return [_response(row) for row in rows]
+
     async def settle_outbound(self, global_id: str | UUID) -> dict:
         try:
             global_id = global_id if isinstance(global_id, UUID) else UUID(str(global_id))
