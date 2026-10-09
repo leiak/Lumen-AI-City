@@ -70,6 +70,7 @@ def create_app(config: Config | None = None) -> FastAPI:
         dispatcher=dispatcher,  # type: ignore[arg-type]
         tick_seconds=cfg.say_tick_seconds,
         listener=listener,
+        enabled=cfg.ambient_say_enabled,
     )
     welcome_engine = WelcomeEngine(
         registry=registry,
@@ -105,6 +106,7 @@ def create_app(config: Config | None = None) -> FastAPI:
                 "redis_channel": cfg.redis_channel_npc_dialogue,
                 "redis_channel_player_moved": cfg.redis_channel_player_moved,
                 "tick_seconds": cfg.say_tick_seconds,
+                "ambient_say_enabled": cfg.ambient_say_enabled,
                 "npc_templates_dir": cfg.npc_templates_dir,
                 "pg_dsn_set": bool(pg_dsn),
                 "emotion_inject_enabled": emotion_settings.inject_enabled,

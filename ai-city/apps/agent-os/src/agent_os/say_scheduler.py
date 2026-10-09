@@ -43,11 +43,13 @@ class SayScheduler:
         dispatcher: _DispatcherLike,
         tick_seconds: float,
         listener: _PlayerListenerLike | None = None,
+        enabled: bool = True,
     ) -> None:
         self._registry = registry
         self._dispatcher = dispatcher
         self._tick = tick_seconds
         self._listener = listener
+        self._enabled = enabled
         self._rng = random.Random()
 
     def _has_player_at_home(self, tpl) -> bool:
@@ -57,6 +59,8 @@ class SayScheduler:
         return bool(self._listener.players_in_tile(tpl.home_tile_id))
 
     async def tick_once(self) -> None:
+        if not self._enabled:
+            return
         for tpl in self._registry.list_enabled():
             greetings = tpl.say.greeting
             if not greetings:

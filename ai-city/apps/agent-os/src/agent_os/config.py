@@ -22,6 +22,8 @@ class Settings(BaseSettings):
 
     # Say 调度（5s 触发一轮；Sprint 13+ 接 player listener 后改成事件驱动）
     say_tick_seconds: float = 5.0
+    # Ambient greetings are opt-in: autonomous NPCs can overwhelm the UI.
+    ambient_say_enabled: bool = False
     move_tick_seconds: float = 30.0
 
 

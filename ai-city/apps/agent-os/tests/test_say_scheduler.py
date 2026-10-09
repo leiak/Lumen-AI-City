@@ -51,6 +51,28 @@ async def test_tick_emits_one_say_per_enabled_npc(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_scheduler_disabled_does_not_publish(tmp_path: Path):
+    _write_yaml(tmp_path, "wang_boss.yaml", """\
+        npc_id: npc_wang_boss_001
+        enabled: true
+        say:
+          greeting:
+            - "来了您嘞！"
+    """)
+    reg = NpcRegistry(tmp_path)
+    disp = FakeDispatcher()
+    sched = SayScheduler(
+        registry=reg,
+        dispatcher=disp,  # type: ignore[arg-type]
+        tick_seconds=0.01,
+        enabled=False,
+    )
+
+    await sched.tick_once()
+    assert disp.calls == []
+
+
+@pytest.mark.asyncio
 async def test_tick_carries_talk_tree_root_options(tmp_path: Path):
     _write_yaml(tmp_path, "wang_boss.yaml", """\
         npc_id: npc_wang_boss_001
