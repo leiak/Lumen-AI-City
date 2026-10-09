@@ -171,6 +171,10 @@ export function WorldMap() {
       const id = window.localStorage.getItem('aicity_player_id');
       if (id) {
         useGameStore.getState().setPlayerId(id);
+      } else {
+        const guestId = `guest_${Date.now().toString(36)}`;
+        window.localStorage.setItem('aicity_player_id', guestId);
+        useGameStore.getState().setPlayerId(guestId);
       }
     }, 200);
     return () => clearInterval(t);

@@ -188,7 +188,11 @@ func main() {
 	a2av1.RegisterA2AGatewayServer(grpcSrv, svc)
 
 	// HTTP server
-	httpHandler := httpgw.New(svc, apiKey)
+	httpHandler := httpgw.NewWithRuntime(svc, apiKey, httpgw.RuntimeConfig{
+		WorldURL:       getEnv("WORLD_ENGINE_URL", ""),
+		NPCTemplateDir: getEnv("NPC_TEMPLATE_DIR", ""),
+		CORSOrigins:    []string{"http://localhost:3000", "http://127.0.0.1:3000"},
+	})
 	// Task 54：跨城 NPC 对话路由（POST /v1/cross_city/talk/:npc_id）
 	// 走 GlobalTable + crosscity.Dial(mTLS) 转发到远端 world-engine。
 	// 直接挂到 httpgw 暴露的 gin.Engine 上，与其它路由共用中间件链（trace_id /

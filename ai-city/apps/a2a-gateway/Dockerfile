@@ -45,6 +45,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 FROM alpine:3.19
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
+COPY packages/npc-templates /app/npc-templates
 COPY --from=builder /out/a2a-gateway /app/a2a-gateway
 # E2E 冒烟二进制：原生工作流已废弃，这是唯一的验收手段
 # docker compose exec a2a-gateway /app/a2a_smoke      (12 检查)

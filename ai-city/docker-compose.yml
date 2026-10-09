@@ -170,9 +170,12 @@ services:
       TLS_KEY: /etc/a2a/certs/a2a-gateway.key
       TLS_CA: /etc/a2a/certs/aicity-ca.crt
       CLIENT_CA: /etc/a2a/certs/aicity-ca.crt
+      A2A_EXPECTED_PEER_CN: "${A2A_EXPECTED_PEER_CN:-a2a-gateway-city-b}"
       # 2.0 阶段 1：跨城 NPC 路由表（cmd/main.go:52 默认 data/a2a-routing-table.yaml，
       # 必须用 env 显式覆盖 + mount 到 /app/data/，否则容器内启动直接 fatal）
       A2A_ROUTING_TABLE: /app/data/a2a-routing-table.yaml
+      WORLD_ENGINE_URL: http://world-engine:50052
+      NPC_TEMPLATE_DIR: /app/npc-templates
       # 3.0 v2：跨城金币本地经济与远端 A2A RPC 接线。
       CITY_ID: city_a
       ECONOMY_SERVICE_URL: http://economy-service:8005
@@ -209,6 +212,8 @@ services:
       # 必须与 api-gateway 的 JWT_SECRET 一致，否则登录签发的 token 在这里验不过
       JWT_SECRET: dev-secret-change-me
       CORS_ALLOWED_ORIGINS: http://localhost:3000
+      # /city 公开页不登录也能 WS 观察世界事件；登录后才有 player_id 绑定。
+      WS_ALLOW_ANON: 'true'
       LOG_LEVEL: info
     depends_on:
       # Redis ping 失败即 logger.Fatal，必须等 healthy
@@ -263,6 +268,7 @@ services:
       LOG_LEVEL: info
       SERVICE_NAME: agent-os
       SAY_TICK_SECONDS: '5.0'
+      AMBIENT_SAY_ENABLED: 'false'
       # 2.0 阶段 1：mTLS 路径，scripts/gen-mtls-certs.sh 生成；
       # city_a 用 -a 证书；city_b 留给 Task 54。
       GRPC_TLS_CERT: /etc/agent-os/certs/agent-os-a.crt

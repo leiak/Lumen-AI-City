@@ -36,6 +36,15 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 	{
 		public.POST("/auth/login", authHandler.Login)
 		public.POST("/auth/register", authHandler.Register)
+		// /city is a guest-preview surface: movement uses a browser-local
+		// guest id, while account features still require the authed routes.
+		public.POST("/world/move", worldMoveHandler.Move)
+		// The city preview loads a read-only world snapshot without a JWT.
+		// Mutations still go through the public move endpoint or authed APIs.
+		public.GET("/tiles", worldProxy.Proxy)
+		// Scripted NPC talk is part of the guest city preview. The caller
+		// explicitly supplies player_id and can only walk a read-only tree.
+		public.POST("/npc/:id/talk", npcTalkHandler.HandleByID)
 	}
 
 	// 鉴权路由
@@ -47,8 +56,6 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		authed.GET("/players/:id", playerHandler.GetByID)
 
 		// NPC 相关
-		// Sprint 12 spec 端点：POST /v1/npc/:id/talk，body = {player_id, choice_id}（npc_id 在 URL 路径）
-		authed.POST("/npc/:id/talk", npcTalkHandler.HandleByID)
 		// 1.0 必新 endpoint（acceptance_1_0 §一.B）：GET/POST /v1/npc/:id/position
 		authed.GET("/npc/:id/position", npcPositionHandler.HandleGet)
 		authed.POST("/npc/:id/position", npcPositionHandler.HandleSet)
@@ -61,8 +68,6 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 
 		// 世界相关：读路径（tiles）继续走 REST proxy（web 用，便于缓存），
 		// 写路径（move）走 gRPC（Sprint 3.5）
-		authed.GET("/tiles", worldProxy.Proxy)
 		authed.GET("/tiles/:id", worldProxy.Proxy)
-		authed.POST("/world/move", worldMoveHandler.Move)
 	}
 }

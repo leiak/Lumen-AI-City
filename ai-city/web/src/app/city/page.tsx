@@ -5,6 +5,7 @@ import { WorldMap } from '@/components/Map/WorldMap';
 import { PlayerHUD } from '@/components/PlayerHUD';
 import { ChatBox } from '@/components/ChatBox';
 import { NPCDialog } from '@/components/NPCDialog';
+import { AgentPanel } from '@/components/AgentPanel';
 import { startWsBridge } from '@/lib/ws-events';
 
 export default function CityPage() {
@@ -17,6 +18,7 @@ export default function CityPage() {
         <WorldMap />
       </div>
       <PlayerHUD />
+      <AgentPanel />
       <ChatBox />
       {/* Sprint 12 T03e：顶层挂 NPCDialog，监听 aicity:npc_dialogue
           CustomEvent；payload 为 null 时返回 null，不影响其它层。 */}

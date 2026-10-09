@@ -165,6 +165,16 @@ func (s *Service) SendMessage(ctx context.Context, msg *a2av1.Message) (*a2av1.M
 	return &a2av1.MessageResponse{Delivered: true}, nil
 }
 
+// HasAgent reports whether an A2A identity is registered. It lets HTTP-only
+// agent action endpoints use the same identity registry as SendMessage.
+func (s *Service) HasAgent(agentID string) bool {
+	if s == nil || agentID == "" {
+		return false
+	}
+	_, ok := s.reg.Get(agentID)
+	return ok
+}
+
 // Stream 双向流：每条进来的消息走 verifier + dispatcher，
 // 失败 → gRPC Unauthenticated + 关闭流；成功 → adapter.Deliver 返回值 swap 回传。
 func (s *Service) Stream(stream a2av1.A2AGateway_StreamServer) error {

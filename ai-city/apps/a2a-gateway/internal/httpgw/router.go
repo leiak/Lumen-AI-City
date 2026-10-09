@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/aicity/a2a-gateway/internal/a2asrv"
 	"github.com/gin-gonic/gin"
@@ -13,28 +14,44 @@ import (
 // Server 是 httpgw 的对外入口：持有 *a2asrv.Service + apiKey + gin.Engine。
 // 路由 / handler 方法见 router.go（构造函数 + 中间件）与 handlers.go。
 type Server struct {
-	svc    *a2asrv.Service
-	apiKey string
-	engine *gin.Engine
+	svc            *a2asrv.Service
+	apiKey         string
+	engine         *gin.Engine
+	worldURL       string
+	npcTemplateDir string
+	httpClient     *http.Client
+	corsOrigins    []string
 }
 
 // New 构造 HTTP gateway Server。
 //   - svc: 必须非 nil（共享 gRPC server 的 *a2asrv.Service）
 //   - apiKey: 空字符串 = 关闭 Bearer 鉴权（开发态）；非空 = 强制要求 Authorization: Bearer <apiKey>
 func New(svc *a2asrv.Service, apiKey string) *Server {
+	return NewWithRuntime(svc, apiKey, RuntimeConfig{})
+}
+
+func NewWithRuntime(svc *a2asrv.Service, apiKey string, cfg RuntimeConfig) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New() // 不用 Default()，我们自己挂中间件
 
 	s := &Server{
-		svc:    svc,
-		apiKey: apiKey,
-		engine: engine,
+		svc:            svc,
+		apiKey:         apiKey,
+		engine:         engine,
+		worldURL:       cfg.WorldURL,
+		npcTemplateDir: cfg.NPCTemplateDir,
+		httpClient:     &http.Client{Timeout: 6 * time.Second},
+		corsOrigins:    cfg.CORSOrigins,
+	}
+	if len(s.corsOrigins) == 0 {
+		s.corsOrigins = []string{"http://localhost:3000", "http://127.0.0.1:3000"}
 	}
 
 	// 中间件链：trace_id → recovery → logging → auth（可选）
 	engine.Use(s.traceIDMiddleware())
 	engine.Use(s.recoveryMiddleware())
 	engine.Use(s.loggingMiddleware())
+	engine.Use(s.corsMiddleware())
 	if apiKey != "" {
 		engine.Use(s.authMiddleware())
 	}
@@ -45,8 +62,37 @@ func New(svc *a2asrv.Service, apiKey string) *Server {
 	engine.GET("/v1/discover", s.Discover)
 	engine.POST("/v1/messages", s.SendMessage)
 	engine.GET("/v1/inbox/:agent_id", s.FetchInbox)
+	engine.POST("/v1/agent/actions/move", s.AgentMove)
+	engine.GET("/v1/agent/actions/npc-behavior", s.NPCBehavior)
+	engine.POST("/v1/agent/actions/npc-talk", s.NPCTalk)
 
 	return s
+}
+
+// corsMiddleware allows the City UI to call the HTTP gateway directly during
+// development. Preflight runs before auth so OPTIONS does not need a Bearer token.
+func (s *Server) corsMiddleware() gin.HandlerFunc {
+	allowed := make(map[string]struct{}, len(s.corsOrigins))
+	for _, origin := range s.corsOrigins {
+		allowed[origin] = struct{}{}
+	}
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin != "" {
+			if _, ok := allowed[origin]; ok {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+				c.Writer.Header().Add("Vary", "Origin")
+				c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+				c.Writer.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Trace-Id")
+				c.Writer.Header().Set("Access-Control-Max-Age", "86400")
+			}
+		}
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
 }
 
 // Handler 返 http.Handler（兼容 httptest + main.go）。
