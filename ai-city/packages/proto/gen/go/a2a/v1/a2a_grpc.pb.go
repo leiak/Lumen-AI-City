@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.3
-// source: a2a/v1/a2a.proto
+// source: a2a.proto
 
 package a2av1
 
@@ -19,12 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	A2AGateway_RegisterCard_FullMethodName     = "/aicity.a2a.v1.A2AGateway/RegisterCard"
-	A2AGateway_Discover_FullMethodName         = "/aicity.a2a.v1.A2AGateway/Discover"
-	A2AGateway_SendMessage_FullMethodName      = "/aicity.a2a.v1.A2AGateway/SendMessage"
-	A2AGateway_Stream_FullMethodName           = "/aicity.a2a.v1.A2AGateway/Stream"
-	A2AGateway_FetchInbox_FullMethodName       = "/aicity.a2a.v1.A2AGateway/FetchInbox"
-	A2AGateway_SayStreamForward_FullMethodName = "/aicity.a2a.v1.A2AGateway/SayStreamForward"
+	A2AGateway_RegisterCard_FullMethodName         = "/aicity.a2a.v1.A2AGateway/RegisterCard"
+	A2AGateway_Discover_FullMethodName             = "/aicity.a2a.v1.A2AGateway/Discover"
+	A2AGateway_SendMessage_FullMethodName          = "/aicity.a2a.v1.A2AGateway/SendMessage"
+	A2AGateway_Stream_FullMethodName               = "/aicity.a2a.v1.A2AGateway/Stream"
+	A2AGateway_FetchInbox_FullMethodName           = "/aicity.a2a.v1.A2AGateway/FetchInbox"
+	A2AGateway_SayStreamForward_FullMethodName     = "/aicity.a2a.v1.A2AGateway/SayStreamForward"
+	A2AGateway_TransferCrossCity_FullMethodName    = "/aicity.a2a.v1.A2AGateway/TransferCrossCity"
+	A2AGateway_GetCrossCityTransfer_FullMethodName = "/aicity.a2a.v1.A2AGateway/GetCrossCityTransfer"
 )
 
 // A2AGatewayClient is the client API for A2AGateway service.
@@ -47,6 +49,11 @@ type A2AGatewayClient interface {
 	// client 首帧必须为 SayRequestInit；之后可发 SayHeartbeat 保活。
 	// server 持续返回 SayBeat 流（npc_say_stream + npc_say_stream_done）。
 	SayStreamForward(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SayStreamMessage, SayBeat], error)
+	// 3.0 v4: source city reserves gold, destination city credits it.
+	// Requires mTLS; source_city_id must match the authenticated peer identity.
+	TransferCrossCity(ctx context.Context, in *TransferCrossCityRequest, opts ...grpc.CallOption) (*TransferCrossCityResponse, error)
+	// 3.0 v4: read-only reconciliation lookup used by the source city.
+	GetCrossCityTransfer(ctx context.Context, in *GetCrossCityTransferRequest, opts ...grpc.CallOption) (*TransferCrossCityResponse, error)
 }
 
 type a2AGatewayClient struct {
@@ -123,6 +130,26 @@ func (c *a2AGatewayClient) SayStreamForward(ctx context.Context, opts ...grpc.Ca
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type A2AGateway_SayStreamForwardClient = grpc.BidiStreamingClient[SayStreamMessage, SayBeat]
 
+func (c *a2AGatewayClient) TransferCrossCity(ctx context.Context, in *TransferCrossCityRequest, opts ...grpc.CallOption) (*TransferCrossCityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TransferCrossCityResponse)
+	err := c.cc.Invoke(ctx, A2AGateway_TransferCrossCity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *a2AGatewayClient) GetCrossCityTransfer(ctx context.Context, in *GetCrossCityTransferRequest, opts ...grpc.CallOption) (*TransferCrossCityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TransferCrossCityResponse)
+	err := c.cc.Invoke(ctx, A2AGateway_GetCrossCityTransfer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // A2AGatewayServer is the server API for A2AGateway service.
 // All implementations must embed UnimplementedA2AGatewayServer
 // for forward compatibility.
@@ -143,6 +170,11 @@ type A2AGatewayServer interface {
 	// client 首帧必须为 SayRequestInit；之后可发 SayHeartbeat 保活。
 	// server 持续返回 SayBeat 流（npc_say_stream + npc_say_stream_done）。
 	SayStreamForward(grpc.BidiStreamingServer[SayStreamMessage, SayBeat]) error
+	// 3.0 v4: source city reserves gold, destination city credits it.
+	// Requires mTLS; source_city_id must match the authenticated peer identity.
+	TransferCrossCity(context.Context, *TransferCrossCityRequest) (*TransferCrossCityResponse, error)
+	// 3.0 v4: read-only reconciliation lookup used by the source city.
+	GetCrossCityTransfer(context.Context, *GetCrossCityTransferRequest) (*TransferCrossCityResponse, error)
 	mustEmbedUnimplementedA2AGatewayServer()
 }
 
@@ -170,6 +202,12 @@ func (UnimplementedA2AGatewayServer) FetchInbox(context.Context, *FetchInboxRequ
 }
 func (UnimplementedA2AGatewayServer) SayStreamForward(grpc.BidiStreamingServer[SayStreamMessage, SayBeat]) error {
 	return status.Error(codes.Unimplemented, "method SayStreamForward not implemented")
+}
+func (UnimplementedA2AGatewayServer) TransferCrossCity(context.Context, *TransferCrossCityRequest) (*TransferCrossCityResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TransferCrossCity not implemented")
+}
+func (UnimplementedA2AGatewayServer) GetCrossCityTransfer(context.Context, *GetCrossCityTransferRequest) (*TransferCrossCityResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCrossCityTransfer not implemented")
 }
 func (UnimplementedA2AGatewayServer) mustEmbedUnimplementedA2AGatewayServer() {}
 func (UnimplementedA2AGatewayServer) testEmbeddedByValue()                    {}
@@ -278,6 +316,42 @@ func _A2AGateway_SayStreamForward_Handler(srv interface{}, stream grpc.ServerStr
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type A2AGateway_SayStreamForwardServer = grpc.BidiStreamingServer[SayStreamMessage, SayBeat]
 
+func _A2AGateway_TransferCrossCity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TransferCrossCityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(A2AGatewayServer).TransferCrossCity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: A2AGateway_TransferCrossCity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(A2AGatewayServer).TransferCrossCity(ctx, req.(*TransferCrossCityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _A2AGateway_GetCrossCityTransfer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCrossCityTransferRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(A2AGatewayServer).GetCrossCityTransfer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: A2AGateway_GetCrossCityTransfer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(A2AGatewayServer).GetCrossCityTransfer(ctx, req.(*GetCrossCityTransferRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // A2AGateway_ServiceDesc is the grpc.ServiceDesc for A2AGateway service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -301,6 +375,14 @@ var A2AGateway_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "FetchInbox",
 			Handler:    _A2AGateway_FetchInbox_Handler,
 		},
+		{
+			MethodName: "TransferCrossCity",
+			Handler:    _A2AGateway_TransferCrossCity_Handler,
+		},
+		{
+			MethodName: "GetCrossCityTransfer",
+			Handler:    _A2AGateway_GetCrossCityTransfer_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -316,5 +398,5 @@ var A2AGateway_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "a2a/v1/a2a.proto",
+	Metadata: "a2a.proto",
 }

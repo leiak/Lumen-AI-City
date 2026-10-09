@@ -33,7 +33,7 @@
 
 - Produces: `a2av1.TransferCrossCityRequest`, `a2av1.GetCrossCityTransferRequest`, `a2av1.TransferCrossCityResponse`, `a2av1.CrossCityTransferStatus`.
 
-- [ ] **Step 1: Add proto messages**
+- [x] **Step 1: Add proto messages**
 
 Append the contract from the spec to `a2a.proto` and add these service methods:
 
@@ -42,21 +42,21 @@ rpc TransferCrossCity(TransferCrossCityRequest) returns (TransferCrossCityRespon
 rpc GetCrossCityTransfer(GetCrossCityTransferRequest) returns (TransferCrossCityResponse);
 ```
 
-- [ ] **Step 2: Regenerate Go code**
+- [x] **Step 2: Regenerate Go code**
 
 ```bash
 cd packages/proto
 protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative a2a.proto
 ```
 
-- [ ] **Step 3: Run Go tests**
+- [x] **Step 3: Run Go tests**
 
 ```bash
 cd apps/a2a-gateway
 go test ./...
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/proto/a2a.proto packages/proto/gen/go/a2a/v1

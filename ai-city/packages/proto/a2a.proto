@@ -25,6 +25,13 @@ service A2AGateway {
   // client 首帧必须为 SayRequestInit；之后可发 SayHeartbeat 保活。
   // server 持续返回 SayBeat 流（npc_say_stream + npc_say_stream_done）。
   rpc SayStreamForward(stream SayStreamMessage) returns (stream SayBeat);
+
+  // 3.0 v4: source city reserves gold, destination city credits it.
+  // Requires mTLS; source_city_id must match the authenticated peer identity.
+  rpc TransferCrossCity(TransferCrossCityRequest) returns (TransferCrossCityResponse);
+
+  // 3.0 v4: read-only reconciliation lookup used by the source city.
+  rpc GetCrossCityTransfer(GetCrossCityTransferRequest) returns (TransferCrossCityResponse);
 }
 
 message AgentCard {
@@ -125,4 +132,45 @@ message SayBeat {
 message ContextMessage {
   string role = 1;
   string content = 2;
+}
+
+// 3.0 v4: cross-city gold transfer statuses.
+enum CrossCityTransferStatus {
+  CROSS_CITY_TRANSFER_STATUS_UNSPECIFIED = 0;
+  CROSS_CITY_TRANSFER_STATUS_RESERVED = 1;
+  CROSS_CITY_TRANSFER_STATUS_CREDITED = 2;
+  CROSS_CITY_TRANSFER_STATUS_SETTLED = 3;
+  CROSS_CITY_TRANSFER_STATUS_REFUNDED = 4;
+  CROSS_CITY_TRANSFER_STATUS_FAILED = 5;
+}
+
+message TransferCrossCityRequest {
+  string transfer_id = 1;
+  string source_city_id = 2;
+  string source_user_id = 3;
+  string destination_city_id = 4;
+  string destination_user_id = 5;
+  string currency = 6;
+  int64 amount = 7;
+  string idempotency_key = 8;
+  string trace_id = 9;
+  int64 reserved_at_ms = 10;
+  int64 expires_at_ms = 11;
+}
+
+message GetCrossCityTransferRequest {
+  string transfer_id = 1;
+  string source_city_id = 2;
+  string destination_city_id = 3;
+  string idempotency_key = 4;
+  string trace_id = 5;
+}
+
+message TransferCrossCityResponse {
+  string transfer_id = 1;
+  CrossCityTransferStatus status = 2;
+  string error_code = 3;
+  string message = 4;
+  int64 occurred_at_ms = 5;
+  string trace_id = 6;
 }

@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        v5.29.3
-// source: a2a/v1/a2a.proto
+// source: a2a.proto
 
 package a2av1
 
@@ -20,6 +20,65 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+// 3.0 v4: cross-city gold transfer statuses.
+type CrossCityTransferStatus int32
+
+const (
+	CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_UNSPECIFIED CrossCityTransferStatus = 0
+	CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_RESERVED    CrossCityTransferStatus = 1
+	CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_CREDITED    CrossCityTransferStatus = 2
+	CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_SETTLED     CrossCityTransferStatus = 3
+	CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_REFUNDED    CrossCityTransferStatus = 4
+	CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_FAILED      CrossCityTransferStatus = 5
+)
+
+// Enum value maps for CrossCityTransferStatus.
+var (
+	CrossCityTransferStatus_name = map[int32]string{
+		0: "CROSS_CITY_TRANSFER_STATUS_UNSPECIFIED",
+		1: "CROSS_CITY_TRANSFER_STATUS_RESERVED",
+		2: "CROSS_CITY_TRANSFER_STATUS_CREDITED",
+		3: "CROSS_CITY_TRANSFER_STATUS_SETTLED",
+		4: "CROSS_CITY_TRANSFER_STATUS_REFUNDED",
+		5: "CROSS_CITY_TRANSFER_STATUS_FAILED",
+	}
+	CrossCityTransferStatus_value = map[string]int32{
+		"CROSS_CITY_TRANSFER_STATUS_UNSPECIFIED": 0,
+		"CROSS_CITY_TRANSFER_STATUS_RESERVED":    1,
+		"CROSS_CITY_TRANSFER_STATUS_CREDITED":    2,
+		"CROSS_CITY_TRANSFER_STATUS_SETTLED":     3,
+		"CROSS_CITY_TRANSFER_STATUS_REFUNDED":    4,
+		"CROSS_CITY_TRANSFER_STATUS_FAILED":      5,
+	}
+)
+
+func (x CrossCityTransferStatus) Enum() *CrossCityTransferStatus {
+	p := new(CrossCityTransferStatus)
+	*p = x
+	return p
+}
+
+func (x CrossCityTransferStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CrossCityTransferStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_a2a_proto_enumTypes[0].Descriptor()
+}
+
+func (CrossCityTransferStatus) Type() protoreflect.EnumType {
+	return &file_a2a_proto_enumTypes[0]
+}
+
+func (x CrossCityTransferStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CrossCityTransferStatus.Descriptor instead.
+func (CrossCityTransferStatus) EnumDescriptor() ([]byte, []int) {
+	return file_a2a_proto_rawDescGZIP(), []int{0}
+}
 
 type AgentCard struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
@@ -41,7 +100,7 @@ type AgentCard struct {
 
 func (x *AgentCard) Reset() {
 	*x = AgentCard{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[0]
+	mi := &file_a2a_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53,7 +112,7 @@ func (x *AgentCard) String() string {
 func (*AgentCard) ProtoMessage() {}
 
 func (x *AgentCard) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[0]
+	mi := &file_a2a_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66,7 +125,7 @@ func (x *AgentCard) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentCard.ProtoReflect.Descriptor instead.
 func (*AgentCard) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{0}
+	return file_a2a_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AgentCard) GetAgentId() string {
@@ -149,7 +208,7 @@ type RegisterResponse struct {
 
 func (x *RegisterResponse) Reset() {
 	*x = RegisterResponse{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[1]
+	mi := &file_a2a_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -161,7 +220,7 @@ func (x *RegisterResponse) String() string {
 func (*RegisterResponse) ProtoMessage() {}
 
 func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[1]
+	mi := &file_a2a_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -174,7 +233,7 @@ func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterResponse.ProtoReflect.Descriptor instead.
 func (*RegisterResponse) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{1}
+	return file_a2a_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RegisterResponse) GetAccepted() bool {
@@ -201,7 +260,7 @@ type DiscoverRequest struct {
 
 func (x *DiscoverRequest) Reset() {
 	*x = DiscoverRequest{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[2]
+	mi := &file_a2a_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -213,7 +272,7 @@ func (x *DiscoverRequest) String() string {
 func (*DiscoverRequest) ProtoMessage() {}
 
 func (x *DiscoverRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[2]
+	mi := &file_a2a_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -226,7 +285,7 @@ func (x *DiscoverRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoverRequest.ProtoReflect.Descriptor instead.
 func (*DiscoverRequest) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{2}
+	return file_a2a_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *DiscoverRequest) GetCapability() string {
@@ -252,7 +311,7 @@ type DiscoverResponse struct {
 
 func (x *DiscoverResponse) Reset() {
 	*x = DiscoverResponse{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[3]
+	mi := &file_a2a_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -264,7 +323,7 @@ func (x *DiscoverResponse) String() string {
 func (*DiscoverResponse) ProtoMessage() {}
 
 func (x *DiscoverResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[3]
+	mi := &file_a2a_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -277,7 +336,7 @@ func (x *DiscoverResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoverResponse.ProtoReflect.Descriptor instead.
 func (*DiscoverResponse) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{3}
+	return file_a2a_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *DiscoverResponse) GetCards() []*AgentCard {
@@ -305,7 +364,7 @@ type Message struct {
 
 func (x *Message) Reset() {
 	*x = Message{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[4]
+	mi := &file_a2a_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -317,7 +376,7 @@ func (x *Message) String() string {
 func (*Message) ProtoMessage() {}
 
 func (x *Message) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[4]
+	mi := &file_a2a_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -330,7 +389,7 @@ func (x *Message) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Message.ProtoReflect.Descriptor instead.
 func (*Message) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{4}
+	return file_a2a_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Message) GetMessageId() string {
@@ -406,7 +465,7 @@ type MessageResponse struct {
 
 func (x *MessageResponse) Reset() {
 	*x = MessageResponse{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[5]
+	mi := &file_a2a_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -418,7 +477,7 @@ func (x *MessageResponse) String() string {
 func (*MessageResponse) ProtoMessage() {}
 
 func (x *MessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[5]
+	mi := &file_a2a_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -431,7 +490,7 @@ func (x *MessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageResponse.ProtoReflect.Descriptor instead.
 func (*MessageResponse) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{5}
+	return file_a2a_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *MessageResponse) GetDelivered() bool {
@@ -461,7 +520,7 @@ type FetchInboxRequest struct {
 
 func (x *FetchInboxRequest) Reset() {
 	*x = FetchInboxRequest{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[6]
+	mi := &file_a2a_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -473,7 +532,7 @@ func (x *FetchInboxRequest) String() string {
 func (*FetchInboxRequest) ProtoMessage() {}
 
 func (x *FetchInboxRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[6]
+	mi := &file_a2a_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -486,7 +545,7 @@ func (x *FetchInboxRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FetchInboxRequest.ProtoReflect.Descriptor instead.
 func (*FetchInboxRequest) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{6}
+	return file_a2a_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *FetchInboxRequest) GetAgentId() string {
@@ -527,7 +586,7 @@ type FetchInboxResponse struct {
 
 func (x *FetchInboxResponse) Reset() {
 	*x = FetchInboxResponse{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[7]
+	mi := &file_a2a_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -539,7 +598,7 @@ func (x *FetchInboxResponse) String() string {
 func (*FetchInboxResponse) ProtoMessage() {}
 
 func (x *FetchInboxResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[7]
+	mi := &file_a2a_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -552,7 +611,7 @@ func (x *FetchInboxResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FetchInboxResponse.ProtoReflect.Descriptor instead.
 func (*FetchInboxResponse) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{7}
+	return file_a2a_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *FetchInboxResponse) GetMessages() []*Message {
@@ -582,7 +641,7 @@ type SayStreamMessage struct {
 
 func (x *SayStreamMessage) Reset() {
 	*x = SayStreamMessage{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[8]
+	mi := &file_a2a_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -594,7 +653,7 @@ func (x *SayStreamMessage) String() string {
 func (*SayStreamMessage) ProtoMessage() {}
 
 func (x *SayStreamMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[8]
+	mi := &file_a2a_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -607,7 +666,7 @@ func (x *SayStreamMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SayStreamMessage.ProtoReflect.Descriptor instead.
 func (*SayStreamMessage) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{8}
+	return file_a2a_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *SayStreamMessage) GetMsg() isSayStreamMessage_Msg {
@@ -665,7 +724,7 @@ type SayRequestInit struct {
 
 func (x *SayRequestInit) Reset() {
 	*x = SayRequestInit{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[9]
+	mi := &file_a2a_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -677,7 +736,7 @@ func (x *SayRequestInit) String() string {
 func (*SayRequestInit) ProtoMessage() {}
 
 func (x *SayRequestInit) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[9]
+	mi := &file_a2a_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -690,7 +749,7 @@ func (x *SayRequestInit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SayRequestInit.ProtoReflect.Descriptor instead.
 func (*SayRequestInit) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{9}
+	return file_a2a_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SayRequestInit) GetNpcId() string {
@@ -744,7 +803,7 @@ type SayHeartbeat struct {
 
 func (x *SayHeartbeat) Reset() {
 	*x = SayHeartbeat{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[10]
+	mi := &file_a2a_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -756,7 +815,7 @@ func (x *SayHeartbeat) String() string {
 func (*SayHeartbeat) ProtoMessage() {}
 
 func (x *SayHeartbeat) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[10]
+	mi := &file_a2a_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -769,7 +828,7 @@ func (x *SayHeartbeat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SayHeartbeat.ProtoReflect.Descriptor instead.
 func (*SayHeartbeat) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{10}
+	return file_a2a_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SayHeartbeat) GetTsMs() int64 {
@@ -797,7 +856,7 @@ type SayBeat struct {
 
 func (x *SayBeat) Reset() {
 	*x = SayBeat{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[11]
+	mi := &file_a2a_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -809,7 +868,7 @@ func (x *SayBeat) String() string {
 func (*SayBeat) ProtoMessage() {}
 
 func (x *SayBeat) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[11]
+	mi := &file_a2a_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -822,7 +881,7 @@ func (x *SayBeat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SayBeat.ProtoReflect.Descriptor instead.
 func (*SayBeat) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{11}
+	return file_a2a_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SayBeat) GetType() string {
@@ -905,7 +964,7 @@ type ContextMessage struct {
 
 func (x *ContextMessage) Reset() {
 	*x = ContextMessage{}
-	mi := &file_a2a_v1_a2a_proto_msgTypes[12]
+	mi := &file_a2a_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -917,7 +976,7 @@ func (x *ContextMessage) String() string {
 func (*ContextMessage) ProtoMessage() {}
 
 func (x *ContextMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_a2a_v1_a2a_proto_msgTypes[12]
+	mi := &file_a2a_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -930,7 +989,7 @@ func (x *ContextMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContextMessage.ProtoReflect.Descriptor instead.
 func (*ContextMessage) Descriptor() ([]byte, []int) {
-	return file_a2a_v1_a2a_proto_rawDescGZIP(), []int{12}
+	return file_a2a_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ContextMessage) GetRole() string {
@@ -947,11 +1006,295 @@ func (x *ContextMessage) GetContent() string {
 	return ""
 }
 
-var File_a2a_v1_a2a_proto protoreflect.FileDescriptor
+type TransferCrossCityRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	TransferId        string                 `protobuf:"bytes,1,opt,name=transfer_id,json=transferId,proto3" json:"transfer_id,omitempty"`
+	SourceCityId      string                 `protobuf:"bytes,2,opt,name=source_city_id,json=sourceCityId,proto3" json:"source_city_id,omitempty"`
+	SourceUserId      string                 `protobuf:"bytes,3,opt,name=source_user_id,json=sourceUserId,proto3" json:"source_user_id,omitempty"`
+	DestinationCityId string                 `protobuf:"bytes,4,opt,name=destination_city_id,json=destinationCityId,proto3" json:"destination_city_id,omitempty"`
+	DestinationUserId string                 `protobuf:"bytes,5,opt,name=destination_user_id,json=destinationUserId,proto3" json:"destination_user_id,omitempty"`
+	Currency          string                 `protobuf:"bytes,6,opt,name=currency,proto3" json:"currency,omitempty"`
+	Amount            int64                  `protobuf:"varint,7,opt,name=amount,proto3" json:"amount,omitempty"`
+	IdempotencyKey    string                 `protobuf:"bytes,8,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	TraceId           string                 `protobuf:"bytes,9,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	ReservedAtMs      int64                  `protobuf:"varint,10,opt,name=reserved_at_ms,json=reservedAtMs,proto3" json:"reserved_at_ms,omitempty"`
+	ExpiresAtMs       int64                  `protobuf:"varint,11,opt,name=expires_at_ms,json=expiresAtMs,proto3" json:"expires_at_ms,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
 
-const file_a2a_v1_a2a_proto_rawDesc = "" +
+func (x *TransferCrossCityRequest) Reset() {
+	*x = TransferCrossCityRequest{}
+	mi := &file_a2a_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferCrossCityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferCrossCityRequest) ProtoMessage() {}
+
+func (x *TransferCrossCityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_a2a_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferCrossCityRequest.ProtoReflect.Descriptor instead.
+func (*TransferCrossCityRequest) Descriptor() ([]byte, []int) {
+	return file_a2a_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *TransferCrossCityRequest) GetTransferId() string {
+	if x != nil {
+		return x.TransferId
+	}
+	return ""
+}
+
+func (x *TransferCrossCityRequest) GetSourceCityId() string {
+	if x != nil {
+		return x.SourceCityId
+	}
+	return ""
+}
+
+func (x *TransferCrossCityRequest) GetSourceUserId() string {
+	if x != nil {
+		return x.SourceUserId
+	}
+	return ""
+}
+
+func (x *TransferCrossCityRequest) GetDestinationCityId() string {
+	if x != nil {
+		return x.DestinationCityId
+	}
+	return ""
+}
+
+func (x *TransferCrossCityRequest) GetDestinationUserId() string {
+	if x != nil {
+		return x.DestinationUserId
+	}
+	return ""
+}
+
+func (x *TransferCrossCityRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *TransferCrossCityRequest) GetAmount() int64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *TransferCrossCityRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *TransferCrossCityRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+func (x *TransferCrossCityRequest) GetReservedAtMs() int64 {
+	if x != nil {
+		return x.ReservedAtMs
+	}
+	return 0
+}
+
+func (x *TransferCrossCityRequest) GetExpiresAtMs() int64 {
+	if x != nil {
+		return x.ExpiresAtMs
+	}
+	return 0
+}
+
+type GetCrossCityTransferRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	TransferId        string                 `protobuf:"bytes,1,opt,name=transfer_id,json=transferId,proto3" json:"transfer_id,omitempty"`
+	SourceCityId      string                 `protobuf:"bytes,2,opt,name=source_city_id,json=sourceCityId,proto3" json:"source_city_id,omitempty"`
+	DestinationCityId string                 `protobuf:"bytes,3,opt,name=destination_city_id,json=destinationCityId,proto3" json:"destination_city_id,omitempty"`
+	IdempotencyKey    string                 `protobuf:"bytes,4,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	TraceId           string                 `protobuf:"bytes,5,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GetCrossCityTransferRequest) Reset() {
+	*x = GetCrossCityTransferRequest{}
+	mi := &file_a2a_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCrossCityTransferRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCrossCityTransferRequest) ProtoMessage() {}
+
+func (x *GetCrossCityTransferRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_a2a_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCrossCityTransferRequest.ProtoReflect.Descriptor instead.
+func (*GetCrossCityTransferRequest) Descriptor() ([]byte, []int) {
+	return file_a2a_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetCrossCityTransferRequest) GetTransferId() string {
+	if x != nil {
+		return x.TransferId
+	}
+	return ""
+}
+
+func (x *GetCrossCityTransferRequest) GetSourceCityId() string {
+	if x != nil {
+		return x.SourceCityId
+	}
+	return ""
+}
+
+func (x *GetCrossCityTransferRequest) GetDestinationCityId() string {
+	if x != nil {
+		return x.DestinationCityId
+	}
+	return ""
+}
+
+func (x *GetCrossCityTransferRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *GetCrossCityTransferRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+type TransferCrossCityResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	TransferId    string                  `protobuf:"bytes,1,opt,name=transfer_id,json=transferId,proto3" json:"transfer_id,omitempty"`
+	Status        CrossCityTransferStatus `protobuf:"varint,2,opt,name=status,proto3,enum=aicity.a2a.v1.CrossCityTransferStatus" json:"status,omitempty"`
+	ErrorCode     string                  `protobuf:"bytes,3,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	Message       string                  `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
+	OccurredAtMs  int64                   `protobuf:"varint,5,opt,name=occurred_at_ms,json=occurredAtMs,proto3" json:"occurred_at_ms,omitempty"`
+	TraceId       string                  `protobuf:"bytes,6,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransferCrossCityResponse) Reset() {
+	*x = TransferCrossCityResponse{}
+	mi := &file_a2a_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferCrossCityResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferCrossCityResponse) ProtoMessage() {}
+
+func (x *TransferCrossCityResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_a2a_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferCrossCityResponse.ProtoReflect.Descriptor instead.
+func (*TransferCrossCityResponse) Descriptor() ([]byte, []int) {
+	return file_a2a_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *TransferCrossCityResponse) GetTransferId() string {
+	if x != nil {
+		return x.TransferId
+	}
+	return ""
+}
+
+func (x *TransferCrossCityResponse) GetStatus() CrossCityTransferStatus {
+	if x != nil {
+		return x.Status
+	}
+	return CrossCityTransferStatus_CROSS_CITY_TRANSFER_STATUS_UNSPECIFIED
+}
+
+func (x *TransferCrossCityResponse) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ""
+}
+
+func (x *TransferCrossCityResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *TransferCrossCityResponse) GetOccurredAtMs() int64 {
+	if x != nil {
+		return x.OccurredAtMs
+	}
+	return 0
+}
+
+func (x *TransferCrossCityResponse) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+var File_a2a_proto protoreflect.FileDescriptor
+
+const file_a2a_proto_rawDesc = "" +
 	"\n" +
-	"\x10a2a/v1/a2a.proto\x12\raicity.a2a.v1\"\xfc\x02\n" +
+	"\ta2a.proto\x12\raicity.a2a.v1\"\xfc\x02\n" +
 	"\tAgentCard\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -1036,7 +1379,44 @@ const file_a2a_v1_a2a_proto_rawDesc = "" +
 	"\t_complete\">\n" +
 	"\x0eContextMessage\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
-	"\acontent\x18\x02 \x01(\tR\acontent2\xcd\x03\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"\xa9\x03\n" +
+	"\x18TransferCrossCityRequest\x12\x1f\n" +
+	"\vtransfer_id\x18\x01 \x01(\tR\n" +
+	"transferId\x12$\n" +
+	"\x0esource_city_id\x18\x02 \x01(\tR\fsourceCityId\x12$\n" +
+	"\x0esource_user_id\x18\x03 \x01(\tR\fsourceUserId\x12.\n" +
+	"\x13destination_city_id\x18\x04 \x01(\tR\x11destinationCityId\x12.\n" +
+	"\x13destination_user_id\x18\x05 \x01(\tR\x11destinationUserId\x12\x1a\n" +
+	"\bcurrency\x18\x06 \x01(\tR\bcurrency\x12\x16\n" +
+	"\x06amount\x18\a \x01(\x03R\x06amount\x12'\n" +
+	"\x0fidempotency_key\x18\b \x01(\tR\x0eidempotencyKey\x12\x19\n" +
+	"\btrace_id\x18\t \x01(\tR\atraceId\x12$\n" +
+	"\x0ereserved_at_ms\x18\n" +
+	" \x01(\x03R\freservedAtMs\x12\"\n" +
+	"\rexpires_at_ms\x18\v \x01(\x03R\vexpiresAtMs\"\xd8\x01\n" +
+	"\x1bGetCrossCityTransferRequest\x12\x1f\n" +
+	"\vtransfer_id\x18\x01 \x01(\tR\n" +
+	"transferId\x12$\n" +
+	"\x0esource_city_id\x18\x02 \x01(\tR\fsourceCityId\x12.\n" +
+	"\x13destination_city_id\x18\x03 \x01(\tR\x11destinationCityId\x12'\n" +
+	"\x0fidempotency_key\x18\x04 \x01(\tR\x0eidempotencyKey\x12\x19\n" +
+	"\btrace_id\x18\x05 \x01(\tR\atraceId\"\xf6\x01\n" +
+	"\x19TransferCrossCityResponse\x12\x1f\n" +
+	"\vtransfer_id\x18\x01 \x01(\tR\n" +
+	"transferId\x12>\n" +
+	"\x06status\x18\x02 \x01(\x0e2&.aicity.a2a.v1.CrossCityTransferStatusR\x06status\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\x03 \x01(\tR\terrorCode\x12\x18\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\x12$\n" +
+	"\x0eoccurred_at_ms\x18\x05 \x01(\x03R\foccurredAtMs\x12\x19\n" +
+	"\btrace_id\x18\x06 \x01(\tR\atraceId*\x8f\x02\n" +
+	"\x17CrossCityTransferStatus\x12*\n" +
+	"&CROSS_CITY_TRANSFER_STATUS_UNSPECIFIED\x10\x00\x12'\n" +
+	"#CROSS_CITY_TRANSFER_STATUS_RESERVED\x10\x01\x12'\n" +
+	"#CROSS_CITY_TRANSFER_STATUS_CREDITED\x10\x02\x12&\n" +
+	"\"CROSS_CITY_TRANSFER_STATUS_SETTLED\x10\x03\x12'\n" +
+	"#CROSS_CITY_TRANSFER_STATUS_REFUNDED\x10\x04\x12%\n" +
+	"!CROSS_CITY_TRANSFER_STATUS_FAILED\x10\x052\xa3\x05\n" +
 	"\n" +
 	"A2AGateway\x12I\n" +
 	"\fRegisterCard\x12\x18.aicity.a2a.v1.AgentCard\x1a\x1f.aicity.a2a.v1.RegisterResponse\x12K\n" +
@@ -1045,88 +1425,101 @@ const file_a2a_v1_a2a_proto_rawDesc = "" +
 	"\x06Stream\x12\x16.aicity.a2a.v1.Message\x1a\x16.aicity.a2a.v1.Message(\x010\x01\x12Q\n" +
 	"\n" +
 	"FetchInbox\x12 .aicity.a2a.v1.FetchInboxRequest\x1a!.aicity.a2a.v1.FetchInboxResponse\x12O\n" +
-	"\x10SayStreamForward\x12\x1f.aicity.a2a.v1.SayStreamMessage\x1a\x16.aicity.a2a.v1.SayBeat(\x010\x01B-Z+github.com/aicity/proto/gen/go/a2a/v1;a2av1b\x06proto3"
+	"\x10SayStreamForward\x12\x1f.aicity.a2a.v1.SayStreamMessage\x1a\x16.aicity.a2a.v1.SayBeat(\x010\x01\x12f\n" +
+	"\x11TransferCrossCity\x12'.aicity.a2a.v1.TransferCrossCityRequest\x1a(.aicity.a2a.v1.TransferCrossCityResponse\x12l\n" +
+	"\x14GetCrossCityTransfer\x12*.aicity.a2a.v1.GetCrossCityTransferRequest\x1a(.aicity.a2a.v1.TransferCrossCityResponseB-Z+github.com/aicity/proto/gen/go/a2a/v1;a2av1b\x06proto3"
 
 var (
-	file_a2a_v1_a2a_proto_rawDescOnce sync.Once
-	file_a2a_v1_a2a_proto_rawDescData []byte
+	file_a2a_proto_rawDescOnce sync.Once
+	file_a2a_proto_rawDescData []byte
 )
 
-func file_a2a_v1_a2a_proto_rawDescGZIP() []byte {
-	file_a2a_v1_a2a_proto_rawDescOnce.Do(func() {
-		file_a2a_v1_a2a_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_a2a_v1_a2a_proto_rawDesc), len(file_a2a_v1_a2a_proto_rawDesc)))
+func file_a2a_proto_rawDescGZIP() []byte {
+	file_a2a_proto_rawDescOnce.Do(func() {
+		file_a2a_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_a2a_proto_rawDesc), len(file_a2a_proto_rawDesc)))
 	})
-	return file_a2a_v1_a2a_proto_rawDescData
+	return file_a2a_proto_rawDescData
 }
 
-var file_a2a_v1_a2a_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
-var file_a2a_v1_a2a_proto_goTypes = []any{
-	(*AgentCard)(nil),          // 0: aicity.a2a.v1.AgentCard
-	(*RegisterResponse)(nil),   // 1: aicity.a2a.v1.RegisterResponse
-	(*DiscoverRequest)(nil),    // 2: aicity.a2a.v1.DiscoverRequest
-	(*DiscoverResponse)(nil),   // 3: aicity.a2a.v1.DiscoverResponse
-	(*Message)(nil),            // 4: aicity.a2a.v1.Message
-	(*MessageResponse)(nil),    // 5: aicity.a2a.v1.MessageResponse
-	(*FetchInboxRequest)(nil),  // 6: aicity.a2a.v1.FetchInboxRequest
-	(*FetchInboxResponse)(nil), // 7: aicity.a2a.v1.FetchInboxResponse
-	(*SayStreamMessage)(nil),   // 8: aicity.a2a.v1.SayStreamMessage
-	(*SayRequestInit)(nil),     // 9: aicity.a2a.v1.SayRequestInit
-	(*SayHeartbeat)(nil),       // 10: aicity.a2a.v1.SayHeartbeat
-	(*SayBeat)(nil),            // 11: aicity.a2a.v1.SayBeat
-	(*ContextMessage)(nil),     // 12: aicity.a2a.v1.ContextMessage
-	nil,                        // 13: aicity.a2a.v1.AgentCard.AuthEntry
+var file_a2a_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_a2a_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_a2a_proto_goTypes = []any{
+	(CrossCityTransferStatus)(0),        // 0: aicity.a2a.v1.CrossCityTransferStatus
+	(*AgentCard)(nil),                   // 1: aicity.a2a.v1.AgentCard
+	(*RegisterResponse)(nil),            // 2: aicity.a2a.v1.RegisterResponse
+	(*DiscoverRequest)(nil),             // 3: aicity.a2a.v1.DiscoverRequest
+	(*DiscoverResponse)(nil),            // 4: aicity.a2a.v1.DiscoverResponse
+	(*Message)(nil),                     // 5: aicity.a2a.v1.Message
+	(*MessageResponse)(nil),             // 6: aicity.a2a.v1.MessageResponse
+	(*FetchInboxRequest)(nil),           // 7: aicity.a2a.v1.FetchInboxRequest
+	(*FetchInboxResponse)(nil),          // 8: aicity.a2a.v1.FetchInboxResponse
+	(*SayStreamMessage)(nil),            // 9: aicity.a2a.v1.SayStreamMessage
+	(*SayRequestInit)(nil),              // 10: aicity.a2a.v1.SayRequestInit
+	(*SayHeartbeat)(nil),                // 11: aicity.a2a.v1.SayHeartbeat
+	(*SayBeat)(nil),                     // 12: aicity.a2a.v1.SayBeat
+	(*ContextMessage)(nil),              // 13: aicity.a2a.v1.ContextMessage
+	(*TransferCrossCityRequest)(nil),    // 14: aicity.a2a.v1.TransferCrossCityRequest
+	(*GetCrossCityTransferRequest)(nil), // 15: aicity.a2a.v1.GetCrossCityTransferRequest
+	(*TransferCrossCityResponse)(nil),   // 16: aicity.a2a.v1.TransferCrossCityResponse
+	nil,                                 // 17: aicity.a2a.v1.AgentCard.AuthEntry
 }
-var file_a2a_v1_a2a_proto_depIdxs = []int32{
-	13, // 0: aicity.a2a.v1.AgentCard.auth:type_name -> aicity.a2a.v1.AgentCard.AuthEntry
-	0,  // 1: aicity.a2a.v1.DiscoverResponse.cards:type_name -> aicity.a2a.v1.AgentCard
-	4,  // 2: aicity.a2a.v1.FetchInboxResponse.messages:type_name -> aicity.a2a.v1.Message
-	9,  // 3: aicity.a2a.v1.SayStreamMessage.init:type_name -> aicity.a2a.v1.SayRequestInit
-	10, // 4: aicity.a2a.v1.SayStreamMessage.heartbeat:type_name -> aicity.a2a.v1.SayHeartbeat
-	12, // 5: aicity.a2a.v1.SayRequestInit.context:type_name -> aicity.a2a.v1.ContextMessage
-	0,  // 6: aicity.a2a.v1.A2AGateway.RegisterCard:input_type -> aicity.a2a.v1.AgentCard
-	2,  // 7: aicity.a2a.v1.A2AGateway.Discover:input_type -> aicity.a2a.v1.DiscoverRequest
-	4,  // 8: aicity.a2a.v1.A2AGateway.SendMessage:input_type -> aicity.a2a.v1.Message
-	4,  // 9: aicity.a2a.v1.A2AGateway.Stream:input_type -> aicity.a2a.v1.Message
-	6,  // 10: aicity.a2a.v1.A2AGateway.FetchInbox:input_type -> aicity.a2a.v1.FetchInboxRequest
-	8,  // 11: aicity.a2a.v1.A2AGateway.SayStreamForward:input_type -> aicity.a2a.v1.SayStreamMessage
-	1,  // 12: aicity.a2a.v1.A2AGateway.RegisterCard:output_type -> aicity.a2a.v1.RegisterResponse
-	3,  // 13: aicity.a2a.v1.A2AGateway.Discover:output_type -> aicity.a2a.v1.DiscoverResponse
-	5,  // 14: aicity.a2a.v1.A2AGateway.SendMessage:output_type -> aicity.a2a.v1.MessageResponse
-	4,  // 15: aicity.a2a.v1.A2AGateway.Stream:output_type -> aicity.a2a.v1.Message
-	7,  // 16: aicity.a2a.v1.A2AGateway.FetchInbox:output_type -> aicity.a2a.v1.FetchInboxResponse
-	11, // 17: aicity.a2a.v1.A2AGateway.SayStreamForward:output_type -> aicity.a2a.v1.SayBeat
-	12, // [12:18] is the sub-list for method output_type
-	6,  // [6:12] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+var file_a2a_proto_depIdxs = []int32{
+	17, // 0: aicity.a2a.v1.AgentCard.auth:type_name -> aicity.a2a.v1.AgentCard.AuthEntry
+	1,  // 1: aicity.a2a.v1.DiscoverResponse.cards:type_name -> aicity.a2a.v1.AgentCard
+	5,  // 2: aicity.a2a.v1.FetchInboxResponse.messages:type_name -> aicity.a2a.v1.Message
+	10, // 3: aicity.a2a.v1.SayStreamMessage.init:type_name -> aicity.a2a.v1.SayRequestInit
+	11, // 4: aicity.a2a.v1.SayStreamMessage.heartbeat:type_name -> aicity.a2a.v1.SayHeartbeat
+	13, // 5: aicity.a2a.v1.SayRequestInit.context:type_name -> aicity.a2a.v1.ContextMessage
+	0,  // 6: aicity.a2a.v1.TransferCrossCityResponse.status:type_name -> aicity.a2a.v1.CrossCityTransferStatus
+	1,  // 7: aicity.a2a.v1.A2AGateway.RegisterCard:input_type -> aicity.a2a.v1.AgentCard
+	3,  // 8: aicity.a2a.v1.A2AGateway.Discover:input_type -> aicity.a2a.v1.DiscoverRequest
+	5,  // 9: aicity.a2a.v1.A2AGateway.SendMessage:input_type -> aicity.a2a.v1.Message
+	5,  // 10: aicity.a2a.v1.A2AGateway.Stream:input_type -> aicity.a2a.v1.Message
+	7,  // 11: aicity.a2a.v1.A2AGateway.FetchInbox:input_type -> aicity.a2a.v1.FetchInboxRequest
+	9,  // 12: aicity.a2a.v1.A2AGateway.SayStreamForward:input_type -> aicity.a2a.v1.SayStreamMessage
+	14, // 13: aicity.a2a.v1.A2AGateway.TransferCrossCity:input_type -> aicity.a2a.v1.TransferCrossCityRequest
+	15, // 14: aicity.a2a.v1.A2AGateway.GetCrossCityTransfer:input_type -> aicity.a2a.v1.GetCrossCityTransferRequest
+	2,  // 15: aicity.a2a.v1.A2AGateway.RegisterCard:output_type -> aicity.a2a.v1.RegisterResponse
+	4,  // 16: aicity.a2a.v1.A2AGateway.Discover:output_type -> aicity.a2a.v1.DiscoverResponse
+	6,  // 17: aicity.a2a.v1.A2AGateway.SendMessage:output_type -> aicity.a2a.v1.MessageResponse
+	5,  // 18: aicity.a2a.v1.A2AGateway.Stream:output_type -> aicity.a2a.v1.Message
+	8,  // 19: aicity.a2a.v1.A2AGateway.FetchInbox:output_type -> aicity.a2a.v1.FetchInboxResponse
+	12, // 20: aicity.a2a.v1.A2AGateway.SayStreamForward:output_type -> aicity.a2a.v1.SayBeat
+	16, // 21: aicity.a2a.v1.A2AGateway.TransferCrossCity:output_type -> aicity.a2a.v1.TransferCrossCityResponse
+	16, // 22: aicity.a2a.v1.A2AGateway.GetCrossCityTransfer:output_type -> aicity.a2a.v1.TransferCrossCityResponse
+	15, // [15:23] is the sub-list for method output_type
+	7,  // [7:15] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
-func init() { file_a2a_v1_a2a_proto_init() }
-func file_a2a_v1_a2a_proto_init() {
-	if File_a2a_v1_a2a_proto != nil {
+func init() { file_a2a_proto_init() }
+func file_a2a_proto_init() {
+	if File_a2a_proto != nil {
 		return
 	}
-	file_a2a_v1_a2a_proto_msgTypes[8].OneofWrappers = []any{
+	file_a2a_proto_msgTypes[8].OneofWrappers = []any{
 		(*SayStreamMessage_Init)(nil),
 		(*SayStreamMessage_Heartbeat)(nil),
 	}
-	file_a2a_v1_a2a_proto_msgTypes[11].OneofWrappers = []any{}
+	file_a2a_proto_msgTypes[11].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_a2a_v1_a2a_proto_rawDesc), len(file_a2a_v1_a2a_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   14,
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_a2a_proto_rawDesc), len(file_a2a_proto_rawDesc)),
+			NumEnums:      1,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_a2a_v1_a2a_proto_goTypes,
-		DependencyIndexes: file_a2a_v1_a2a_proto_depIdxs,
-		MessageInfos:      file_a2a_v1_a2a_proto_msgTypes,
+		GoTypes:           file_a2a_proto_goTypes,
+		DependencyIndexes: file_a2a_proto_depIdxs,
+		EnumInfos:         file_a2a_proto_enumTypes,
+		MessageInfos:      file_a2a_proto_msgTypes,
 	}.Build()
-	File_a2a_v1_a2a_proto = out.File
-	file_a2a_v1_a2a_proto_goTypes = nil
-	file_a2a_v1_a2a_proto_depIdxs = nil
+	File_a2a_proto = out.File
+	file_a2a_proto_goTypes = nil
+	file_a2a_proto_depIdxs = nil
 }
