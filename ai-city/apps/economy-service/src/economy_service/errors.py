@@ -122,6 +122,12 @@ class CrossCityTransferNotFoundError(EconomyError):
     default_msg = "cross-city transfer not found"
 
 
+class CrossCityExpiredError(EconomyError):
+    code = "CROSS_CITY_EXPIRED"
+    http_status = 410
+    default_msg = "cross-city transfer expired"
+
+
 class CrossCityInvalidStateError(EconomyError):
     code = "CROSS_CITY_INVALID_STATE"
     http_status = 409

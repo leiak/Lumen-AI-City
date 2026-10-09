@@ -12,6 +12,25 @@ from fastapi.testclient import TestClient
 
 from tests.test_cross_city_service import FakeConn, transfer_row
 
+SERVICE_HEADERS = {"Authorization": "Bearer dev-cross-city-service-token"}
+
+
+def internal_credit_body():
+    now = datetime.now(UTC)
+    return {
+        "global_id": str(uuid4()),
+        "source_city_id": "alpha",
+        "source_user_id": "alice",
+        "destination_city_id": "beta",
+        "destination_user_id": "bob",
+        "currency": "gold",
+        "amount": 100,
+        "idempotency_key": "internal-key",
+        "trace_id": "trace-internal",
+        "reserved_at": now.isoformat(),
+        "expires_at": (now + timedelta(seconds=600)).isoformat(),
+    }
+
 
 def pool_for(conn):
     pool = MagicMock()
@@ -142,3 +161,52 @@ def test_refund_allows_admin():
     assert response.status_code == 200
     assert response.json()["status"] == "refunded"
     assert conn.wallet_balance == 600
+
+
+def test_internal_credit_requires_service_token():
+    conn = FakeConn()
+    client = setup_client(conn, "alice")
+    response = client.post(
+        "/internal/v1/cross-city-transfers/credit",
+        json=internal_credit_body(),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "CROSS_CITY_SERVICE_AUTH_FAILED"
+
+
+def test_internal_credit_credits_destination_wallet():
+    conn = FakeConn()
+    client = setup_client(conn, "service")
+    transfer_id = str(uuid4())
+    response = client.post(
+        "/internal/v1/cross-city-transfers/credit",
+        headers=SERVICE_HEADERS,
+        json=internal_credit_body() | {"global_id": transfer_id},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "credited"
+    assert conn.destination_balance == 100
+
+
+def test_internal_get_returns_inbound_leg():
+    conn = FakeConn()
+    row = transfer_row(direction="inbound", status="credited")
+    conn.inbound_row = row
+    client = setup_client(conn, "service")
+    response = client.get(
+        f"/internal/v1/cross-city-transfers/{row['global_id']}",
+        headers=SERVICE_HEADERS,
+        params={"direction": "inbound"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["direction"] == "inbound"
+
+
+def test_internal_settle_requires_service_token():
+    client = setup_client(FakeConn(), "service")
+    response = client.post(f"/internal/v1/cross-city-transfers/{uuid4()}/settle")
+
+    assert response.status_code == 403

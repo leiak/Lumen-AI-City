@@ -177,7 +177,7 @@ git commit -m "feat(economy): reserve and refund cross-city gold"
 
 - Produces: `CrossCityService.credit_inbound()`, `CrossCityService.settle_outbound()`.
 
-- [ ] **Step 1: Add failing tests**
+- [x] **Step 1: Add failing tests**
 
 Cover:
 
@@ -189,18 +189,18 @@ credit_inbound rejects expired requests
 settle_outbound transitions reserved to settled without changing balances
 ```
 
-- [ ] **Step 2: Implement internal routes**
+- [x] **Step 2: Implement internal routes**
 
 Expose credit, settle, and get on `/internal/v1/cross-city-transfers/*`. Require a service token. Do not accept a browser JWT for these routes.
 
-- [ ] **Step 3: Run economy tests**
+- [x] **Step 3: Run economy tests**
 
 ```bash
 cd apps/economy-service
 PYTHONPATH=src python -m pytest tests/test_cross_city_service.py tests/test_api_cross_city.py -q
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/economy-service/src/economy_service apps/economy-service/tests

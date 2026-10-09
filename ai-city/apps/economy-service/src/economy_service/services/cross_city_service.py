@@ -9,6 +9,7 @@ from asyncpg import Pool
 from economy_service.clients.kafka_producer import KafkaProducer
 from economy_service.errors import (
     CrossCityAmountOutOfRangeError,
+    CrossCityExpiredError,
     CrossCityIdempotencyConflictError,
     CrossCityInvalidStateError,
     CrossCitySameCityError,
@@ -366,4 +367,235 @@ class CrossCityService:
         refreshed = await self.get(str(global_id))
         if refreshed is None:
             raise CrossCityTransferNotFoundError(f"transfer not found after refund: {global_id}")
+        return refreshed
+
+    async def credit_inbound(
+        self,
+        global_id: str | UUID,
+        source_city_id: str,
+        source_user_id: str,
+        destination_city_id: str,
+        destination_user_id: str,
+        currency: Currency,
+        amount: int,
+        idempotency_key: str,
+        reserved_at: datetime,
+        expires_at: datetime,
+        trace_id: str | None = None,
+    ) -> dict:
+        _validate_contract(
+            source_city_id,
+            destination_city_id,
+            source_user_id,
+            destination_user_id,
+            currency,
+            amount,
+            idempotency_key,
+        )
+        if reserved_at.tzinfo is None or expires_at.tzinfo is None:
+            raise CrossCityValidationError("reservation times must include timezone")
+
+        now = datetime.now(UTC)
+        if expires_at <= now:
+            raise CrossCityExpiredError(f"cross-city transfer expired at {expires_at}")
+        if isinstance(global_id, str):
+            try:
+                global_id = UUID(global_id)
+            except ValueError as exc:
+                raise CrossCityValidationError(f"invalid transfer id: {global_id}") from exc
+
+        async with self.pool.acquire() as conn, conn.transaction():
+            existing = await conn.fetchrow(
+                """
+                SELECT * FROM cross_city_transfer
+                WHERE direction = 'inbound' AND idempotency_key = $1
+                FOR UPDATE
+                """,
+                idempotency_key,
+            )
+            if existing is not None:
+                _assert_same_contract(
+                    existing,
+                    source_city_id=source_city_id,
+                    destination_city_id=destination_city_id,
+                    source_user_id=source_user_id,
+                    destination_user_id=destination_user_id,
+                    currency=currency,
+                    amount=amount,
+                )
+                return _response(existing)
+
+            transfer = await conn.fetchrow(
+                """
+                INSERT INTO cross_city_transfer (
+                    global_id, direction, source_city_id, destination_city_id,
+                    source_user_id, destination_user_id, currency, amount,
+                    status, idempotency_key, trace_id, expires_at,
+                    reserved_at, credited_at
+                )
+                VALUES (
+                    $1, 'inbound', $2, $3, $4, $5, $6, $7,
+                    'credited', $8, $9, $10, $11, $12
+                )
+                RETURNING *
+                """,
+                global_id,
+                source_city_id,
+                destination_city_id,
+                source_user_id,
+                destination_user_id,
+                currency.value,
+                amount,
+                idempotency_key,
+                trace_id,
+                expires_at,
+                reserved_at,
+                now,
+            )
+            await conn.execute(
+                """
+                INSERT INTO wallet (user_id, gold_balance)
+                VALUES ($1, $2)
+                ON CONFLICT (user_id) DO NOTHING
+                """,
+                destination_user_id,
+                amount,
+            )
+            new_balance = await conn.fetchval(
+                """
+                UPDATE wallet
+                SET gold_balance = gold_balance + $1, updated_at = NOW()
+                WHERE user_id = $2
+                RETURNING gold_balance
+                """,
+                amount,
+                destination_user_id,
+            )
+            bridge_balance = await conn.fetchval(
+                """
+                INSERT INTO bridge_position (
+                    peer_city_id, direction, currency, balance
+                )
+                VALUES ($1, 'inbound', 'gold', $2)
+                ON CONFLICT (peer_city_id, direction, currency) DO UPDATE
+                SET balance = bridge_position.balance + EXCLUDED.balance,
+                    updated_at = NOW()
+                RETURNING balance
+                """,
+                source_city_id,
+                -amount,
+            )
+            await conn.execute(
+                """
+                INSERT INTO bridge_ledger_entry (
+                    transfer_global_id, direction, peer_city_id, currency,
+                    amount, balance_after, reason, trace_id
+                )
+                VALUES ($1, 'inbound', $2, 'gold', $3, $4, 'credit', $5)
+                """,
+                global_id,
+                source_city_id,
+                -amount,
+                bridge_balance,
+                trace_id,
+            )
+            await conn.execute(
+                """
+                INSERT INTO transaction (
+                    tx_type, user_id, counterparty_id, currency, amount,
+                    balance_after, trace_id
+                )
+                VALUES ('cross_city_in', $1, $2, 'gold', $3, $4, $5)
+                """,
+                destination_user_id,
+                source_user_id,
+                amount,
+                new_balance,
+                trace_id,
+            )
+
+        if _kafka is not None:
+            await _kafka.send(
+                "econ.crosscity.gold.credited",
+                {
+                    "global_id": str(global_id),
+                    "source_city_id": source_city_id,
+                    "destination_city_id": destination_city_id,
+                    "source_user_id": source_user_id,
+                    "destination_user_id": destination_user_id,
+                    "currency": currency.value,
+                    "amount": amount,
+                    "trace_id": trace_id,
+                },
+            )
+        return _response(transfer)
+
+    async def get_inbound(self, global_id: str | UUID) -> dict | None:
+        try:
+            global_id = global_id if isinstance(global_id, UUID) else UUID(str(global_id))
+        except ValueError as exc:
+            raise CrossCityValidationError(f"invalid transfer id: {global_id}") from exc
+
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT * FROM cross_city_transfer
+                WHERE global_id = $1 AND direction = 'inbound'
+                """,
+                global_id,
+            )
+        return _response(row) if row is not None else None
+
+    async def settle_outbound(self, global_id: str | UUID) -> dict:
+        try:
+            global_id = global_id if isinstance(global_id, UUID) else UUID(str(global_id))
+        except ValueError as exc:
+            raise CrossCityValidationError(f"invalid transfer id: {global_id}") from exc
+
+        now = datetime.now(UTC)
+        async with self.pool.acquire() as conn, conn.transaction():
+            transfer = await conn.fetchrow(
+                """
+                SELECT * FROM cross_city_transfer
+                WHERE global_id = $1 AND direction = 'outbound'
+                FOR UPDATE
+                """,
+                global_id,
+            )
+            if transfer is None:
+                raise CrossCityTransferNotFoundError(f"transfer not found: {global_id}")
+            if transfer["status"] == "settled":
+                return _response(transfer)
+            if transfer["status"] != "reserved":
+                raise CrossCityInvalidStateError(
+                    f"cannot settle transfer in status {transfer['status']}"
+                )
+
+            await conn.execute(
+                """
+                UPDATE cross_city_transfer
+                SET status = 'settled', settled_at = $2, updated_at = NOW()
+                WHERE id = $1
+                """,
+                transfer["id"],
+                now,
+            )
+
+        if _kafka is not None:
+            await _kafka.send(
+                "econ.crosscity.gold.settled",
+                {
+                    "global_id": str(global_id),
+                    "source_city_id": transfer["source_city_id"],
+                    "destination_city_id": transfer["destination_city_id"],
+                    "source_user_id": transfer["source_user_id"],
+                    "destination_user_id": transfer["destination_user_id"],
+                    "currency": transfer["currency"],
+                    "amount": transfer["amount"],
+                    "trace_id": transfer["trace_id"],
+                },
+            )
+        refreshed = await self.get(str(global_id))
+        if refreshed is None:
+            raise CrossCityTransferNotFoundError(f"transfer not found after settle: {global_id}")
         return refreshed

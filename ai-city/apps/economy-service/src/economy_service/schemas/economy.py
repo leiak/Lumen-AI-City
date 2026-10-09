@@ -3,6 +3,7 @@
 from enum import StrEnum
 
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -110,3 +111,17 @@ class CrossCityTransferResponse(BaseModel):
     credited_at: datetime | None = None
     settled_at: datetime | None = None
     refunded_at: datetime | None = None
+
+
+class CrossCityCreditRequest(BaseModel):
+    global_id: UUID
+    source_city_id: str = Field(min_length=1, max_length=64)
+    source_user_id: str = Field(min_length=1, max_length=64)
+    destination_city_id: str = Field(min_length=1, max_length=64)
+    destination_user_id: str = Field(min_length=1, max_length=64)
+    currency: Currency = Currency.GOLD
+    amount: int = Field(gt=0, le=100000)
+    idempotency_key: str = Field(min_length=8, max_length=64)
+    trace_id: str | None = Field(default=None, max_length=200)
+    reserved_at: datetime
+    expires_at: datetime

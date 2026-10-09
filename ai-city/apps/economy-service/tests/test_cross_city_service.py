@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from economy_service.errors import (
     CrossCityAmountOutOfRangeError,
+    CrossCityExpiredError,
     CrossCityIdempotencyConflictError,
     CrossCityInvalidStateError,
     CrossCitySameCityError,
@@ -48,8 +49,10 @@ class FakeConn:
     def __init__(self):
         self.rows = []
         self.wallet_balance = 500
+        self.destination_balance = 0
         self.bridge_balance = 0
         self.calls = []
+        self.inbound_row = None
         self.transaction = MagicMock(return_value=_NoOpTransaction())
 
     async def fetchrow(self, sql, *args):
@@ -57,14 +60,85 @@ class FakeConn:
         if "FROM wallet" in sql:
             return {"gold_balance": self.wallet_balance}
         if "FROM cross_city_transfer" in sql:
+            if "direction = 'inbound' AND idempotency_key" in sql:
+                return self.inbound_row
+            if "direction = 'inbound'" in sql:
+                return self.inbound_row
             if "FOR UPDATE" not in sql:
                 return self.rows[0] if self.rows else None
             if self.rows:
                 return self.rows[0]
             return None
         if "INSERT INTO cross_city_transfer" in sql:
-            row = transfer_row(
+            if "'inbound'" in sql:
+                row = transfer_row(
+                    global_id=args[0],
+                    direction="inbound",
+                    source_city_id=args[1],
+                    destination_city_id=args[2],
+                    source_user_id=args[3],
+                    destination_user_id=args[4],
+                    currency=args[5],
+                    amount=args[6],
+                    idempotency_key=args[7],
+                    trace_id=args[8],
+                    expires_at=args[9],
+                    reserved_at=args[10],
+                    status="credited",
+                    credited_at=datetime.now(UTC),
+                )
+                self.inbound_row = row
+            else:
+                row = transfer_row(
+                    global_id=args[0],
+                    source_city_id=args[1],
+                    destination_city_id=args[2],
+                    source_user_id=args[3],
+                    destination_user_id=args[4],
+                    currency=args[5],
+                    amount=args[6],
+                    idempotency_key=args[7],
+                    trace_id=args[8],
+                    expires_at=args[9],
+                    reserved_at=args[10],
+                )
+                self.rows.append(row)
+            self.rows.append(row)
+            return row
+        return None
+
+    async def fetchval(self, sql, *args):
+        self.calls.append(("fetchval", sql, args))
+        if "UPDATE wallet" in sql:
+            self.destination_balance += args[0]
+            return self.destination_balance
+        if "INSERT INTO bridge_position" in sql:
+            if "'inbound'" in sql:
+                self.bridge_balance -= abs(args[1])
+            else:
+                self.bridge_balance += args[1]
+            return self.bridge_balance
+        if "UPDATE bridge_position" in sql:
+            if "'inbound'" in sql:
+                self.bridge_balance -= abs(args[0])
+            else:
+                if self.bridge_balance < args[0]:
+                    return None
+                self.bridge_balance -= args[0]
+            return self.bridge_balance
+        return None
+
+    async def execute(self, sql, *args):
+        self.calls.append(("execute", sql, args))
+        if "UPDATE wallet SET gold_balance" in sql:
+            if "gold_balance + $1" in sql:
+                self.destination_balance += args[0]
+            else:
+                self.wallet_balance = args[0]
+        if "INSERT INTO cross_city_transfer" in sql and "'inbound'" in sql:
+            self.inbound_row = transfer_row(
                 global_id=args[0],
+                direction="inbound",
                 source_city_id=args[1],
                 destination_city_id=args[2],
                 source_user_id=args[3],
@@ -75,30 +149,16 @@ class FakeConn:
                 trace_id=args[8],
                 expires_at=args[9],
                 reserved_at=args[10],
+                status="credited",
+                credited_at=datetime.now(UTC),
             )
-            self.rows.append(row)
-            return row
-        return None
-
-    async def fetchval(self, sql, *args):
-        self.calls.append(("fetchval", sql, args))
-        if "INSERT INTO bridge_position" in sql:
-            self.bridge_balance += args[1]
-            return self.bridge_balance
-        if "UPDATE bridge_position" in sql:
-            if self.bridge_balance < args[0]:
-                return None
-            self.bridge_balance -= args[0]
-            return self.bridge_balance
-        return None
-
-    async def execute(self, sql, *args):
-        self.calls.append(("execute", sql, args))
-        if "UPDATE wallet SET gold_balance" in sql:
-            self.wallet_balance = args[0]
         if "UPDATE cross_city_transfer" in sql:
-            self.rows[0]["status"] = "refunded"
-            self.rows[0]["refunded_at"] = datetime.now(UTC)
+            if "status = 'settled'" in sql:
+                self.rows[0]["status"] = "settled"
+                self.rows[0]["settled_at"] = datetime.now(UTC)
+            else:
+                self.rows[0]["status"] = "refunded"
+                self.rows[0]["refunded_at"] = datetime.now(UTC)
         return "OK"
 
 
@@ -263,3 +323,155 @@ async def test_refund_not_found():
     conn = FakeConn()
     with pytest.raises(CrossCityTransferNotFoundError):
         await CrossCityService(pool_for(conn)).refund(str(uuid4()))
+
+
+def credit_kwargs(**overrides):
+    now = datetime.now(UTC)
+    values = {
+        "global_id": str(uuid4()),
+        "source_city_id": "alpha",
+        "source_user_id": "alice",
+        "destination_city_id": "beta",
+        "destination_user_id": "bob",
+        "currency": Currency.GOLD,
+        "amount": 100,
+        "idempotency_key": "inbound-key-1",
+        "reserved_at": now,
+        "expires_at": now + timedelta(seconds=600),
+        "trace_id": "trace-credit",
+    }
+    values.update(overrides)
+    return values
+
+
+@pytest.mark.asyncio
+async def test_credit_inbound_creates_wallet_and_credits_it():
+    conn = FakeConn()
+    kafka = AsyncMock()
+    cross_city_service._kafka = kafka
+    result = await CrossCityService(pool_for(conn)).credit_inbound(**credit_kwargs())
+
+    assert result["direction"] == "inbound"
+    assert result["status"] == "credited"
+    assert conn.destination_balance == 100
+    assert conn.bridge_balance == -100
+    assert any("INSERT INTO transaction" in call[1] for call in conn.calls)
+    kafka.send.assert_awaited_once_with(
+        "econ.crosscity.gold.credited",
+        {
+            "global_id": result["global_id"],
+            "source_city_id": "alpha",
+            "destination_city_id": "beta",
+            "source_user_id": "alice",
+            "destination_user_id": "bob",
+            "currency": "gold",
+            "amount": 100,
+            "trace_id": "trace-credit",
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_credit_inbound_duplicate_returns_without_second_credit():
+    conn = FakeConn()
+    conn.inbound_row = transfer_row(
+        direction="inbound",
+        idempotency_key="inbound-key-1",
+        status="credited",
+    )
+    result = await CrossCityService(pool_for(conn)).credit_inbound(**credit_kwargs())
+
+    assert result["global_id"] == str(conn.inbound_row["global_id"])
+    assert conn.destination_balance == 0
+    assert conn.bridge_balance == 0
+
+
+@pytest.mark.asyncio
+async def test_credit_inbound_duplicate_contract_conflict():
+    conn = FakeConn()
+    conn.inbound_row = transfer_row(
+        direction="inbound",
+        idempotency_key="inbound-key-1",
+        status="credited",
+        amount=200,
+    )
+    with pytest.raises(CrossCityIdempotencyConflictError):
+        await CrossCityService(pool_for(conn)).credit_inbound(**credit_kwargs())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"currency": Currency.TOKEN},
+        {"amount": 0},
+        {"destination_city_id": "alpha"},
+        {"reserved_at": datetime.now(UTC).replace(tzinfo=None)},
+    ],
+)
+async def test_credit_inbound_contract_validation(kwargs):
+    conn = FakeConn()
+    with pytest.raises(
+        (
+            CrossCityUnsupportedCurrencyError,
+            CrossCityAmountOutOfRangeError,
+            CrossCitySameCityError,
+            CrossCityValidationError,
+        )
+    ):
+        await CrossCityService(pool_for(conn)).credit_inbound(**credit_kwargs(**kwargs))
+
+
+@pytest.mark.asyncio
+async def test_credit_inbound_rejects_expired_request():
+    conn = FakeConn()
+    expired = datetime.now(UTC) - timedelta(seconds=1)
+    with pytest.raises(CrossCityExpiredError):
+        await CrossCityService(pool_for(conn)).credit_inbound(
+            **credit_kwargs(expires_at=expired)
+        )
+    assert conn.inbound_row is None
+    assert conn.destination_balance == 0
+
+
+@pytest.mark.asyncio
+async def test_settle_outbound_marks_settled_without_balance_change():
+    conn = FakeConn()
+    row = transfer_row()
+    conn.rows.append(row)
+    original_bridge = conn.bridge_balance
+    kafka = AsyncMock()
+    cross_city_service._kafka = kafka
+    result = await CrossCityService(pool_for(conn)).settle_outbound(row["global_id"])
+
+    assert result["status"] == "settled"
+    assert conn.wallet_balance == 500
+    assert conn.bridge_balance == original_bridge
+    kafka.send.assert_awaited_once_with(
+        "econ.crosscity.gold.settled",
+        {
+            "global_id": str(row["global_id"]),
+            "source_city_id": "alpha",
+            "destination_city_id": "beta",
+            "source_user_id": "alice",
+            "destination_user_id": "bob",
+            "currency": "gold",
+            "amount": 100,
+            "trace_id": "trace-1",
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_settle_outbound_rejects_refunded_leg():
+    conn = FakeConn()
+    row = transfer_row(status="refunded")
+    conn.rows.append(row)
+    with pytest.raises(CrossCityInvalidStateError):
+        await CrossCityService(pool_for(conn)).settle_outbound(row["global_id"])
+
+
+@pytest.mark.asyncio
+async def test_settle_outbound_not_found():
+    with pytest.raises(CrossCityTransferNotFoundError):
+        await CrossCityService(pool_for(FakeConn())).settle_outbound(str(uuid4()))
