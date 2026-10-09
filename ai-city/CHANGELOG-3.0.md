@@ -1,5 +1,25 @@
 # CHANGELOG — 3.0 经济系统
 
+## 2026-10-09 — 3.0 v4 cross-city gold design accepted
+
+Approved the protocol and bridge-ledger design for roadmap subtrack #2:
+
+- **Protocol**: mTLS A2A `TransferCrossCity` and read-only
+  `GetCrossCityTransfer` RPCs with explicit reservation expiry and status.
+- **Ledger**: local `cross_city_transfer` legs, signed `bridge_position` balances,
+  append-only `bridge_ledger_entry` audit history, and `cross_city_out/in`
+  player transaction types.
+- **Failure model**: source reserve, destination idempotent credit, source
+  settle, and source refund only after expiry plus destination not-found
+  confirmation. No distributed 2PC.
+
+**Status**: design accepted; implementation is not complete yet.
+
+**ADR**: `docs/adr/ADR-0011-cross-city-gold-transfer.md`
+**Plan**: `docs/superpowers/plans/2026-10-09-cross-city-gold-transfer.md`
+
+---
+
 ## 2026-10-08 — 3.0 v3 creator marketplace GA
 
 Creator marketplace v1 is complete:
