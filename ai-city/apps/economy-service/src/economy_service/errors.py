@@ -86,6 +86,18 @@ class PurchaseDuplicateError(EconomyError):
     default_msg = "purchase duplicate (idempotency)"
 
 
+class NoWithdrawableRevenueError(EconomyError):
+    code = "R_035"
+    http_status = 400
+    default_msg = "no withdrawable creator revenue"
+
+
+class RevenueWithdrawalDuplicateError(EconomyError):
+    code = "R_036"
+    http_status = 409
+    default_msg = "revenue withdrawal idempotency conflict"
+
+
 class CrossCityValidationError(EconomyError):
     code = "CROSS_CITY_VALIDATION_FAILED"
     http_status = 400

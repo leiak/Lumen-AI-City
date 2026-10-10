@@ -42,6 +42,26 @@ def test_creator_market_migration_uses_player_uuid_foreign_keys() -> None:
     assert "creator_id UUID NOT NULL REFERENCES player(id)" in compact_sql
     assert "platform_cut_gold BIGINT NOT NULL DEFAULT 0" in sql
 
+    assert "CREATE TABLE IF NOT EXISTS creator_withdrawal" in sql
+    assert "CHECK (amount_gold > 0)" in sql
+    assert "idempotency_key TEXT UNIQUE" in sql
+    assert "idx_creator_withdrawal_creator_created" in sql
+
+
+def test_creator_withdrawal_extends_transaction_types_on_existing_databases() -> None:
+    sql = MIGRATION.read_text(encoding="utf-8")
+    compact_sql = normalized(sql)
+
+    assert (
+        "ALTER TABLE transaction DROP CONSTRAINT IF EXISTS transaction_tx_type_check"
+    ) in compact_sql
+    assert (
+        "ADD CONSTRAINT transaction_tx_type_check CHECK (tx_type IN ("
+    ) in compact_sql
+    assert (
+        "'npc_sink', 'cross_city_out', 'cross_city_in', 'creator_withdrawal'"
+    ) in compact_sql
+
 
 def test_saga_template_price_can_be_altered_on_existing_databases() -> None:
     sql = MIGRATION.read_text(encoding="utf-8")

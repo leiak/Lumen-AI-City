@@ -5,6 +5,8 @@ from asyncpg import Pool
 from economy_service.clients.kafka_producer import KafkaProducer
 from economy_service.errors import (
     InsufficientBalance,
+    NoWithdrawableRevenueError,
+    RevenueWithdrawalDuplicateError,
     SelfPurchaseError,
     TemplateNotFoundError,
     TemplateTakenDownError,
@@ -80,6 +82,7 @@ class MarketplaceService:
                 "SELECT * FROM npc_template WHERE id = $1",
                 template_id,
             )
+        return dict(row) if row is not None else None
 
 
     async def take_down_npc_template(self, template_id: int, actor_id: str) -> None:
@@ -370,3 +373,123 @@ class MarketplaceService:
                 template_id,
             )
         return dict(row) if row is not None else None
+
+    async def get_creator_revenue_summary(self, creator_id: str) -> dict:
+        async with self.pool.acquire() as conn:
+            earned = await conn.fetchrow(
+                """
+                SELECT COALESCE(SUM(amount_gold), 0)::BIGINT AS total
+                FROM creator_revenue
+                WHERE creator_id = $1
+                """,
+                creator_id,
+            )
+            withdrawn = await conn.fetchrow(
+                """
+                SELECT COALESCE(SUM(amount_gold), 0)::BIGINT AS total
+                FROM creator_withdrawal
+                WHERE creator_id = $1
+                """,
+                creator_id,
+            )
+
+        earned_gold = int(earned["total"]) if earned else 0
+        withdrawn_gold = int(withdrawn["total"]) if withdrawn else 0
+        return {
+            "earned_gold": earned_gold,
+            "withdrawn_gold": withdrawn_gold,
+            "available_gold": earned_gold - withdrawn_gold,
+        }
+
+    async def withdraw_creator_revenue(self, creator_id: str, idempotency_key: str) -> dict:
+        async with self.pool.acquire() as conn:
+            existing = await conn.fetchrow(
+                """
+                SELECT id, creator_id, amount_gold, balance_after
+                FROM creator_withdrawal
+                WHERE idempotency_key = $1
+                """,
+                idempotency_key,
+            )
+            if existing is not None:
+                if str(existing["creator_id"]) != creator_id:
+                    raise RevenueWithdrawalDuplicateError(
+                        "revenue withdrawal idempotency key belongs to another creator"
+                    )
+                return {
+                    "withdrawal_id": existing["id"],
+                    "amount_gold": existing["amount_gold"],
+                    "balance_after": existing["balance_after"],
+                    "status": "already_settled",
+                }
+
+            wallet = await conn.fetchrow(
+                "SELECT gold_balance FROM wallet WHERE user_id = $1 FOR UPDATE",
+                creator_id,
+            )
+            if wallet is None:
+                raise WalletNotFound(f"wallet not found: {creator_id}")
+
+            earned = await conn.fetchrow(
+                """
+                SELECT COALESCE(SUM(amount_gold), 0)::BIGINT AS total
+                FROM creator_revenue
+                WHERE creator_id = $1
+                """,
+                creator_id,
+            )
+            withdrawn = await conn.fetchrow(
+                """
+                SELECT COALESCE(SUM(amount_gold), 0)::BIGINT AS total
+                FROM creator_withdrawal
+                WHERE creator_id = $1
+                """,
+                creator_id,
+            )
+            amount = int(earned["total"]) - int(withdrawn["total"])
+            if amount <= 0:
+                raise NoWithdrawableRevenueError("creator revenue has already been settled")
+
+            balance = int(wallet["gold_balance"])
+            if balance < amount:
+                raise InsufficientBalance(
+                    f"gold balance {balance} < withdrawable revenue {amount}"
+                )
+            new_balance = balance - amount
+            await conn.execute(
+                "UPDATE wallet SET gold_balance = $1 WHERE user_id = $2",
+                new_balance,
+                creator_id,
+            )
+            withdrawal = await conn.fetchrow(
+                """
+                INSERT INTO creator_withdrawal (
+                    creator_id, amount_gold, balance_after, idempotency_key
+                )
+                VALUES ($1, $2, $3, $4)
+                RETURNING id, amount_gold, balance_after
+                """,
+                creator_id,
+                amount,
+                new_balance,
+                idempotency_key,
+            )
+            await conn.execute(
+                """
+                INSERT INTO transaction (
+                    tx_type, user_id, currency, amount, balance_after, trace_id
+                )
+                VALUES ('creator_withdrawal', $1, 'gold', $2, $3, $4)
+                """,
+                creator_id,
+                -amount,
+                new_balance,
+                f"creator_withdrawal:{withdrawal['id']}",
+            )
+
+        return {
+            "withdrawal_id": withdrawal["id"],
+            "amount_gold": withdrawal["amount_gold"],
+            "balance_after": withdrawal["balance_after"],
+            "status": "settled",
+        }

@@ -17,6 +17,10 @@ class PurchaseRequest(BaseModel):
     idempotency_key: str = Field(min_length=1)
 
 
+class RevenueWithdrawalRequest(BaseModel):
+    idempotency_key: str = Field(min_length=8, max_length=64)
+
+
 @router.post("/purchase")
 async def purchase_template(
     body: PurchaseRequest,
@@ -71,3 +75,43 @@ async def list_creator_revenue(
         )
     service = MarketplaceService(pool)
     return await service.list_creator_revenue(creator_id, limit=limit, offset=offset)
+
+
+@router.get("/revenue/{creator_id}/summary")
+async def get_creator_revenue_summary(
+    creator_id: str,
+    player: Annotated[AuthenticatedPlayer, Depends(require_roles({"creator", "admin"}))],
+    pool: Annotated[object, Depends(get_pool)] = None,
+) -> dict:
+    if player.role != "admin" and player.id != creator_id:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "R_027", "msg": "creator role required"},
+        )
+    service = MarketplaceService(pool)
+    return await service.get_creator_revenue_summary(creator_id)
+
+
+@router.post("/revenue/{creator_id}/withdraw")
+async def withdraw_creator_revenue(
+    creator_id: str,
+    body: RevenueWithdrawalRequest,
+    player: Annotated[AuthenticatedPlayer, Depends(require_roles({"creator", "admin"}))],
+    pool: Annotated[object, Depends(get_pool)] = None,
+) -> dict:
+    if player.role != "admin" and player.id != creator_id:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "R_027", "msg": "creator role required"},
+        )
+    service = MarketplaceService(pool)
+    try:
+        return await service.withdraw_creator_revenue(
+            creator_id=creator_id,
+            idempotency_key=body.idempotency_key,
+        )
+    except EconomyError as exc:
+        raise HTTPException(
+            status_code=exc.http_status,
+            detail={"code": exc.code, "msg": exc.msg},
+        ) from exc

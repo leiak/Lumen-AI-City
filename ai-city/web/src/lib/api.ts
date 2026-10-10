@@ -142,6 +142,19 @@ export interface CreatorRevenueItem {
   created_at: string | null;
 }
 
+export interface CreatorRevenueSummary {
+  earned_gold: number;
+  withdrawn_gold: number;
+  available_gold: number;
+}
+
+export interface CreatorRevenueWithdrawalResponse {
+  withdrawal_id: number;
+  amount_gold: number;
+  balance_after: number;
+  status: string;
+}
+
 export interface CreateTemplateResponse {
   id: number;
 }
@@ -258,6 +271,20 @@ class ApiClient {
 
   getCreatorRevenue = () =>
     this.request<CreatorRevenueItem[]>('/v1/marketplace/revenue');
+
+  getCreatorRevenueSummary = () =>
+    this.request<CreatorRevenueSummary>('/v1/marketplace/revenue-summary');
+
+  withdrawCreatorRevenue = () =>
+    this.request<CreatorRevenueWithdrawalResponse>(
+      '/v1/marketplace/revenue-withdraw',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          idempotency_key: `creator-withdraw-${Date.now().toString(36)}`,
+        }),
+      },
+    );
 
   createNpcTemplate = (params: {
     name: string;

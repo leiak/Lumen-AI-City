@@ -70,6 +70,8 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		authed.POST("/wallet/transfer", economyProxy.Transfer)
 		authed.POST("/marketplace/purchase", economyProxy.MarketplacePurchase)
 		authed.GET("/marketplace/revenue", economyProxy.CreatorRevenue)
+		authed.GET("/marketplace/revenue-summary", economyProxy.CreatorRevenueSummary)
+		authed.POST("/marketplace/revenue-withdraw", economyProxy.CreatorRevenueWithdraw)
 		authed.POST("/marketplace/npc-templates", economyProxy.CreateNpcTemplate)
 		authed.POST("/marketplace/saga-templates", economyProxy.CreateSagaTemplate)
 		authed.POST("/marketplace/npc-templates/:templateId/take-down", economyProxy.TakeDownNpcTemplate)

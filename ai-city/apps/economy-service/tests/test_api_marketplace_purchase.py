@@ -7,6 +7,7 @@ from economy_service.app import app
 from economy_service.db import get_pool
 from economy_service.errors import (
     InsufficientBalance,
+    NoWithdrawableRevenueError,
     SelfPurchaseError,
     TemplateNotFoundError,
     TemplateTakenDownError,
@@ -182,3 +183,82 @@ def test_revenue_rejects_creator_for_other_creator(client):
 
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "R_027"
+
+
+def test_revenue_summary_allows_creator_owner(client):
+    test_client, conn, monkeypatch = client
+    conn.fetchrow.return_value = {"id": CREATOR_ID, "role": "creator"}
+    summary = {"earned_gold": 100, "withdrawn_gold": 30, "available_gold": 70}
+    fake_service = patch_service(
+        monkeypatch, "get_creator_revenue_summary", result=summary
+    )
+
+    response = test_client.get(
+        f"/v1/marketplace/revenue/{CREATOR_ID}/summary",
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == summary
+    fake_service.get_creator_revenue_summary.assert_awaited_once_with(CREATOR_ID)
+
+
+def test_revenue_withdraw_allows_creator_owner(client):
+    test_client, conn, monkeypatch = client
+    conn.fetchrow.return_value = {"id": CREATOR_ID, "role": "creator"}
+    result = {
+        "withdrawal_id": 9,
+        "amount_gold": 70,
+        "balance_after": 10,
+        "status": "settled",
+    }
+    fake_service = patch_service(
+        monkeypatch, "withdraw_creator_revenue", result=result
+    )
+
+    response = test_client.post(
+        f"/v1/marketplace/revenue/{CREATOR_ID}/withdraw",
+        json={"idempotency_key": "creator-withdraw-1"},
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == result
+    fake_service.withdraw_creator_revenue.assert_awaited_once_with(
+        creator_id=CREATOR_ID,
+        idempotency_key="creator-withdraw-1",
+    )
+
+
+def test_revenue_withdraw_rejects_other_creator(client):
+    test_client, conn, monkeypatch = client
+    conn.fetchrow.return_value = {"id": BUYER_ID, "role": "creator"}
+    patch_service(monkeypatch, "withdraw_creator_revenue", result={})
+
+    response = test_client.post(
+        f"/v1/marketplace/revenue/{CREATOR_ID}/withdraw",
+        json={"idempotency_key": "creator-withdraw-1"},
+        headers=auth_header(BUYER_ID),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "R_027"
+
+
+def test_revenue_withdraw_maps_zero_available(client):
+    test_client, conn, monkeypatch = client
+    conn.fetchrow.return_value = {"id": CREATOR_ID, "role": "creator"}
+    patch_service(
+        monkeypatch,
+        "withdraw_creator_revenue",
+        error=NoWithdrawableRevenueError("no revenue"),
+    )
+
+    response = test_client.post(
+        f"/v1/marketplace/revenue/{CREATOR_ID}/withdraw",
+        json={"idempotency_key": "creator-withdraw-2"},
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "R_035"

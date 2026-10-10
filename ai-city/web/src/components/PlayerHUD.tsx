@@ -26,6 +26,7 @@ const TX_LABELS: Record<string, string> = {
   npc_purchase: 'NPC购买',
   player_transfer: '转账',
   cross_city_out: '跨城',
+  creator_withdrawal: '分成提现',
 };
 
 export function PlayerHUD() {

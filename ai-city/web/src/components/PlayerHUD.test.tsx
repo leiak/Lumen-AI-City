@@ -45,6 +45,17 @@ vi.mock('@/lib/api', () => ({
         created_at: null,
       },
     ]),
+    getCreatorRevenueSummary: vi.fn().mockResolvedValue({
+      earned_gold: 100,
+      withdrawn_gold: 30,
+      available_gold: 70,
+    }),
+    withdrawCreatorRevenue: vi.fn().mockResolvedValue({
+      withdrawal_id: 9,
+      amount_gold: 70,
+      balance_after: 10,
+      status: 'settled',
+    }),
     createNpcTemplate: vi.fn().mockResolvedValue({ id: 12 }),
     takeDownMarketTemplate: vi.fn().mockResolvedValue({ status: 'taken_down' }),
   },
@@ -113,6 +124,16 @@ describe('PlayerHUD inventory', () => {
 
     expect(await screen.findByText('总收益: 100 Gold')).toBeInTheDocument();
     expect(screen.getByText('#71')).toBeInTheDocument();
+  });
+
+  it('withdraws available creator revenue', async () => {
+    render(<PlayerHUD />);
+
+    fireEvent.click(screen.getByRole('button', { name: '收益' }));
+    fireEvent.click(await screen.findByRole('button', { name: '提现 70 Gold' }));
+
+    await waitFor(() => expect(api.withdrawCreatorRevenue).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('提现成功')).toBeInTheDocument();
   });
 
   it('publishes an NPC template from creator studio', async () => {

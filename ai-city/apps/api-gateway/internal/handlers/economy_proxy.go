@@ -157,6 +157,55 @@ func (p *EconomyProxy) CreatorRevenue(c *gin.Context) {
 	p.forward(c, target, nil)
 }
 
+func (p *EconomyProxy) CreatorRevenueSummary(c *gin.Context) {
+	playerID, exists := c.Get("player_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	playerIDStr, _ := playerID.(string)
+	if playerIDStr == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+
+	target := p.baseURL + "/v1/marketplace/revenue/" + url.PathEscape(playerIDStr) + "/summary"
+	p.forward(c, target, nil)
+}
+
+type CreatorRevenueWithdrawalRequest struct {
+	IdempotencyKey string `json:"idempotency_key" binding:"required,min=8,max=64"`
+}
+
+func (p *EconomyProxy) CreatorRevenueWithdraw(c *gin.Context) {
+	playerID, exists := c.Get("player_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	playerIDStr, _ := playerID.(string)
+	if playerIDStr == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+
+	var request CreatorRevenueWithdrawalRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request", "detail": err.Error()})
+		return
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"idempotency_key": request.IdempotencyKey,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "economy_request_encode_failed"})
+		return
+	}
+	target := p.baseURL + "/v1/marketplace/revenue/" + url.PathEscape(playerIDStr) + "/withdraw"
+	p.forward(c, target, payload)
+}
+
 type EconomyPurchaseRequest struct {
 	ProductID      int64  `json:"product_id" binding:"required,gt=0"`
 	Currency       string `json:"currency" binding:"required,oneof=gold token"`

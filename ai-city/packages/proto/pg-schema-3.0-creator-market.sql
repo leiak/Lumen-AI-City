@@ -109,3 +109,25 @@ CREATE TABLE IF NOT EXISTS creator_revenue (
 
 CREATE INDEX IF NOT EXISTS idx_creator_revenue_creator_created
     ON creator_revenue(creator_id, created_at DESC);
+
+ALTER TABLE transaction
+    DROP CONSTRAINT IF EXISTS transaction_tx_type_check;
+
+ALTER TABLE transaction
+    ADD CONSTRAINT transaction_tx_type_check
+    CHECK (tx_type IN (
+        'player_transfer', 'npc_purchase', 'central_bank_emit',
+        'npc_sink', 'cross_city_out', 'cross_city_in', 'creator_withdrawal'
+    ));
+
+CREATE TABLE IF NOT EXISTS creator_withdrawal (
+    id              BIGSERIAL PRIMARY KEY,
+    creator_id      UUID NOT NULL REFERENCES player(id) ON DELETE RESTRICT,
+    amount_gold     BIGINT NOT NULL CHECK (amount_gold > 0),
+    balance_after   BIGINT NOT NULL,
+    idempotency_key TEXT UNIQUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_creator_withdrawal_creator_created
+    ON creator_withdrawal(creator_id, created_at DESC);
