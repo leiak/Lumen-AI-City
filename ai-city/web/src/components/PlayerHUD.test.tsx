@@ -37,6 +37,14 @@ vi.mock('@/lib/api', () => ({
     ]),
     listSagaTemplates: vi.fn().mockResolvedValue([]),
     purchaseMarketplaceTemplate: vi.fn().mockResolvedValue({ purchase_id: 71 }),
+    getCreatorRevenue: vi.fn().mockResolvedValue([
+      {
+        purchase_id: 71,
+        amount_gold: 100,
+        platform_cut_gold: 0,
+        created_at: null,
+      },
+    ]),
   },
 }));
 
@@ -94,5 +102,14 @@ describe('PlayerHUD inventory', () => {
 
     expect(await screen.findByText(/Creator NPC/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '30 G' })).toBeInTheDocument();
+  });
+
+  it('shows creator revenue summary when authorized', async () => {
+    render(<PlayerHUD />);
+
+    fireEvent.click(screen.getByRole('button', { name: '收益' }));
+
+    expect(await screen.findByText('总收益: 100 Gold')).toBeInTheDocument();
+    expect(screen.getByText('#71')).toBeInTheDocument();
   });
 });

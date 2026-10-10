@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useGameStore } from '@/store/game';
 import { api, type InventoryItem, type TransactionListResponse } from '@/lib/api';
 import { CreatorMarket } from './CreatorMarket';
+import { CreatorRevenue } from './CreatorRevenue';
 
 function logout() {
   window.localStorage.removeItem('aicity_token');
@@ -39,6 +40,7 @@ export function PlayerHUD() {
   const inventoryVersion = useGameStore((s) => s.inventoryVersion);
   const [showTransfer, setShowTransfer] = useState(false);
   const [showMarket, setShowMarket] = useState(false);
+  const [showRevenue, setShowRevenue] = useState(false);
   const [toUserId, setToUserId] = useState('');
   const [transferAmount, setTransferAmount] = useState('1');
   const [transferMemo, setTransferMemo] = useState('');
@@ -200,6 +202,13 @@ export function PlayerHUD() {
               </button>
               <button
                 type="button"
+                onClick={() => setShowRevenue((value) => !value)}
+                className="text-gray-400 hover:text-gray-200"
+              >
+                {showRevenue ? '隐藏收益' : '收益'}
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowTransactions((value) => !value)}
                 className="text-gray-400 hover:text-gray-200"
               >
@@ -269,6 +278,8 @@ export function PlayerHUD() {
         )}
 
         {showMarket && <CreatorMarket />}
+
+        {showRevenue && <CreatorRevenue />}
 
         {showTransactions && (
           <div className="mt-2 max-h-44 overflow-y-auto border-t border-slate-700 pt-2">

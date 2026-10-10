@@ -101,6 +101,22 @@ func (p *EconomyProxy) MarketplacePurchase(c *gin.Context) {
 	p.forward(c, p.baseURL+"/v1/marketplace/purchase", payload)
 }
 
+func (p *EconomyProxy) CreatorRevenue(c *gin.Context) {
+	playerID, exists := c.Get("player_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	playerIDStr, _ := playerID.(string)
+	if playerIDStr == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+
+	target := p.baseURL + "/v1/marketplace/revenue/" + url.PathEscape(playerIDStr) + "?limit=20&offset=0"
+	p.forward(c, target, nil)
+}
+
 type EconomyPurchaseRequest struct {
 	ProductID      int64  `json:"product_id" binding:"required,gt=0"`
 	Currency       string `json:"currency" binding:"required,oneof=gold token"`

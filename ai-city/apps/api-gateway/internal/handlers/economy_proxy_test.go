@@ -80,6 +80,45 @@ func TestEconomyProxyMarketplacePurchaseForwardsToken(t *testing.T) {
 	}
 }
 
+func TestEconomyProxyCreatorRevenueUsesTokenSubject(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var gotPath string
+	var gotAuthorization string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuthorization = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[{"purchase_id":71,"amount_gold":100,"platform_cut_gold":0}]`))
+	}))
+	defer server.Close()
+
+	proxy, err := NewEconomyProxy(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	router.GET("/v1/marketplace/revenue", func(c *gin.Context) {
+		c.Set("player_id", "11111111-1111-4111-8111-111111111111")
+		c.Next()
+	}, proxy.CreatorRevenue)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/marketplace/revenue", nil)
+	request.Header.Set("Authorization", "Bearer test-jwt")
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if gotPath != "/v1/marketplace/revenue/11111111-1111-4111-8111-111111111111" {
+		t.Fatalf("path = %q", gotPath)
+	}
+	if gotAuthorization != "Bearer test-jwt" {
+		t.Fatalf("authorization = %q", gotAuthorization)
+	}
+}
+
 func TestEconomyProxyPurchaseOverridesUserID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	var gotBody map[string]any

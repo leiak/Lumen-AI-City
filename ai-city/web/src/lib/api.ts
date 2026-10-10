@@ -134,6 +134,13 @@ export interface MarketplacePurchaseResponse {
   purchase_id: number;
 }
 
+export interface CreatorRevenueItem {
+  purchase_id: number;
+  amount_gold: number;
+  platform_cut_gold: number;
+  created_at: string | null;
+}
+
 export interface InventoryItem {
   product_id: number;
   name: string;
@@ -239,6 +246,9 @@ class ApiClient {
         idempotency_key: params.idempotencyKey,
       }),
     });
+
+  getCreatorRevenue = () =>
+    this.request<CreatorRevenueItem[]>('/v1/marketplace/revenue');
 
   // GET /v1/tiles → 9 个 tile (api-gateway 反代到 world-engine REST)
   // 字段定义见 apps/world-engine/src/tile.rs::Tile
