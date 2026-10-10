@@ -128,6 +128,7 @@ export interface SagaMarketTemplate {
   price_gold: number;
   creator_id: string;
   description: string | null;
+  status: string;
 }
 
 export interface MarketplacePurchaseResponse {
@@ -291,6 +292,12 @@ class ApiClient {
         npc_deps: params.npcDeps,
       }),
     });
+
+  takeDownMarketTemplate = (params: { kind: 'npc' | 'saga'; templateId: number }) =>
+    this.request<{ status: string }>(
+      `/v1/marketplace/${params.kind === 'npc' ? 'npc' : 'saga'}-templates/${params.templateId}/take-down`,
+      { method: 'POST' },
+    );
 
   // GET /v1/tiles → 9 个 tile (api-gateway 反代到 world-engine REST)
   // 字段定义见 apps/world-engine/src/tile.rs::Tile

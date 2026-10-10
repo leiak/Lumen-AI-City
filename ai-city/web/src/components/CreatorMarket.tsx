@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api, type NpcMarketTemplate, type SagaMarketTemplate } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useGameStore } from '@/store/game';
 
 interface MarketItem {
@@ -10,16 +10,20 @@ interface MarketItem {
   name: string;
   price: number;
   description?: string | null;
+  creatorId: string;
 }
 
 export function CreatorMarket() {
   const sessionStatus = useGameStore((s) => s.sessionStatus);
+  const playerId = useGameStore((s) => s.playerId);
   const wallet = useGameStore((s) => s.wallet);
   const [items, setItems] = useState<MarketItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
   const [buyingId, setBuyingId] = useState<string | null>(null);
+  const [takingDownId, setTakingDownId] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,6 +36,7 @@ export function CreatorMarket() {
             id: item.id,
             name: item.name,
             price: item.price_gold,
+            creatorId: item.creator_id,
           })),
           ...sagaTemplates.map((item) => ({
             kind: 'saga' as const,
@@ -39,6 +44,7 @@ export function CreatorMarket() {
             name: item.name,
             price: item.price_gold,
             description: item.description,
+            creatorId: item.creator_id,
           })),
         ];
         setItems(marketItems);
@@ -54,7 +60,21 @@ export function CreatorMarket() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [version]);
+
+  async function takeDown(item: MarketItem) {
+    const itemKey = `${item.kind}-${item.id}`;
+    setTakingDownId(itemKey);
+    setError(null);
+    try {
+      await api.takeDownMarketTemplate({ kind: item.kind, templateId: item.id });
+      setVersion((value) => value + 1);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : '下架失败');
+    } finally {
+      setTakingDownId(null);
+    }
+  }
 
   async function buy(item: MarketItem) {
     setBuyingId(`${item.kind}-${item.id}`);
@@ -90,6 +110,7 @@ export function CreatorMarket() {
       ) : (
         items.map((item) => {
           const itemKey = `${item.kind}-${item.id}`;
+          const isOwned = item.creatorId === playerId;
           return (
             <div
               key={itemKey}
@@ -106,24 +127,36 @@ export function CreatorMarket() {
                   <div className="truncate text-[10px] text-slate-500">{item.description}</div>
                 )}
               </div>
-              <button
-                type="button"
-                disabled={
-                  sessionStatus !== 'authenticated' ||
-                  buyingId === itemKey ||
-                  (wallet != null && wallet.gold < item.price)
-                }
-                onClick={() => void buy(item)}
-                className="rounded bg-brand-500 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {buyingId === itemKey
-                  ? '购买中'
-                  : sessionStatus !== 'authenticated'
-                    ? '登录'
-                    : wallet != null && wallet.gold < item.price
-                      ? '余额不足'
-                      : `${item.price} G`}
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                {isOwned && (
+                  <button
+                    type="button"
+                    disabled={takingDownId === itemKey}
+                    onClick={() => void takeDown(item)}
+                    className="rounded bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {takingDownId === itemKey ? '下架中' : '下架'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={
+                    sessionStatus !== 'authenticated' ||
+                    buyingId === itemKey ||
+                    (wallet != null && wallet.gold < item.price)
+                  }
+                  onClick={() => void buy(item)}
+                  className="rounded bg-brand-500 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {buyingId === itemKey
+                    ? '购买中'
+                    : sessionStatus !== 'authenticated'
+                      ? '登录'
+                      : wallet != null && wallet.gold < item.price
+                        ? '余额不足'
+                        : `${item.price} G`}
+                </button>
+              </div>
             </div>
           );
         })

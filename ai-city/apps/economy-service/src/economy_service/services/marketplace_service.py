@@ -80,9 +80,9 @@ class MarketplaceService:
                 "SELECT * FROM npc_template WHERE id = $1",
                 template_id,
             )
-        return dict(row) if row is not None else None
 
-    async def take_down_npc_template(self, template_id: int, admin_id: str) -> None:
+
+    async def take_down_npc_template(self, template_id: int, actor_id: str) -> None:
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """
@@ -307,6 +307,17 @@ class MarketplaceService:
             )
         return [dict(row) for row in rows]
 
+    async def take_down_saga_template(self, template_id: int, actor_id: str) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE saga_template
+                SET status = 'taken_down', updated_at = NOW()
+                WHERE id = $1
+                """,
+                template_id,
+            )
+
     async def list_creator_revenue(
         self,
         creator_id: str,
@@ -359,14 +370,3 @@ class MarketplaceService:
                 template_id,
             )
         return dict(row) if row is not None else None
-
-    async def take_down_saga_template(self, template_id: int, admin_id: str) -> None:
-        async with self.pool.acquire() as conn:
-            await conn.execute(
-                """
-                UPDATE saga_template
-                SET status = 'taken_down', updated_at = NOW()
-                WHERE id = $1
-                """,
-                template_id,
-            )

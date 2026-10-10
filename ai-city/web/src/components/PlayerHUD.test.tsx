@@ -31,7 +31,7 @@ vi.mock('@/lib/api', () => ({
         id: 12,
         name: 'Creator NPC',
         price_gold: 30,
-        creator_id: 'creator-id',
+        creator_id: 'player-1',
         status: 'live',
       },
     ]),
@@ -46,6 +46,7 @@ vi.mock('@/lib/api', () => ({
       },
     ]),
     createNpcTemplate: vi.fn().mockResolvedValue({ id: 12 }),
+    takeDownMarketTemplate: vi.fn().mockResolvedValue({ status: 'taken_down' }),
   },
 }));
 
@@ -124,5 +125,17 @@ describe('PlayerHUD inventory', () => {
     fireEvent.click(screen.getByRole('button', { name: '发布到市场' }));
 
     expect(await screen.findByText('已发布 NPC 模板 #12')).toBeInTheDocument();
+  });
+
+  it('lets creators take down their own marketplace template', async () => {
+    render(<PlayerHUD />);
+
+    fireEvent.click(screen.getByRole('button', { name: '市场' }));
+    fireEvent.click(await screen.findByRole('button', { name: '下架' }));
+
+    await waitFor(() => expect(api.takeDownMarketTemplate).toHaveBeenCalledWith({
+      kind: 'npc',
+      templateId: 12,
+    }));
   });
 });

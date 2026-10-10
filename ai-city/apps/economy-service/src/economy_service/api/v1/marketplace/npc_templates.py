@@ -72,9 +72,20 @@ async def get_npc_template(
 @router.post("/{template_id}/take-down")
 async def take_down_npc_template(
     template_id: int,
-    player: Annotated[AuthenticatedPlayer, Depends(require_roles({"admin"}))],
+    player: Annotated[AuthenticatedPlayer, Depends(require_roles({"creator", "admin"}))],
     pool: Annotated[object, Depends(get_pool)] = None,
 ) -> dict:
     service = MarketplaceService(pool)
-    await service.take_down_npc_template(template_id, admin_id=player.id)
+    template = await service.get_npc_template(template_id)
+    if template is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "R_028", "msg": "template not found"},
+        )
+    if player.role != "admin" and str(template["creator_id"]) != player.id:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "R_027", "msg": "creator or admin role required"},
+        )
+    await service.take_down_npc_template(template_id, actor_id=player.id)
     return {"status": "taken_down"}

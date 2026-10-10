@@ -101,9 +101,9 @@ def test_get_saga_template_returns_not_found(client):
     assert response.json()["detail"]["code"] == "R_028"
 
 
-def test_take_down_saga_requires_admin(client):
+def test_take_down_saga_requires_creator_or_admin(client):
     test_client, conn = client
-    conn.fetchrow.return_value = {"id": CREATOR_ID, "role": "creator"}
+    conn.fetchrow.return_value = {"id": CREATOR_ID, "role": "user"}
 
     response = test_client.post(
         "/v1/marketplace/saga-templates/41/take-down",
@@ -111,12 +111,31 @@ def test_take_down_saga_requires_admin(client):
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"]["code"] == "R_026"
+    assert response.json()["detail"]["code"] == "R_027"
+
+
+def test_take_down_saga_allows_owner(client):
+    test_client, conn = client
+    conn.fetchrow.side_effect = [
+        {"id": CREATOR_ID, "role": "creator"},
+        {"id": 41, "creator_id": CREATOR_ID, "status": "live"},
+    ]
+
+    response = test_client.post(
+        "/v1/marketplace/saga-templates/41/take-down",
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "taken_down"}
 
 
 def test_take_down_saga_allows_admin(client):
     test_client, conn = client
-    conn.fetchrow.return_value = {"id": ADMIN_ID, "role": "admin"}
+    conn.fetchrow.side_effect = [
+        {"id": ADMIN_ID, "role": "admin"},
+        {"id": 41, "creator_id": CREATOR_ID, "status": "live"},
+    ]
 
     response = test_client.post(
         "/v1/marketplace/saga-templates/41/take-down",

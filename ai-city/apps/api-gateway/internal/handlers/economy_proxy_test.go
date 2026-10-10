@@ -205,6 +205,45 @@ func TestEconomyProxyCreateTemplateForwardsTokenAndBody(t *testing.T) {
 	}
 }
 
+func TestEconomyProxyTakeDownTemplateUsesTokenAndPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var gotPath string
+	var gotAuthorization string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuthorization = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"taken_down"}`))
+	}))
+	defer server.Close()
+
+	proxy, err := NewEconomyProxy(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	router.POST("/v1/marketplace/npc-templates/:templateId/take-down", func(c *gin.Context) {
+		c.Set("player_id", "token-player")
+		c.Next()
+	}, proxy.TakeDownNpcTemplate)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketplace/npc-templates/21/take-down", nil)
+	request.Header.Set("Authorization", "Bearer test-jwt")
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if gotPath != "/v1/marketplace/npc-templates/21/take-down" {
+		t.Fatalf("path = %q", gotPath)
+	}
+	if gotAuthorization != "Bearer test-jwt" {
+		t.Fatalf("authorization = %q", gotAuthorization)
+	}
+}
+
 func TestEconomyProxyPurchaseOverridesUserID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	var gotBody map[string]any

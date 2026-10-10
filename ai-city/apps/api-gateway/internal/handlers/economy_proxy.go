@@ -91,6 +91,26 @@ func (p *EconomyProxy) CreateSagaTemplate(c *gin.Context) {
 	p.forward(c, p.baseURL+"/v1/marketplace/saga-templates", body)
 }
 
+func (p *EconomyProxy) TakeDownNpcTemplate(c *gin.Context) {
+	_, exists := c.Get("player_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	target := p.baseURL + "/v1/marketplace/npc-templates/" + url.PathEscape(c.Param("templateId")) + "/take-down"
+	p.forward(c, target, nil)
+}
+
+func (p *EconomyProxy) TakeDownSagaTemplate(c *gin.Context) {
+	_, exists := c.Get("player_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	target := p.baseURL + "/v1/marketplace/saga-templates/" + url.PathEscape(c.Param("templateId")) + "/take-down"
+	p.forward(c, target, nil)
+}
+
 type EconomyMarketplacePurchaseRequest struct {
 	TemplateKind   string `json:"template_kind" binding:"required,oneof=npc saga"`
 	TemplateID     int64  `json:"template_id" binding:"required,gt=0"`

@@ -115,9 +115,9 @@ def test_get_npc_template_returns_not_found(client):
     assert response.json()["detail"]["code"] == "R_028"
 
 
-def test_take_down_requires_admin_role(client):
+def test_take_down_requires_creator_or_admin_role(client):
     test_client, conn, _ = client
-    conn.fetchrow.side_effect = [{"id": CREATOR_ID, "role": "creator"}]
+    conn.fetchrow.side_effect = [{"id": CREATOR_ID, "role": "user"}]
 
     response = test_client.post(
         "/v1/marketplace/npc-templates/21/take-down",
@@ -125,12 +125,31 @@ def test_take_down_requires_admin_role(client):
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"]["code"] == "R_026"
+    assert response.json()["detail"]["code"] == "R_027"
+
+
+def test_take_down_allows_owner_role(client):
+    test_client, conn, _ = client
+    conn.fetchrow.side_effect = [
+        {"id": CREATOR_ID, "role": "creator"},
+        {"id": 21, "creator_id": CREATOR_ID, "status": "live"},
+    ]
+
+    response = test_client.post(
+        "/v1/marketplace/npc-templates/21/take-down",
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "taken_down"}
 
 
 def test_take_down_allows_admin_role(client):
     test_client, conn, _ = client
-    conn.fetchrow.side_effect = [{"id": ADMIN_ID, "role": "admin"}]
+    conn.fetchrow.side_effect = [
+        {"id": ADMIN_ID, "role": "admin"},
+        {"id": 21, "creator_id": CREATOR_ID, "status": "live"},
+    ]
 
     response = test_client.post(
         "/v1/marketplace/npc-templates/21/take-down",

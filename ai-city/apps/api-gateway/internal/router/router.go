@@ -72,6 +72,8 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		authed.GET("/marketplace/revenue", economyProxy.CreatorRevenue)
 		authed.POST("/marketplace/npc-templates", economyProxy.CreateNpcTemplate)
 		authed.POST("/marketplace/saga-templates", economyProxy.CreateSagaTemplate)
+		authed.POST("/marketplace/npc-templates/:templateId/take-down", economyProxy.TakeDownNpcTemplate)
+		authed.POST("/marketplace/saga-templates/:templateId/take-down", economyProxy.TakeDownSagaTemplate)
 		authed.GET("/players/:id", playerHandler.GetByID)
 
 		// NPC 相关

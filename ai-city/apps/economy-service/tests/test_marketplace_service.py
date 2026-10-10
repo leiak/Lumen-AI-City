@@ -69,7 +69,7 @@ async def test_get_npc_template_returns_dict(pool):
 async def test_take_down_npc_template_updates_status(pool):
     service = MarketplaceService(pool)
 
-    await service.take_down_npc_template(11, admin_id="00000000-0000-0000-0000-000000000002")
+    await service.take_down_npc_template(11, actor_id="00000000-0000-0000-0000-000000000002")
 
     sql, *params = pool._conn.execute.call_args.args
     assert "UPDATE npc_template" in sql
