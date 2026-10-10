@@ -14,6 +14,7 @@ interface MarketItem {
 
 export function CreatorMarket() {
   const sessionStatus = useGameStore((s) => s.sessionStatus);
+  const wallet = useGameStore((s) => s.wallet);
   const [items, setItems] = useState<MarketItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +108,11 @@ export function CreatorMarket() {
               </div>
               <button
                 type="button"
-                disabled={sessionStatus !== 'authenticated' || buyingId === itemKey}
+                disabled={
+                  sessionStatus !== 'authenticated' ||
+                  buyingId === itemKey ||
+                  (wallet != null && wallet.gold < item.price)
+                }
                 onClick={() => void buy(item)}
                 className="rounded bg-brand-500 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -115,7 +120,9 @@ export function CreatorMarket() {
                   ? '购买中'
                   : sessionStatus !== 'authenticated'
                     ? '登录'
-                    : `${item.price} G`}
+                    : wallet != null && wallet.gold < item.price
+                      ? '余额不足'
+                      : `${item.price} G`}
               </button>
             </div>
           );

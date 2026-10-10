@@ -21,6 +21,10 @@ export function NpcShop({ npcId }: { npcId: string }) {
   const [buyingId, setBuyingId] = useState<number | null>(null);
   const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
 
+  function totalGoldCost(product: Product) {
+    return product.price_gold + Math.floor(product.price_gold * 0.05);
+  }
+
   useEffect(() => {
     let cancelled = false;
     setState({ products: [], loading: true, error: null });
@@ -49,7 +53,7 @@ export function NpcShop({ npcId }: { npcId: string }) {
     setBuyingId(product.id);
     try {
       const idempotencyKey = `city-ui-${product.id}-${Date.now().toString(36)}`;
-      await api.purchaseProduct({
+      const purchase = await api.purchaseProduct({
         productId: product.id,
         currency: 'gold',
         idempotencyKey,
@@ -69,7 +73,9 @@ export function NpcShop({ npcId }: { npcId: string }) {
         ),
         error: null,
       }));
-      setPurchaseSuccess(`已购买 ${product.name}`);
+      setPurchaseSuccess(
+        `已购买 ${product.name} · 扣款 ${purchase.amount_paid + purchase.sink_amount} G`,
+      );
       useGameStore.getState().bumpInventoryVersion();
     } catch (error) {
       setState((prev) => ({
@@ -102,7 +108,8 @@ export function NpcShop({ npcId }: { npcId: string }) {
             <div className="min-w-0">
               <div className="truncate text-sm text-slate-100">{product.name}</div>
               <div className="text-xs text-slate-400">
-                {product.price_gold} Gold
+                {product.price_gold} Gold · 实扣 {totalGoldCost(product)} G
+                {product.price_token != null ? ` · ${product.price_token} Token` : ''}
                 {product.stock != null ? ` · 库存 ${product.stock}` : ''}
               </div>
             </div>
@@ -112,7 +119,7 @@ export function NpcShop({ npcId }: { npcId: string }) {
                 sessionStatus !== 'authenticated' ||
                 buyingId !== null ||
                 (product.stock != null && product.stock <= 0) ||
-                (wallet != null && wallet.gold < product.price_gold)
+                (wallet != null && wallet.gold < totalGoldCost(product))
               }
               onClick={() => void buy(product)}
               className="rounded bg-brand-500 px-3 py-1 text-xs font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -123,7 +130,7 @@ export function NpcShop({ npcId }: { npcId: string }) {
                   ? '登录购买'
                   : product.stock != null && product.stock <= 0
                     ? '缺货'
-                    : wallet != null && wallet.gold < product.price_gold
+                    : wallet != null && wallet.gold < totalGoldCost(product)
                       ? '余额不足'
                       : '购买'}
             </button>
