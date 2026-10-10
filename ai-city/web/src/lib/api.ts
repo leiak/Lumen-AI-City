@@ -141,6 +141,14 @@ export interface CreatorRevenueItem {
   created_at: string | null;
 }
 
+export interface CreateTemplateResponse {
+  id: number;
+}
+
+export interface CreateTemplateResponse {
+  id: number;
+}
+
 export interface InventoryItem {
   product_id: number;
   name: string;
@@ -249,6 +257,40 @@ class ApiClient {
 
   getCreatorRevenue = () =>
     this.request<CreatorRevenueItem[]>('/v1/marketplace/revenue');
+
+  createNpcTemplate = (params: {
+    name: string;
+    priceGold: number;
+    ocean: { O: number; C: number; E: number; A: number; N: number };
+  }) =>
+    this.request<CreateTemplateResponse>('/v1/marketplace/npc-templates', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: params.name,
+        price_gold: params.priceGold,
+        ocean_json: params.ocean,
+      }),
+    });
+
+  createSagaTemplate = (params: {
+    name: string;
+    priceGold: number;
+    semanticVersion: string;
+    description?: string;
+    yamlContent: string;
+    npcDeps: string[];
+  }) =>
+    this.request<CreateTemplateResponse>('/v1/marketplace/saga-templates', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: params.name,
+        price_gold: params.priceGold,
+        semantic_version: params.semanticVersion,
+        description: params.description || undefined,
+        yaml_content: params.yamlContent,
+        npc_deps: params.npcDeps,
+      }),
+    });
 
   // GET /v1/tiles → 9 个 tile (api-gateway 反代到 world-engine REST)
   // 字段定义见 apps/world-engine/src/tile.rs::Tile

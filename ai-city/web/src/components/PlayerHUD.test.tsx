@@ -45,6 +45,7 @@ vi.mock('@/lib/api', () => ({
         created_at: null,
       },
     ]),
+    createNpcTemplate: vi.fn().mockResolvedValue({ id: 12 }),
   },
 }));
 
@@ -111,5 +112,17 @@ describe('PlayerHUD inventory', () => {
 
     expect(await screen.findByText('总收益: 100 Gold')).toBeInTheDocument();
     expect(screen.getByText('#71')).toBeInTheDocument();
+  });
+
+  it('publishes an NPC template from creator studio', async () => {
+    render(<PlayerHUD />);
+
+    fireEvent.click(screen.getByRole('button', { name: '发布' }));
+    fireEvent.change(screen.getByPlaceholderText('作品名称'), {
+      target: { value: 'Studio NPC' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '发布到市场' }));
+
+    expect(await screen.findByText('已发布 NPC 模板 #12')).toBeInTheDocument();
   });
 });

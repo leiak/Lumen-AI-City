@@ -11,6 +11,7 @@ import { useGameStore } from '@/store/game';
 import { api, type InventoryItem, type TransactionListResponse } from '@/lib/api';
 import { CreatorMarket } from './CreatorMarket';
 import { CreatorRevenue } from './CreatorRevenue';
+import { CreatorStudio } from './CreatorStudio';
 
 function logout() {
   window.localStorage.removeItem('aicity_token');
@@ -41,6 +42,8 @@ export function PlayerHUD() {
   const [showTransfer, setShowTransfer] = useState(false);
   const [showMarket, setShowMarket] = useState(false);
   const [showRevenue, setShowRevenue] = useState(false);
+  const [showStudio, setShowStudio] = useState(false);
+  const [marketVersion, setMarketVersion] = useState(0);
   const [toUserId, setToUserId] = useState('');
   const [transferAmount, setTransferAmount] = useState('1');
   const [transferMemo, setTransferMemo] = useState('');
@@ -209,6 +212,13 @@ export function PlayerHUD() {
               </button>
               <button
                 type="button"
+                onClick={() => setShowStudio((value) => !value)}
+                className="text-gray-400 hover:text-gray-200"
+              >
+                {showStudio ? '隐藏发布' : '发布'}
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowTransactions((value) => !value)}
                 className="text-gray-400 hover:text-gray-200"
               >
@@ -277,7 +287,16 @@ export function PlayerHUD() {
           </div>
         )}
 
-        {showMarket && <CreatorMarket />}
+        {showMarket && <CreatorMarket key={marketVersion} />}
+
+        {showStudio && (
+          <CreatorStudio
+            onPublished={() => {
+              setMarketVersion((version) => version + 1);
+              setShowMarket(true);
+            }}
+          />
+        )}
 
         {showRevenue && <CreatorRevenue />}
 

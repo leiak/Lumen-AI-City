@@ -119,6 +119,92 @@ func TestEconomyProxyCreatorRevenueUsesTokenSubject(t *testing.T) {
 	}
 }
 
+func TestEconomyProxyCreateNpcTemplateForwardsTokenAndBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var gotPath string
+	var gotAuthorization string
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuthorization = r.Header.Get("Authorization")
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":12}`))
+	}))
+	defer server.Close()
+
+	proxy, err := NewEconomyProxy(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	router.POST("/v1/marketplace/npc-templates", func(c *gin.Context) {
+		c.Set("player_id", "token-player")
+		c.Next()
+	}, proxy.CreateNpcTemplate)
+
+	body := bytes.NewBufferString(`{"name":"Creator NPC","price_gold":30,"ocean_json":{"O":0.5,"C":0.5,"E":0.5,"A":0.5,"N":0.5}}`)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketplace/npc-templates", body)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer test-jwt")
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if gotPath != "/v1/marketplace/npc-templates" || gotAuthorization != "Bearer test-jwt" {
+		t.Fatalf("path = %q, authorization = %q", gotPath, gotAuthorization)
+	}
+	if gotBody["name"] != "Creator NPC" {
+		t.Fatalf("body = %v", gotBody)
+	}
+}
+
+func TestEconomyProxyCreateTemplateForwardsTokenAndBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var gotPath string
+	var gotAuthorization string
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuthorization = r.Header.Get("Authorization")
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":12}`))
+	}))
+	defer server.Close()
+
+	proxy, err := NewEconomyProxy(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	router.POST("/v1/marketplace/npc-templates", func(c *gin.Context) {
+		c.Set("player_id", "token-player")
+		c.Next()
+	}, proxy.CreateNpcTemplate)
+
+	body := bytes.NewBufferString(`{"name":"Creator NPC","price_gold":30,"ocean_json":{"O":0.5,"C":0.5,"E":0.5,"A":0.5,"N":0.5}}`)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketplace/npc-templates", body)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer test-jwt")
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if gotPath != "/v1/marketplace/npc-templates" || gotAuthorization != "Bearer test-jwt" {
+		t.Fatalf("path = %q, authorization = %q", gotPath, gotAuthorization)
+	}
+	if gotBody["name"] != "Creator NPC" {
+		t.Fatalf("body = %v", gotBody)
+	}
+}
+
 func TestEconomyProxyPurchaseOverridesUserID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	var gotBody map[string]any

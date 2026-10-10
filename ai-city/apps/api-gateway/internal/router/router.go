@@ -70,6 +70,8 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		authed.POST("/wallet/transfer", economyProxy.Transfer)
 		authed.POST("/marketplace/purchase", economyProxy.MarketplacePurchase)
 		authed.GET("/marketplace/revenue", economyProxy.CreatorRevenue)
+		authed.POST("/marketplace/npc-templates", economyProxy.CreateNpcTemplate)
+		authed.POST("/marketplace/saga-templates", economyProxy.CreateSagaTemplate)
 		authed.GET("/players/:id", playerHandler.GetByID)
 
 		// NPC 相关

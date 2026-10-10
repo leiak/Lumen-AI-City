@@ -66,9 +66,29 @@ func (p *EconomyProxy) NpcTemplates(c *gin.Context) {
 	p.forward(c, target, nil)
 }
 
+func (p *EconomyProxy) CreateNpcTemplate(c *gin.Context) {
+	_, exists := c.Get("player_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	body, _ := io.ReadAll(io.LimitReader(c.Request.Body, 1<<20))
+	p.forward(c, p.baseURL+"/v1/marketplace/npc-templates", body)
+}
+
 func (p *EconomyProxy) SagaTemplates(c *gin.Context) {
 	target := p.baseURL + "/v1/marketplace/saga-templates?status=live&limit=20&offset=0"
 	p.forward(c, target, nil)
+}
+
+func (p *EconomyProxy) CreateSagaTemplate(c *gin.Context) {
+	_, exists := c.Get("player_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	body, _ := io.ReadAll(io.LimitReader(c.Request.Body, 1<<20))
+	p.forward(c, p.baseURL+"/v1/marketplace/saga-templates", body)
 }
 
 type EconomyMarketplacePurchaseRequest struct {
