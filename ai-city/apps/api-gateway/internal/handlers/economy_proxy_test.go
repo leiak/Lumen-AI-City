@@ -39,6 +39,47 @@ func TestEconomyProxyProductEscapesNPCID(t *testing.T) {
 	}
 }
 
+func TestEconomyProxyMarketplacePurchaseForwardsToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var gotAuthorization string
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuthorization = r.Header.Get("Authorization")
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"purchase_id":71}`))
+	}))
+	defer server.Close()
+
+	proxy, err := NewEconomyProxy(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	router.POST("/v1/marketplace/purchase", func(c *gin.Context) {
+		c.Set("player_id", "token-player")
+		c.Next()
+	}, proxy.MarketplacePurchase)
+
+	body := bytes.NewBufferString(`{"template_kind":"npc","template_id":12,"idempotency_key":"city-ui-market"}`)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketplace/purchase", body)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer test-jwt")
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if gotPath != "/v1/marketplace/purchase" {
+		t.Fatalf("path = %q", gotPath)
+	}
+	if gotAuthorization != "Bearer test-jwt" {
+		t.Fatalf("authorization = %q", gotAuthorization)
+	}
+}
+
 func TestEconomyProxyPurchaseOverridesUserID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	var gotBody map[string]any

@@ -114,6 +114,26 @@ export interface TransferResponse {
   updated_at: string;
 }
 
+export interface NpcMarketTemplate {
+  id: number;
+  name: string;
+  price_gold: number;
+  creator_id: string;
+  status: string;
+}
+
+export interface SagaMarketTemplate {
+  id: number;
+  name: string;
+  price_gold: number;
+  creator_id: string;
+  description: string | null;
+}
+
+export interface MarketplacePurchaseResponse {
+  purchase_id: number;
+}
+
 export interface InventoryItem {
   product_id: number;
   name: string;
@@ -197,6 +217,26 @@ class ApiClient {
         amount: params.amount,
         idempotency_key: params.idempotencyKey,
         memo: params.memo,
+      }),
+    });
+
+  listNpcTemplates = () =>
+    this.request<NpcMarketTemplate[]>('/v1/marketplace/npc-templates');
+
+  listSagaTemplates = () =>
+    this.request<SagaMarketTemplate[]>('/v1/marketplace/saga-templates');
+
+  purchaseMarketplaceTemplate = (params: {
+    templateKind: 'npc' | 'saga';
+    templateId: number;
+    idempotencyKey: string;
+  }) =>
+    this.request<MarketplacePurchaseResponse>('/v1/marketplace/purchase', {
+      method: 'POST',
+      body: JSON.stringify({
+        template_kind: params.templateKind,
+        template_id: params.templateId,
+        idempotency_key: params.idempotencyKey,
       }),
     });
 

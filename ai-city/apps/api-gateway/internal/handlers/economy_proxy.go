@@ -30,6 +30,9 @@ func (p *EconomyProxy) forward(c *gin.Context, target string, body []byte) {
 		return
 	}
 	req.Header.Set("Accept", "application/json")
+	if authorization := c.Request.Header.Get("Authorization"); authorization != "" {
+		req.Header.Set("Authorization", authorization)
+	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -56,6 +59,46 @@ func (p *EconomyProxy) forward(c *gin.Context, target string, body []byte) {
 func (p *EconomyProxy) Product(c *gin.Context) {
 	target := p.baseURL + "/api/v1/products/" + url.PathEscape(c.Param("npcId"))
 	p.forward(c, target, nil)
+}
+
+func (p *EconomyProxy) NpcTemplates(c *gin.Context) {
+	target := p.baseURL + "/v1/marketplace/npc-templates?status=live&limit=20&offset=0"
+	p.forward(c, target, nil)
+}
+
+func (p *EconomyProxy) SagaTemplates(c *gin.Context) {
+	target := p.baseURL + "/v1/marketplace/saga-templates?status=live&limit=20&offset=0"
+	p.forward(c, target, nil)
+}
+
+type EconomyMarketplacePurchaseRequest struct {
+	TemplateKind   string `json:"template_kind" binding:"required,oneof=npc saga"`
+	TemplateID     int64  `json:"template_id" binding:"required,gt=0"`
+	IdempotencyKey string `json:"idempotency_key" binding:"required,min=8,max=64"`
+}
+
+func (p *EconomyProxy) MarketplacePurchase(c *gin.Context) {
+	_, exists := c.Get("player_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+
+	var request EconomyMarketplacePurchaseRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request", "detail": err.Error()})
+		return
+	}
+	payload, err := json.Marshal(map[string]any{
+		"template_kind":   request.TemplateKind,
+		"template_id":     request.TemplateID,
+		"idempotency_key": request.IdempotencyKey,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "economy_request_encode_failed"})
+		return
+	}
+	p.forward(c, p.baseURL+"/v1/marketplace/purchase", payload)
 }
 
 type EconomyPurchaseRequest struct {

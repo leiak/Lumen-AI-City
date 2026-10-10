@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useGameStore } from '@/store/game';
 import { api, type InventoryItem, type TransactionListResponse } from '@/lib/api';
+import { CreatorMarket } from './CreatorMarket';
 
 function logout() {
   window.localStorage.removeItem('aicity_token');
@@ -37,6 +38,7 @@ export function PlayerHUD() {
   const [inventory, setInventory] = useState<InventoryItem[] | null>(null);
   const inventoryVersion = useGameStore((s) => s.inventoryVersion);
   const [showTransfer, setShowTransfer] = useState(false);
+  const [showMarket, setShowMarket] = useState(false);
   const [toUserId, setToUserId] = useState('');
   const [transferAmount, setTransferAmount] = useState('1');
   const [transferMemo, setTransferMemo] = useState('');
@@ -191,6 +193,13 @@ export function PlayerHUD() {
               </button>
               <button
                 type="button"
+                onClick={() => setShowMarket((value) => !value)}
+                className="text-gray-400 hover:text-gray-200"
+              >
+                {showMarket ? '隐藏市场' : '市场'}
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowTransactions((value) => !value)}
                 className="text-gray-400 hover:text-gray-200"
               >
@@ -258,6 +267,8 @@ export function PlayerHUD() {
             {transferSuccess && <div className="text-xs text-green-400">{transferSuccess}</div>}
           </div>
         )}
+
+        {showMarket && <CreatorMarket />}
 
         {showTransactions && (
           <div className="mt-2 max-h-44 overflow-y-auto border-t border-slate-700 pt-2">

@@ -52,6 +52,9 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		public.POST("/npc/:id/talk", npcTalkHandler.HandleByID)
 		// Product lists are read-only so guests can preview the city economy.
 		public.GET("/products/:npcId", economyProxy.Product)
+		// Creator marketplace is read-only for guests; purchase is authed.
+		public.GET("/marketplace/npc-templates", economyProxy.NpcTemplates)
+		public.GET("/marketplace/saga-templates", economyProxy.SagaTemplates)
 	}
 
 	// 鉴权路由
@@ -65,6 +68,7 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		authed.POST("/wallet/purchase", economyProxy.Purchase)
 		authed.GET("/transactions", economyProxy.Transactions)
 		authed.POST("/wallet/transfer", economyProxy.Transfer)
+		authed.POST("/marketplace/purchase", economyProxy.MarketplacePurchase)
 		authed.GET("/players/:id", playerHandler.GetByID)
 
 		// NPC 相关
