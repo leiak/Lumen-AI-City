@@ -11,6 +11,12 @@ import { create } from 'zustand';
 interface GameState {
   /** 玩家 UUID，登录后由 localStorage.aicity_player_id 注入；移动前必须非空 */
   playerId: string;
+  username: string;
+  displayName: string;
+  isGuest: boolean;
+  sessionStatus: 'restoring' | 'authenticated' | 'guest';
+  wallet: { gold: number; token: number } | null;
+  inventoryVersion: number;
   position: { x: number; y: number };
   currentTileId: string;
   selectedNpcId: string | null;
@@ -21,6 +27,14 @@ interface GameState {
   setOnline: (online: boolean) => void;
   /** 设置 playerId（一般只在登录后第一次调） */
   setPlayerId: (id: string) => void;
+  setAuthenticatedPlayer: (player: {
+    playerId: string;
+    username: string;
+    displayName: string;
+  }) => void;
+  setGuestPlayer: (playerId: string) => void;
+  setWallet: (wallet: { gold: number; token: number } | null) => void;
+  bumpInventoryVersion: () => void;
 }
 
 function readPlayerIdFromStorage(): string {
@@ -30,6 +44,12 @@ function readPlayerIdFromStorage(): string {
 
 export const useGameStore = create<GameState>((set) => ({
   playerId: readPlayerIdFromStorage(),
+  username: '',
+  displayName: '',
+  isGuest: !readPlayerIdFromStorage(),
+  sessionStatus: 'restoring',
+  wallet: null,
+  inventoryVersion: 0,
   position: { x: 0, y: 0 },
   currentTileId: 'tile_0_0',
   selectedNpcId: null,
@@ -43,4 +63,23 @@ export const useGameStore = create<GameState>((set) => ({
   selectNpc: (selectedNpcId) => set({ selectedNpcId }),
   setOnline: (isOnline) => set({ isOnline }),
   setPlayerId: (playerId) => set({ playerId }),
+  setAuthenticatedPlayer: ({ playerId, username, displayName }) =>
+    set({
+      playerId,
+      username,
+      displayName,
+      isGuest: false,
+      sessionStatus: 'authenticated',
+    }),
+  setGuestPlayer: (playerId) =>
+    set({
+      playerId,
+      username: '',
+      displayName: '游客',
+      isGuest: true,
+      sessionStatus: 'guest',
+    }),
+  setWallet: (wallet) => set({ wallet }),
+  bumpInventoryVersion: () =>
+    set((state) => ({ inventoryVersion: state.inventoryVersion + 1 })),
 }));

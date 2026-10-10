@@ -50,6 +50,28 @@ class PurchaseService:
             )
         return [dict(r) for r in rows]
 
+    async def list_inventory(self, user_id: str) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    product.id AS product_id,
+                    product.name,
+                    COUNT(transaction.id)::int AS quantity,
+                    STRING_AGG(DISTINCT transaction.currency, ',') AS currencies,
+                    MAX(transaction.created_at) AS last_purchased_at
+                FROM transaction
+                JOIN product ON product.id = transaction.product_id
+                WHERE transaction.user_id = $1
+                  AND transaction.tx_type = 'npc_purchase'
+                  AND transaction.amount < 0
+                GROUP BY product.id, product.name
+                ORDER BY MAX(transaction.created_at) DESC, product.id
+                """,
+                user_id,
+            )
+        return [dict(r) for r in rows]
+
     async def purchase(
         self, user_id: str, product_id: int, currency: str,
         idempotency_key: str, trace_id: str | None = None,

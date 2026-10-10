@@ -35,6 +35,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { NpcShop } from '@/components/NpcShop';
 import {
   NPC_DIALOGUE_EVENT,
   NPC_EMOTION_EMOJI,
@@ -318,6 +319,8 @@ export function NPCDialog() {
             )}
           </>
         )}
+
+        {finalNpcId && <NpcShop npcId={finalNpcId} />}
       </div>
     </div>
   );

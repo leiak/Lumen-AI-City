@@ -6,9 +6,11 @@ import { PlayerHUD } from '@/components/PlayerHUD';
 import { ChatBox } from '@/components/ChatBox';
 import { NPCDialog } from '@/components/NPCDialog';
 import { AgentPanel } from '@/components/AgentPanel';
+import { useCitySession } from '@/hooks/useCitySession';
 import { startWsBridge } from '@/lib/ws-events';
 
 export default function CityPage() {
+  useCitySession();
   // 进 city 页起 WS 桥：ws-gateway 的 player_moved 推送取代 WorldMap 的 3s 轮询
   useEffect(() => startWsBridge(), []);
 

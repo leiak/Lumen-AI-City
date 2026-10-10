@@ -32,6 +32,9 @@ import { cleanup, fireEvent, render, screen, act } from '@testing-library/react'
 vi.mock('@/lib/api', () => ({
   api: {
     postNpcTalk: vi.fn(),
+    listProducts: vi.fn().mockResolvedValue([]),
+    getWallet: vi.fn(),
+    purchaseProduct: vi.fn(),
   },
 }));
 

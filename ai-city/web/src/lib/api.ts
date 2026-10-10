@@ -45,6 +45,74 @@ export interface NpcInfo {
   say: string;
   options: Array<{ id: string; text: string }>;
 }
+
+export interface MeResponse {
+  player_id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+}
+
+
+export interface WalletResponse {
+  user_id: string;
+  gold_balance: number;
+  token_balance: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Product {
+  id: number;
+  npc_id: string;
+  name: string;
+  price_gold: number;
+  price_token: number | null;
+  stock: number | null;
+  enabled: boolean;
+}
+
+export interface PurchaseResponse {
+  user_id: string;
+  product_id: number;
+  currency: 'gold' | 'token';
+  amount_paid: number;
+  balance_after: number;
+  sink_amount: number;
+}
+
+export interface Transaction {
+  id: number;
+  tx_type: string;
+  currency: 'gold' | 'token';
+  amount: number;
+  balance_after: number;
+  counterparty_id: string | null;
+  product_id: number | null;
+  trace_id: string | null;
+  created_at: string | null;
+}
+
+export interface TransactionListResponse {
+  transactions: Transaction[];
+  total: number;
+}
+
+export interface InventoryItem {
+  product_id: number;
+  name: string;
+  quantity: number;
+  currencies: string | null;
+  last_purchased_at: string | null;
+}
+
+export interface InventoryItem {
+  product_id: number;
+  name: string;
+  quantity: number;
+  currencies: string | null;
+  last_purchased_at: string | null;
+}
 class ApiClient {
   private token: string | null = null;
 
@@ -77,6 +145,35 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     });
+
+  getMe = () => this.request<MeResponse>('/v1/players/me');
+
+
+  getWallet = () => this.request<WalletResponse>('/v1/wallet');
+
+  listProducts = (npcId: string) =>
+    this.request<Product[]>(`/v1/products/${encodeURIComponent(npcId)}`);
+
+  purchaseProduct = (params: {
+    productId: number;
+    currency: 'gold' | 'token';
+    idempotencyKey: string;
+    traceId?: string;
+  }) =>
+    this.request<PurchaseResponse>('/v1/wallet/purchase', {
+      method: 'POST',
+      body: JSON.stringify({
+        product_id: params.productId,
+        currency: params.currency,
+        idempotency_key: params.idempotencyKey,
+        trace_id: params.traceId,
+      }),
+    });
+
+  getTransactions = () =>
+    this.request<TransactionListResponse>('/v1/transactions');
+
+  getInventory = () => this.request<InventoryItem[]>('/v1/inventory');
 
   // GET /v1/tiles → 9 个 tile (api-gateway 反代到 world-engine REST)
   // 字段定义见 apps/world-engine/src/tile.rs::Tile

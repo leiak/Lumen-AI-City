@@ -30,6 +30,11 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 	if err != nil {
 		log.Fatalf("invalid WORLD_ENGINE_URL %q: %v", cfg.WorldURL, err)
 	}
+	walletHandler := handlers.NewEconomyWalletHandler(cfg.EconomyURL)
+	economyProxy, economyProxyErr := handlers.NewEconomyProxy(cfg.EconomyURL)
+	if economyProxyErr != nil {
+		log.Fatalf("invalid ECONOMY_SERVICE_URL %q: %v", cfg.EconomyURL, economyProxyErr)
+	}
 
 	// 公开路由（无需鉴权）
 	public := r.Group("/v1")
@@ -45,6 +50,8 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		// Scripted NPC talk is part of the guest city preview. The caller
 		// explicitly supplies player_id and can only walk a read-only tree.
 		public.POST("/npc/:id/talk", npcTalkHandler.HandleByID)
+		// Product lists are read-only so guests can preview the city economy.
+		public.GET("/products/:npcId", economyProxy.Product)
 	}
 
 	// 鉴权路由
@@ -53,6 +60,10 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 	{
 		// 玩家相关
 		authed.GET("/players/me", playerHandler.Me)
+		authed.GET("/wallet", walletHandler.Me)
+		authed.GET("/inventory", walletHandler.Inventory)
+		authed.POST("/wallet/purchase", economyProxy.Purchase)
+		authed.GET("/transactions", economyProxy.Transactions)
 		authed.GET("/players/:id", playerHandler.GetByID)
 
 		// NPC 相关

@@ -20,6 +20,24 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 vi.mock('@/lib/api', () => ({
   api: {
     getTiles: vi.fn().mockResolvedValue([]),
+    getMe: vi.fn().mockResolvedValue({
+      player_id: 'test-player-id',
+      username: 'demo',
+      display_name: 'Demo Player',
+      avatar_url: '',
+    }),
+    getWallet: vi.fn().mockResolvedValue({
+      user_id: 'test-player-id',
+      gold_balance: 100,
+      token_balance: 20,
+      created_at: '',
+      updated_at: '',
+    }),
+    listProducts: vi.fn().mockResolvedValue([]),
+    purchaseProduct: vi.fn(),
+    getTransactions: vi.fn().mockResolvedValue({ transactions: [], total: 0 }),
+    getInventory: vi.fn().mockResolvedValue([]),
+    getInventory: vi.fn().mockResolvedValue([]),
     move: vi.fn(),
     setToken: vi.fn(),
     postNpcTalk: vi.fn(),

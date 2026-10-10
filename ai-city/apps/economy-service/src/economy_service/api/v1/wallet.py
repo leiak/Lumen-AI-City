@@ -37,6 +37,12 @@ async def get_wallet(user_id: str) -> WalletResponse:
     )
 
 
+@router.get("/{user_id}/inventory")
+async def get_inventory(user_id: str) -> list[dict]:
+    svc = PurchaseService(await get_pool())
+    return await svc.list_inventory(user_id)
+
+
 @router.post("/transfer", response_model=WalletResponse)
 async def transfer(req: TransferRequest) -> WalletResponse:
     idem = IdempotencyStore(_redis())

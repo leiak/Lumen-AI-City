@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import AsyncMock
 from economy_service.services.purchase_service import PurchaseService
 from economy_service.errors import (
     InsufficientBalance, ProductNotFoundError, ProductOutOfStockError,
@@ -122,3 +123,31 @@ async def test_purchase_disabled_raises_not_found(pool):
     svc = PurchaseService(pool)
     with pytest.raises(ProductNotFoundError):
         await svc.purchase("alice", 1, "gold", "key-5")
+
+
+@pytest.mark.asyncio
+async def test_list_inventory_aggregates_npc_purchases(pool):
+    pool._conn.fetch = AsyncMock(
+        return_value=[
+            {
+                "product_id": 1,
+                "name": "招牌红烧肉",
+                "quantity": 3,
+                "currencies": "gold",
+                "last_purchased_at": "2026-10-09T12:00:00+00:00",
+            }
+        ]
+    )
+    service = PurchaseService(pool)
+
+    items = await service.list_inventory("alice")
+
+    assert items == [
+        {
+            "product_id": 1,
+            "name": "招牌红烧肉",
+            "quantity": 3,
+            "currencies": "gold",
+            "last_purchased_at": "2026-10-09T12:00:00+00:00",
+        }
+    ]
