@@ -106,6 +106,14 @@ export interface InventoryItem {
   last_purchased_at: string | null;
 }
 
+export interface TransferResponse {
+  user_id: string;
+  gold_balance: number;
+  token_balance: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface InventoryItem {
   product_id: number;
   name: string;
@@ -174,6 +182,23 @@ class ApiClient {
     this.request<TransactionListResponse>('/v1/transactions');
 
   getInventory = () => this.request<InventoryItem[]>('/v1/inventory');
+
+  transfer = (params: {
+    toUserId: string;
+    amount: number;
+    idempotencyKey: string;
+    memo?: string;
+  }) =>
+    this.request<TransferResponse>('/v1/wallet/transfer', {
+      method: 'POST',
+      body: JSON.stringify({
+        to_user_id: params.toUserId,
+        currency: 'gold',
+        amount: params.amount,
+        idempotency_key: params.idempotencyKey,
+        memo: params.memo,
+      }),
+    });
 
   // GET /v1/tiles → 9 个 tile (api-gateway 反代到 world-engine REST)
   // 字段定义见 apps/world-engine/src/tile.rs::Tile

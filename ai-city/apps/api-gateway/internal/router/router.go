@@ -64,6 +64,7 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		authed.GET("/inventory", walletHandler.Inventory)
 		authed.POST("/wallet/purchase", economyProxy.Purchase)
 		authed.GET("/transactions", economyProxy.Transactions)
+		authed.POST("/wallet/transfer", economyProxy.Transfer)
 		authed.GET("/players/:id", playerHandler.GetByID)
 
 		// NPC 相关

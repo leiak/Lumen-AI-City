@@ -36,6 +36,13 @@ export function PlayerHUD() {
   const [showInventory, setShowInventory] = useState(false);
   const [inventory, setInventory] = useState<InventoryItem[] | null>(null);
   const inventoryVersion = useGameStore((s) => s.inventoryVersion);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [toUserId, setToUserId] = useState('');
+  const [transferAmount, setTransferAmount] = useState('1');
+  const [transferMemo, setTransferMemo] = useState('');
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [transferSuccess, setTransferSuccess] = useState<string | null>(null);
+  const [transferring, setTransferring] = useState(false);
   const position = useGameStore((s) => s.position);
   const currentTileId = useGameStore((s) => s.currentTileId);
 
@@ -104,6 +111,38 @@ export function PlayerHUD() {
         ? '游客'
         : displayName || '已登录';
 
+  async function submitTransfer() {
+    if (sessionStatus !== 'authenticated') return;
+    const amount = Number(transferAmount);
+    if (!Number.isInteger(amount) || amount <= 0) {
+      setTransferError('转账数量必须是正整数');
+      return;
+    }
+    setTransferring(true);
+    setTransferError(null);
+    setTransferSuccess(null);
+    try {
+      const response = await api.transfer({
+        toUserId,
+        amount,
+        idempotencyKey: `city-ui-transfer-${Date.now().toString(36)}`,
+        memo: transferMemo || undefined,
+      });
+      useGameStore.getState().setWallet({
+        gold: response.gold_balance,
+        token: response.token_balance,
+      });
+      setTransferSuccess('转账成功');
+      setToUserId('');
+      setTransferAmount('1');
+      setTransferMemo('');
+    } catch (error) {
+      setTransferError(error instanceof Error ? error.message : '转账失败');
+    } finally {
+      setTransferring(false);
+    }
+  }
+
   return (
     <div className="absolute top-4 left-4 bg-gray-800/80 backdrop-blur p-4 rounded-lg shadow-lg">
       <div className="text-sm">
@@ -145,6 +184,13 @@ export function PlayerHUD() {
               </button>
               <button
                 type="button"
+                onClick={() => setShowTransfer((value) => !value)}
+                className="text-gray-400 hover:text-gray-200"
+              >
+                {showTransfer ? '隐藏转账' : '转账'}
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowTransactions((value) => !value)}
                 className="text-gray-400 hover:text-gray-200"
               >
@@ -173,6 +219,43 @@ export function PlayerHUD() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {showTransfer && (
+          <div className="mt-2 space-y-2 border-t border-slate-700 pt-2">
+            <input
+              type="text"
+              value={toUserId}
+              onChange={(event) => setToUserId(event.target.value)}
+              placeholder="目标玩家 UUID"
+              className="w-full rounded bg-slate-900 px-2 py-1 text-xs text-slate-100"
+            />
+            <input
+              type="number"
+              min={1}
+              value={transferAmount}
+              onChange={(event) => setTransferAmount(event.target.value)}
+              placeholder="Gold 数量"
+              className="w-full rounded bg-slate-900 px-2 py-1 text-xs text-slate-100"
+            />
+            <input
+              type="text"
+              value={transferMemo}
+              onChange={(event) => setTransferMemo(event.target.value)}
+              placeholder="备注（可选）"
+              className="w-full rounded bg-slate-900 px-2 py-1 text-xs text-slate-100"
+            />
+            <button
+              type="button"
+              disabled={transferring || !toUserId}
+              onClick={() => void submitTransfer()}
+              className="w-full rounded bg-brand-500 px-3 py-1 text-xs font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {transferring ? '转账中' : '转账 Gold'}
+            </button>
+            {transferError && <div className="text-xs text-red-400">{transferError}</div>}
+            {transferSuccess && <div className="text-xs text-green-400">{transferSuccess}</div>}
           </div>
         )}
 

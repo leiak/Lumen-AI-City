@@ -112,3 +112,48 @@ func (p *EconomyProxy) Transactions(c *gin.Context) {
 	target := p.baseURL + "/api/v1/transactions/" + url.PathEscape(playerIDStr) + "?limit=20&offset=0"
 	p.forward(c, target, nil)
 }
+
+type EconomyTransferRequest struct {
+	ToUserID       string `json:"to_user_id" binding:"required,uuid"`
+	Currency       string `json:"currency" binding:"required,oneof=gold token"`
+	Amount         int64  `json:"amount" binding:"required,gt=0,lt=100000"`
+	IdempotencyKey string `json:"idempotency_key" binding:"required,min=8,max=64"`
+	Memo           string `json:"memo" binding:"omitempty,max=200"`
+}
+
+func (p *EconomyProxy) Transfer(c *gin.Context) {
+	playerID, exists := c.Get("player_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	playerIDStr, _ := playerID.(string)
+	if playerIDStr == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+
+	var request EconomyTransferRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request", "detail": err.Error()})
+		return
+	}
+	if request.ToUserID == playerIDStr {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot_transfer_to_self"})
+		return
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"from_user_id":    playerIDStr,
+		"to_user_id":      request.ToUserID,
+		"currency":        request.Currency,
+		"amount":          request.Amount,
+		"idempotency_key": request.IdempotencyKey,
+		"memo":            request.Memo,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "economy_request_encode_failed"})
+		return
+	}
+	p.forward(c, p.baseURL+"/api/v1/wallet/transfer", payload)
+}
