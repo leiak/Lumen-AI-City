@@ -76,5 +76,5 @@ ALTER TABLE transaction DROP CONSTRAINT IF EXISTS transaction_tx_type_check;
 ALTER TABLE transaction ADD CONSTRAINT transaction_tx_type_check
     CHECK (tx_type IN (
       'player_transfer','npc_purchase','central_bank_emit','npc_sink',
-      'cross_city_out','cross_city_in'
+      'cross_city_out','cross_city_in','creator_withdrawal'
     ));

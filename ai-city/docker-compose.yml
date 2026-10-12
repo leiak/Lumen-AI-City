@@ -14,9 +14,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: aicity
-      POSTGRES_PASSWORD: aicity_dev
-      POSTGRES_DB: aicity
+      POSTGRES_USER: ${POSTGRES_USER:-aicity}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aicity_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-aicity}
       # dev-only：world-engine 的手写 PG wire 客户端（src/pg_client.rs:107）
       # 只支持 trust，收到任何非 0 的 AuthenticationRequest 就 bail。
       # 5432 只发布到 127.0.0.1，不暴露到局域网。
@@ -70,7 +70,7 @@ services:
       - '50051:50051'   # gRPC
       - '50052:50052'   # REST
     environment:
-      DATABASE_URL: postgresql://aicity:aicity_dev@postgres:5432/aicity
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aicity}:${POSTGRES_PASSWORD:-aicity_dev}@postgres:5432/${POSTGRES_DB:-aicity}
       REDIS_URL: redis://redis:6379/0
       REDIS_CHANNEL_MOVED: aicity:player:moved
       RUST_LOG: info
@@ -106,12 +106,12 @@ services:
       - '${API_GATEWAY_HOST_PORT:-8080}:8080'
     environment:
       API_GATEWAY_PORT: '8080'
-      DATABASE_URL: postgresql://aicity:aicity_dev@postgres:5432/aicity
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aicity}:${POSTGRES_PASSWORD:-aicity_dev}@postgres:5432/${POSTGRES_DB:-aicity}
       REDIS_URL: redis://redis:6379/0
       WORLD_ENGINE_URL: http://world-engine:50052
       WORLD_ENGINE_GRPC_ADDR: world-engine:50051
       ECONOMY_SERVICE_URL: http://economy-service:8005
-      JWT_SECRET: dev-secret-change-me
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       # 浏览器从 web(:3000) 跨源调本服务(:8080)，必须放通该 origin，
       # 否则登录响应被浏览器丢弃（curl 看不出问题）
       CORS_ALLOWED_ORIGINS: http://localhost:3000
@@ -161,7 +161,7 @@ services:
       # 必须覆盖：cmd/main.go:42 默认绑 127.0.0.1，容器里端口映射打不通
       A2A_GRPC_ADDR: 0.0.0.0:50061
       A2A_HTTP_ADDR: 0.0.0.0:8083
-      DATABASE_URL: postgresql://aicity:aicity_dev@postgres:5432/aicity
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aicity}:${POSTGRES_PASSWORD:-aicity_dev}@postgres:5432/${POSTGRES_DB:-aicity}
       A2A_REPLAY_WINDOW_SEC: '300'
       A2A_INBOX_TTL_HOURS: '168'
       A2A_INBOX_CLEANUP_INTERVAL_SEC: '300'
@@ -211,7 +211,7 @@ services:
       # 必须与 world-engine 的 REDIS_CHANNEL_MOVED 一致，否则订阅不到事件
       REDIS_CHANNEL_MOVED: aicity:player:moved
       # 必须与 api-gateway 的 JWT_SECRET 一致，否则登录签发的 token 在这里验不过
-      JWT_SECRET: dev-secret-change-me
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       CORS_ALLOWED_ORIGINS: http://localhost:3000
       # /city 公开页不登录也能 WS 观察世界事件；登录后才有 player_id 绑定。
       WS_ALLOW_ANON: 'true'
@@ -309,7 +309,7 @@ services:
     ports:
       - "8005:8005"
     environment:
-      DATABASE_URL: postgresql://aicity:aicity_dev@postgres:5432/aicity
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aicity}:${POSTGRES_PASSWORD:-aicity_dev}@postgres:5432/${POSTGRES_DB:-aicity}
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       # 与 api/v1/admin.py:12 默认值一致；admin 路由验签用 secrets.compare_digest
@@ -364,7 +364,7 @@ services:
       # 与 api-gateway/ws-gateway 共用 JWT_SECRET 同源，登录 cookie 才能验签
       ADMIN_PORTAL_JWT_SECRET: "${ADMIN_PORTAL_JWT_SECRET:-dev-secret-change-me}"
       # /api/players 直连 PG（player 表）；其他 API 路由只走 economy-service
-      DATABASE_URL: "postgresql://aicity:aicity_dev@postgres:5432/aicity"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-aicity}:${POSTGRES_PASSWORD:-aicity_dev}@postgres:5432/${POSTGRES_DB:-aicity}"
     depends_on:
       # proxyGet/proxyPost 启动期不硬验（运行时 fallback 到 502），started 就够
       economy-service:

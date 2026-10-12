@@ -38,6 +38,16 @@
 
 完整对照见 [`docs/16-愿景对照与当前测试结论.md`](docs/16-愿景对照与当前测试结论.md)；第三方 Agent 接入见 [`ai-city/docs/agent-integration-guide.md`](ai-city/docs/agent-integration-guide.md)。
 
+### Production Core 部署
+
+生产核心的范围、部署方式和当前安全约束见 [`ai-city/docs/17-Production-Core-GA.md`](ai-city/docs/17-Production-Core-GA.md)。生产模板收敛后使用：
+
+```bash
+cd ai-city
+cp .env.production.example .env.production
+./scripts/deploy-production.sh
+```
+
 ---
 
 ## 🧭 主要业务线（Business Lines）

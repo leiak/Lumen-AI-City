@@ -20,6 +20,7 @@ def test_cross_city_schema_contains_bridge_tables() -> None:
         "idx_bridge_entry_transfer",
         "cross_city_out",
         "cross_city_in",
+        "'creator_withdrawal'",
     ):
         assert token in sql, f"migration missing {token}"
 

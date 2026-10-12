@@ -1,0 +1,13 @@
+packages/proto/pg-schema.sql
+scripts/seed-npcs.sql
+scripts/seed-extended-npcs.sql
+packages/proto/pg-schema-2.0.sql
+packages/proto/pg-schema-2.0-emotion.sql
+packages/proto/pg-schema-2.0-bt-editor.sql
+packages/proto/pg-schema-2.0-bt-auth.sql
+db/seed/seed-admin.sql
+packages/proto/pg-schema-3.0-economy.sql
+db/seed/seed-economy.sql
+packages/proto/pg-schema-3.0-creator-market.sql
+db/seed/seed-creator-market.sql
+packages/proto/pg-schema-3.0-cross-city-gold.sql
