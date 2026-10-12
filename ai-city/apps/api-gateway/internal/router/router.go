@@ -12,9 +12,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
 )
 
-func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *store.PlayerStore, worldClient *worldgrpc.Client, npcTalkHandler *handlers.NPCTalkHandler, npcPositionHandler *handlers.NPCPositionHandler) {
+func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *store.PlayerStore, worldClient *worldgrpc.Client, npcTalkHandler *handlers.NPCTalkHandler, npcPositionHandler *handlers.NPCPositionHandler, logger *zap.Logger) {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": cfg.ServiceName})
 	})
@@ -35,6 +36,8 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 	if economyProxyErr != nil {
 		log.Fatalf("invalid ECONOMY_SERVICE_URL %q: %v", cfg.EconomyURL, economyProxyErr)
 	}
+
+	r.Use(middleware.AuditCritical(logger))
 
 	// 公开路由（无需鉴权）
 	public := r.Group("/v1")

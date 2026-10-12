@@ -66,6 +66,7 @@ func main() {
 	// 中间件链（顺序关键）
 	r.Use(middleware.Recovery(logger))
 	r.Use(middleware.TraceID())
+	r.Use(middleware.Metrics())
 	r.Use(middleware.Logging(logger))
 	// CORS 必须在 RateLimit / AntiScrap 之前：预检 OPTIONS 不带 Authorization，
 	// 让它先短路成 204，避免被限流或反爬拦掉。
@@ -119,7 +120,7 @@ func main() {
 	// 1.0 必新 endpoint（acceptance_1_0 §一.B）：NPC position 读写（PG upsert）
 	npcPositionHandler := handlers.NewNPCPositionHandler(db, logger)
 
-	router.Register(r, cfg, db, playerStore, worldClient, npcTalkHandler, npcPositionHandler)
+	router.Register(r, cfg, db, playerStore, worldClient, npcTalkHandler, npcPositionHandler, logger)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

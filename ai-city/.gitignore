@@ -70,6 +70,7 @@ acceptance_*.exe
 # Docker
 .docker/
 docker-compose.override.yml
+backups/
 
 # Terraform
 .terraform/

@@ -64,7 +64,28 @@ cp .env.production.example .env.production
 
 Migration manifest 位于 `db/migrations/manifest.txt`。已应用的 migration checksum 改变会直接失败，避免对既有生产数据库做不可追溯的 schema 覆写。
 
-## 5. 生产核心验收清单
+## 5. 备份与恢复
+
+创建压缩度较低但恢复最快、可靠性最好的 PostgreSQL custom-format 备份：
+
+```bash
+./scripts/backup-production.sh
+```
+
+默认输出到 `backups/production/`，同时生成 SHA-256 checksum，保留最近 14 天。
+
+恢复前先停止写入口径，确认备份 checksum 后执行：
+
+```bash
+./scripts/restore-production.sh \
+  --backup-file backups/production/aicity-YYYYMMDDTHHMMSSZ.dump \
+  --checksum-file backups/production/aicity-YYYYMMDDTHHMMSSZ.dump.sha256 \
+  --yes
+```
+
+restore 脚本会停止核心写服务、重建数据库对象，再重启核心服务。这是破坏性操作，只能在维护窗口执行，并且必须先完成一次备份文件校验。
+
+## 6. 生产核心验收清单
 
 | 项 | 验收标准 | 状态 |
 |---|---|---|
@@ -76,16 +97,29 @@ Migration manifest 位于 `db/migrations/manifest.txt`。已应用的 migration 
 | 前端 | API / WS 地址必须显式注入 | ✅ |
 | CORS | API 与 WS 只允许显式配置的 Web origin | ✅ |
 | CI | lint、后端测试、前端测试、构建通过 | ✅ |
-| 备份恢复 | `pg_dump` / restore 演练通过 | ⚠️ Day 3 |
-| Observability | metrics、日志、告警接入 staging | ⚠️ Day 3 |
-| 限流与审计 | 登录、转账、购买、提现有限流与审计 | ⚠️ Day 3 |
+| 备份恢复 | `pg_dump` / restore 演练通过 | ⚠️ Day 3（工具已交付，演练待执行） |
+| Observability | metrics、日志、告警接入 staging | ⚠️ Day 3（gateway metrics 与告警规则已交付） |
+| 限流与审计 | 登录、转账、购买、提现有限流与审计 | ✅ |
 | E2E | 20 条 golden path 通过 | ⚠️ Day 5 |
 | 压测 | 50 玩家 + 10 Agent 稳定 | ⚠️ Day 5 |
 
-## 6. 当前已知约束
+## 7. 当前已知约束
 
 1. `world-engine` 的手写 PostgreSQL 客户端目前只支持 trust 认证，因此生产 overlay 仍在容器网络内使用 trust。生产 GA 前必须替换为标准 PG 客户端或实现安全认证。
-2. Redis 仍使用容器内无密码连接；数据面端口已关闭，但应在 Day 3 增加 ACL / TLS。
+2. Redis 已启用 requirepass；数据面端口仍关闭。生产 GA 前继续评估内部 TLS / ACL 细分权限。
 3. Kafka、Milvus、etcd、Minio 仅关闭宿主机端口，还未完成生产级集群配置。
 
 这三项是 Production Core 的安全升级前置项，不允许跳过。
+
+## 8. 生产可观测性
+
+API gateway 暴露：
+
+- `aicity_http_requests_total`：按 route / method / status 聚合。
+- `aicity_http_request_duration_seconds`：请求延迟直方图。
+- `aicity_critical_action_total`：关键操作成功 / 失败计数。
+- `aicity_rate_limit_rejected_total`：限流拒绝计数。
+
+关键操作还会输出 `critical_action_audit` JSON 日志，包含 `trace_id`、`actor_id`、`client_ip`、HTTP result，可与数据库 transaction append-only 记录相互印证。
+
+Prometheus 告警规则位于 `infra/prometheus/rules/alerts.yml`，覆盖 API 5xx、P99 延迟、关键操作失败率、认证 / 资金限流异常。
