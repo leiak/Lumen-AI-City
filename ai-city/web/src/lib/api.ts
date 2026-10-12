@@ -146,6 +146,11 @@ export interface CreatorRevenueSummary {
   earned_gold: number;
   withdrawn_gold: number;
   available_gold: number;
+  last_7_days: Array<{
+    day: string;
+    gold: number;
+    purchases: number;
+  }>;
 }
 
 export interface CreatorRevenueWithdrawalResponse {

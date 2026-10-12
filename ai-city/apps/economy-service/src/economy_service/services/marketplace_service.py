@@ -523,6 +523,26 @@ class MarketplaceService:
                 """,
                 creator_id,
             )
+            trend = await conn.fetch(
+                """
+                SELECT
+                    to_char(days.day, 'YYYY-MM-DD') AS day,
+                    COALESCE(SUM(r.amount_gold), 0)::BIGINT AS gold,
+                    COUNT(DISTINCT r.purchase_id)::BIGINT AS purchases
+                FROM generate_series(
+                    CURRENT_DATE - INTERVAL '6 days',
+                    CURRENT_DATE,
+                    INTERVAL '1 day'
+                ) AS days(day)
+                LEFT JOIN creator_revenue AS r
+                    ON r.creator_id = $1
+                    AND r.created_at >= days.day
+                    AND r.created_at < days.day + INTERVAL '1 day'
+                GROUP BY days.day
+                ORDER BY days.day
+                """,
+                creator_id,
+            )
 
         earned_gold = int(earned["total"]) if earned else 0
         withdrawn_gold = int(withdrawn["total"]) if withdrawn else 0
@@ -530,6 +550,7 @@ class MarketplaceService:
             "earned_gold": earned_gold,
             "withdrawn_gold": withdrawn_gold,
             "available_gold": earned_gold - withdrawn_gold,
+            "last_7_days": [dict(row) for row in trend],
         }
 
     async def withdraw_creator_revenue(self, creator_id: str, idempotency_key: str) -> dict:

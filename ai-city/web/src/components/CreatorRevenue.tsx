@@ -92,6 +92,31 @@ export function CreatorRevenue() {
               {summary.available_gold} Gold
             </div>
           )}
+          {summary?.last_7_days && (
+            <div className="space-y-1 rounded border border-slate-700 p-2">
+              <div className="text-xs font-semibold text-slate-300">最近 7 天</div>
+              {summary.last_7_days.map((point) => {
+                const maxGold = Math.max(
+                  ...summary.last_7_days.map((item) => item.gold),
+                  1,
+                );
+                return (
+                  <div key={point.day} className="flex items-center gap-2 text-xs">
+                    <span className="w-10 text-slate-400">{point.day.slice(5)}</span>
+                    <div className="h-2 min-w-0 flex-1 rounded bg-slate-800">
+                      <div
+                        className="h-full rounded bg-brand-500"
+                        style={{ width: `${Math.round((point.gold / maxGold) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="w-24 text-right text-slate-300">
+                      {point.gold} G · {point.purchases} 单
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <button
             type="button"
             disabled={withdrawing || !summary || summary.available_gold <= 0}

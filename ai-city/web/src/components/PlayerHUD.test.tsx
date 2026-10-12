@@ -49,6 +49,10 @@ vi.mock('@/lib/api', () => ({
       earned_gold: 100,
       withdrawn_gold: 30,
       available_gold: 70,
+      last_7_days: [
+        { day: '2026-10-06', gold: 40, purchases: 2 },
+        { day: '2026-10-07', gold: 0, purchases: 0 },
+      ],
     }),
     withdrawCreatorRevenue: vi.fn().mockResolvedValue({
       withdrawal_id: 9,
@@ -130,6 +134,16 @@ describe('PlayerHUD inventory', () => {
 
     expect(await screen.findByText('总收益: 100 Gold')).toBeInTheDocument();
     expect(screen.getByText('#71')).toBeInTheDocument();
+  });
+
+  it('shows creator revenue trend for the last 7 days', async () => {
+    render(<PlayerHUD />);
+
+    fireEvent.click(screen.getByRole('button', { name: '收益' }));
+
+    expect(await screen.findByText('最近 7 天')).toBeInTheDocument();
+    expect(screen.getByText('40 G · 2 单')).toBeInTheDocument();
+    expect(screen.getByText('0 G · 0 单')).toBeInTheDocument();
   });
 
   it('withdraws available creator revenue', async () => {

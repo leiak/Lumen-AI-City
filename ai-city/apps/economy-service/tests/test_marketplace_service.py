@@ -178,6 +178,10 @@ async def test_creator_revenue_summary_returns_earned_and_withdrawn(pool):
         {"total": 100},
         {"total": 30},
     ]
+    pool._conn.fetch.return_value = [
+        {"day": "2026-10-06", "gold": 40, "purchases": 2},
+        {"day": "2026-10-07", "gold": 0, "purchases": 0},
+    ]
     service = MarketplaceService(pool)
 
     summary = await service.get_creator_revenue_summary(
@@ -188,11 +192,18 @@ async def test_creator_revenue_summary_returns_earned_and_withdrawn(pool):
         "earned_gold": 100,
         "withdrawn_gold": 30,
         "available_gold": 70,
+        "last_7_days": [
+            {"day": "2026-10-06", "gold": 40, "purchases": 2},
+            {"day": "2026-10-07", "gold": 0, "purchases": 0},
+        ],
     }
     first_sql = pool._conn.fetchrow.call_args_list[0].args[0]
     second_sql = pool._conn.fetchrow.call_args_list[1].args[0]
     assert "FROM creator_revenue" in first_sql
     assert "FROM creator_withdrawal" in second_sql
+    trend_sql = pool._conn.fetch.call_args.args[0]
+    assert "generate_series" in trend_sql
+    assert "creator_revenue" in trend_sql
 
 
 @pytest.mark.asyncio
