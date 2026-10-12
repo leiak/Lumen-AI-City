@@ -87,6 +87,18 @@ groups:
           summary: "关键操作失败率超过 20%"
           description: "登录、转账、购买或提现链路出现异常"
 
+      - alert: EconomyService_5xx_Rate_High
+        expr: |
+          sum(rate(economy_http_requests_total{status=~"5.."}[5m]))
+            /
+          sum(rate(economy_http_requests_total[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: p1
+        annotations:
+          summary: "Economy Service 5xx 率超过 5%"
+          description: "钱包、购买或创作者收益链路可能异常"
+
       - alert: Rate_Limited_Auth_Or_Money_Burst
         expr: sum(rate(aicity_rate_limit_rejected_total{scope=~"auth|money"}[5m])) > 1
         for: 5m

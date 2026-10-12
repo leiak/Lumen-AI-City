@@ -13,6 +13,7 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "asyncpg>=0.30",
     "pyyaml>=6.0",
+    "prometheus-client>=0.21",
 ]
 
 [build-system]

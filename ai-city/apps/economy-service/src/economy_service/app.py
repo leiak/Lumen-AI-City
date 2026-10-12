@@ -19,6 +19,7 @@ from economy_service.clients.kafka_producer import KafkaProducer
 from economy_service.clients.redis_client import RedisClient
 from economy_service.db import close_pool, get_pool
 from economy_service.errors import EconomyError
+from economy_service.metrics import MetricsMiddleware, metrics_endpoint
 from economy_service.scheduler import start_scheduler
 from economy_service.services import (
     central_bank,
@@ -51,11 +52,17 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI City - Economy Service", lifespan=lifespan)
+app.add_middleware(MetricsMiddleware)
 
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/metrics", include_in_schema=False)
+async def metrics():
+    return metrics_endpoint()
 
 
 app.include_router(wallet_router)

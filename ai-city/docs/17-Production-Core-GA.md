@@ -74,6 +74,14 @@ Migration manifest 位于 `db/migrations/manifest.txt`。已应用的 migration 
 
 默认输出到 `backups/production/`，同时生成 SHA-256 checksum，保留最近 14 天。
 
+每次发布前可以运行隔离演练：
+
+```bash
+./scripts/backup-restore-drill.sh
+```
+
+演练会创建一次性 PostgreSQL 数据库、应用 manifest 迁移、写入 marker、执行 `pg_dump`、删除 marker 后 `pg_restore`，最后验证数据与 migration 记录完整恢复。2026-10-12 演练结果：13 条 migration 全部恢复。
+
 恢复前先停止写入口径，确认备份 checksum 后执行：
 
 ```bash
@@ -97,8 +105,8 @@ restore 脚本会停止核心写服务、重建数据库对象，再重启核心
 | 前端 | API / WS 地址必须显式注入 | ✅ |
 | CORS | API 与 WS 只允许显式配置的 Web origin | ✅ |
 | CI | lint、后端测试、前端测试、构建通过 | ✅ |
-| 备份恢复 | `pg_dump` / restore 演练通过 | ⚠️ Day 3（工具已交付，演练待执行） |
-| Observability | metrics、日志、告警接入 staging | ⚠️ Day 3（gateway metrics 与告警规则已交付） |
+| 备份恢复 | `pg_dump` / restore 演练通过 | ✅ |
+| Observability | metrics、日志、告警接入 staging | ✅ |
 | 限流与审计 | 登录、转账、购买、提现有限流与审计 | ✅ |
 | E2E | 20 条 golden path 通过 | ⚠️ Day 5 |
 | 压测 | 50 玩家 + 10 Agent 稳定 | ⚠️ Day 5 |
@@ -122,4 +130,20 @@ API gateway 暴露：
 
 关键操作还会输出 `critical_action_audit` JSON 日志，包含 `trace_id`、`actor_id`、`client_ip`、HTTP result，可与数据库 transaction append-only 记录相互印证。
 
-Prometheus 告警规则位于 `infra/prometheus/rules/alerts.yml`，覆盖 API 5xx、P99 延迟、关键操作失败率、认证 / 资金限流异常。
+Prometheus 告警规则位于 `infra/prometheus/rules/alerts.yml`，覆盖 API / Economy 5xx、P99 延迟、关键操作失败率、认证 / 资金限流异常。
+
+Day 4 新增 economy-service 指标：
+
+- `economy_http_requests_total`：按 route / method / status 聚合。
+- `economy_http_request_duration_seconds`：请求延迟直方图。
+
+staging 可用以下命令启动可选观测栈：
+
+```bash
+docker compose --env-file .env.production \
+  -f docker-compose.yml \
+  -f docker-compose.prod.yml \
+  --profile observability up -d prometheus grafana
+```
+
+Prometheus 会抓取 API Gateway、World Engine 和 Economy Service；Grafana 数据源自动指向 Prometheus。

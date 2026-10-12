@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+scrape_configs:
+  - job_name: aicity-api-gateway
+    static_configs:
+      - targets: ["api-gateway:8080"]
+
+  - job_name: aicity-world-engine
+    static_configs:
+      - targets: ["world-engine:50052"]
+
+  - job_name: aicity-economy-service
+    static_configs:
+      - targets: ["economy-service:8005"]
