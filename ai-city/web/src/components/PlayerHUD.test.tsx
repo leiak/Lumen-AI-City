@@ -57,10 +57,11 @@ vi.mock('@/lib/api', () => ({
       status: 'settled',
     }),
     createNpcTemplate: vi.fn().mockResolvedValue({ id: 12 }),
-    listDraftNpcTemplates: vi.fn().mockResolvedValue([
+    listCreatorNpcTemplates: vi.fn().mockResolvedValue([
       { id: 21, name: 'Draft Chef', status: 'draft' },
+      { id: 22, name: 'Live Chef', status: 'live' },
     ]),
-    listDraftSagaTemplates: vi.fn().mockResolvedValue([]),
+    listCreatorSagaTemplates: vi.fn().mockResolvedValue([]),
     publishMarketTemplate: vi.fn().mockResolvedValue({ status: 'live' }),
     takeDownMarketTemplate: vi.fn().mockResolvedValue({ status: 'taken_down' }),
   },
@@ -153,11 +154,11 @@ describe('PlayerHUD inventory', () => {
     expect(await screen.findByText('已发布 NPC 模板 #12')).toBeInTheDocument();
   });
 
-  it('shows and publishes creator NPC drafts', async () => {
+  it('shows creator works and publishes drafts', async () => {
     render(<PlayerHUD />);
 
     fireEvent.click(screen.getByRole('button', { name: '发布' }));
-    expect(await screen.findByText('Draft Chef')).toBeInTheDocument();
+    expect(await screen.findByText(/Draft Chef ·/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '发布草稿 #21' }));
 
     await waitFor(() => expect(api.publishMarketTemplate).toHaveBeenCalledWith({
@@ -165,6 +166,19 @@ describe('PlayerHUD inventory', () => {
       templateId: 21,
     }));
     expect(await screen.findByText('草稿 #21 已发布')).toBeInTheDocument();
+  });
+
+  it('shows creator works and takes down live templates', async () => {
+    render(<PlayerHUD />);
+
+    fireEvent.click(screen.getByRole('button', { name: '发布' }));
+    fireEvent.click(await screen.findByRole('button', { name: '下架 #22' }));
+
+    await waitFor(() => expect(api.takeDownMarketTemplate).toHaveBeenCalledWith({
+      kind: 'npc',
+      templateId: 22,
+    }));
+    expect(await screen.findByText('作品 #22 已下架')).toBeInTheDocument();
   });
 
   it('saves an NPC draft', async () => {

@@ -103,6 +103,26 @@ class MarketplaceService:
             )
         return dict(row) if row is not None else None
 
+    async def list_creator_npc_templates(
+        self,
+        creator_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM npc_template
+                WHERE creator_id = $1
+                ORDER BY created_at DESC
+                LIMIT $2 OFFSET $3
+                """,
+                creator_id,
+                limit,
+                offset,
+            )
+        return [dict(row) for row in rows]
+
     async def publish_npc_template(
         self,
         template_id: int,
@@ -437,6 +457,26 @@ class MarketplaceService:
                 template_id,
             )
         return dict(row) if row is not None else None
+
+    async def list_creator_saga_templates(
+        self,
+        creator_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM saga_template
+                WHERE creator_id = $1
+                ORDER BY created_at DESC
+                LIMIT $2 OFFSET $3
+                """,
+                creator_id,
+                limit,
+                offset,
+            )
+        return [dict(row) for row in rows]
 
     async def publish_saga_template(
         self,

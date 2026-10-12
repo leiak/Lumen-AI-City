@@ -69,6 +69,15 @@ async def list_npc_drafts(
     )
 
 
+@router.get("/works")
+async def list_npc_works(
+    player: Annotated[AuthenticatedPlayer, Depends(get_current_player)],
+    pool: Annotated[object, Depends(get_pool)] = None,
+) -> list[dict]:
+    service = MarketplaceService(pool)
+    return await service.list_creator_npc_templates(player.id, limit=50, offset=0)
+
+
 @router.get("/{template_id}")
 async def get_npc_template(
     template_id: int,

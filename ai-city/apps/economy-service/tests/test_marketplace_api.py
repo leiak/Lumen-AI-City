@@ -144,6 +144,26 @@ def test_npc_drafts_returns_owner_drafts(client):
     assert conn.fetch.call_args.args[2] == CREATOR_ID
 
 
+def test_npc_works_returns_owner_works_across_states(client):
+    test_client, conn, _ = client
+    conn.fetchrow.return_value = {"id": CREATOR_ID, "role": "creator"}
+    conn.fetch.return_value = [
+        {"id": 21, "status": "draft", "name": "Draft Chef"},
+        {"id": 22, "status": "live", "name": "Live Chef"},
+        {"id": 23, "status": "taken_down", "name": "Paused Chef"},
+    ]
+
+    response = test_client.get(
+        "/v1/marketplace/npc-templates/works",
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 3
+    assert "WHERE creator_id = $1" in conn.fetch.call_args.args[0]
+    assert conn.fetch.call_args.args[1] == CREATOR_ID
+
+
 def test_publish_npc_draft_allows_owner(client):
     test_client, conn, _ = client
     conn.fetchrow.side_effect = [

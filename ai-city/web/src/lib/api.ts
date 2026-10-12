@@ -159,10 +159,6 @@ export interface CreateTemplateResponse {
   id: number;
 }
 
-export interface CreateTemplateResponse {
-  id: number;
-}
-
 export interface InventoryItem {
   product_id: number;
   name: string;
@@ -260,6 +256,12 @@ class ApiClient {
 
   listDraftSagaTemplates = () =>
     this.request<SagaMarketTemplate[]>('/v1/marketplace/saga-templates/drafts');
+
+  listCreatorNpcTemplates = () =>
+    this.request<NpcMarketTemplate[]>('/v1/marketplace/npc-templates/works');
+
+  listCreatorSagaTemplates = () =>
+    this.request<SagaMarketTemplate[]>('/v1/marketplace/saga-templates/works');
 
   purchaseMarketplaceTemplate = (params: {
     templateKind: 'npc' | 'saga';

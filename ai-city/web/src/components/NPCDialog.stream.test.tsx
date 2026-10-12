@@ -83,12 +83,12 @@ function makeBeat(
     type: 'npc_say_stream',
     npc_id: 'npc_wang_boss_001',
     session_id: 's-1',
+    ...partial,
     sentence_idx: partial.sentence_idx,
     text: partial.text,
     emotion: partial.emotion,
     ts_ms: 1700000000000 + partial.sentence_idx,
     trace_id: `t-${partial.sentence_idx}`,
-    ...partial,
   };
 }
 

@@ -90,6 +90,20 @@ async def test_list_npc_templates_filters_by_creator(pool):
 
 
 @pytest.mark.asyncio
+async def test_list_creator_npc_templates_returns_all_states(pool):
+    creator_id = "00000000-0000-0000-0000-000000000001"
+    service = MarketplaceService(pool)
+
+    items = await service.list_creator_npc_templates(creator_id, limit=25, offset=5)
+
+    assert [item["id"] for item in items] == [12, 13]
+    sql, *params = pool._conn.fetch.call_args.args
+    assert "WHERE creator_id = $1" in sql
+    assert "AND status = $2" not in sql
+    assert tuple(params) == (creator_id, 25, 5)
+
+
+@pytest.mark.asyncio
 async def test_get_npc_template_returns_dict(pool):
     pool._conn.fetchrow.return_value = {"id": 11, "name": "Chef Wang"}
     service = MarketplaceService(pool)

@@ -65,6 +65,15 @@ async def list_saga_drafts(
     )
 
 
+@router.get("/works")
+async def list_saga_works(
+    player: Annotated[AuthenticatedPlayer, Depends(get_current_player)],
+    pool: Annotated[object, Depends(get_pool)] = None,
+) -> list[dict]:
+    service = MarketplaceService(pool)
+    return await service.list_creator_saga_templates(player.id, limit=50, offset=0)
+
+
 @router.get("/{template_id}")
 async def get_saga_template(
     template_id: int,

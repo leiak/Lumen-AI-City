@@ -139,6 +139,26 @@ def test_saga_drafts_returns_owner_drafts(client):
     assert conn.fetch.call_args.args[2] == CREATOR_ID
 
 
+def test_saga_works_returns_owner_works_across_states(client):
+    test_client, conn = client
+    conn.fetchrow.return_value = {"id": CREATOR_ID, "role": "creator"}
+    conn.fetch.return_value = [
+        {"id": 41, "status": "draft", "name": "Draft Saga"},
+        {"id": 42, "status": "live", "name": "Live Saga"},
+        {"id": 43, "status": "taken_down", "name": "Paused Saga"},
+    ]
+
+    response = test_client.get(
+        "/v1/marketplace/saga-templates/works",
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 3
+    assert "WHERE creator_id = $1" in conn.fetch.call_args.args[0]
+    assert conn.fetch.call_args.args[1] == CREATOR_ID
+
+
 def test_publish_saga_draft_allows_owner(client):
     test_client, conn = client
     conn.fetchrow.side_effect = [

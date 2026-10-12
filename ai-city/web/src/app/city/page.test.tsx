@@ -37,7 +37,6 @@ vi.mock('@/lib/api', () => ({
     purchaseProduct: vi.fn(),
     getTransactions: vi.fn().mockResolvedValue({ transactions: [], total: 0 }),
     getInventory: vi.fn().mockResolvedValue([]),
-    getInventory: vi.fn().mockResolvedValue([]),
     move: vi.fn(),
     setToken: vi.fn(),
     postNpcTalk: vi.fn(),

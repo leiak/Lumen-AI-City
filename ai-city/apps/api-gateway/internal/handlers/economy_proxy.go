@@ -136,6 +136,22 @@ func (p *EconomyProxy) SagaDrafts(c *gin.Context) {
 	p.forward(c, p.baseURL+"/v1/marketplace/saga-templates/drafts", nil)
 }
 
+func (p *EconomyProxy) NpcWorks(c *gin.Context) {
+	if _, exists := c.Get("player_id"); !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	p.forward(c, p.baseURL+"/v1/marketplace/npc-templates/works", nil)
+}
+
+func (p *EconomyProxy) SagaWorks(c *gin.Context) {
+	if _, exists := c.Get("player_id"); !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	p.forward(c, p.baseURL+"/v1/marketplace/saga-templates/works", nil)
+}
+
 func (p *EconomyProxy) PublishSagaTemplate(c *gin.Context) {
 	if _, exists := c.Get("player_id"); !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})

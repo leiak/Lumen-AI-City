@@ -316,6 +316,42 @@ func TestEconomyProxyPublishNpcDraftForwardsToken(t *testing.T) {
 	}
 }
 
+func TestEconomyProxyNpcWorksForwardsToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var gotPath string
+	var gotAuthorization string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuthorization = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[{"id":21,"status":"draft"},{"id":22,"status":"live"}]`))
+	}))
+	defer server.Close()
+
+	proxy, err := NewEconomyProxy(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	router.GET("/v1/marketplace/npc-templates/works", func(c *gin.Context) {
+		c.Set("player_id", "token-player")
+		c.Next()
+	}, proxy.NpcWorks)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/marketplace/npc-templates/works", nil)
+	request.Header.Set("Authorization", "Bearer test-jwt")
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if gotPath != "/v1/marketplace/npc-templates/works" || gotAuthorization != "Bearer test-jwt" {
+		t.Fatalf("path = %q, authorization = %q", gotPath, gotAuthorization)
+	}
+}
+
 func TestEconomyProxySagaDraftsForwardsToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	var gotPath string
@@ -384,6 +420,42 @@ func TestEconomyProxyPublishSagaDraftForwardsToken(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
 	if gotPath != "/v1/marketplace/saga-templates/41/publish" || gotAuthorization != "Bearer test-jwt" {
+		t.Fatalf("path = %q, authorization = %q", gotPath, gotAuthorization)
+	}
+}
+
+func TestEconomyProxySagaWorksForwardsToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var gotPath string
+	var gotAuthorization string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuthorization = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[{"id":41,"status":"draft"},{"id":42,"status":"taken_down"}]`))
+	}))
+	defer server.Close()
+
+	proxy, err := NewEconomyProxy(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	router.GET("/v1/marketplace/saga-templates/works", func(c *gin.Context) {
+		c.Set("player_id", "token-player")
+		c.Next()
+	}, proxy.SagaWorks)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/marketplace/saga-templates/works", nil)
+	request.Header.Set("Authorization", "Bearer test-jwt")
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if gotPath != "/v1/marketplace/saga-templates/works" || gotAuthorization != "Bearer test-jwt" {
 		t.Fatalf("path = %q, authorization = %q", gotPath, gotAuthorization)
 	}
 }
