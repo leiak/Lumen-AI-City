@@ -108,8 +108,8 @@ restore 脚本会停止核心写服务、重建数据库对象，再重启核心
 | 备份恢复 | `pg_dump` / restore 演练通过 | ✅ |
 | Observability | metrics、日志、告警接入 staging | ✅ |
 | 限流与审计 | 登录、转账、购买、提现有限流与审计 | ✅ |
-| E2E | 20 条 golden path 通过 | ⚠️ Day 5 |
-| 压测 | 50 玩家 + 10 Agent 稳定 | ⚠️ Day 5 |
+| E2E | 20 条 golden path 通过 | ✅ |
+| 压测 | 50 玩家 + 10 Agent 稳定 | ✅ |
 
 ## 7. 当前已知约束
 
@@ -119,7 +119,28 @@ restore 脚本会停止核心写服务、重建数据库对象，再重启核心
 
 这三项是 Production Core 的安全升级前置项，不允许跳过。
 
-## 8. 生产可观测性
+## 8. GA 验收命令
+
+### 20 条 golden path
+
+```bash
+python scripts/e2e-golden-paths.py
+```
+
+默认覆盖本机 API Gateway `http://localhost:18080`，可用 `AICITY_API_URL` 覆盖。
+2026-10-12 结果：20/20 通过。
+
+### 50 玩家 + 10 Agent 压测
+
+```bash
+python scripts/load-test-ga.py --duration 60
+```
+
+压测对每个虚拟用户签发本地短 token，避免共享 IP 触发全局限流；登录/注册链路可用
+`AICITY_LOADTEST_AUTH=1` 显式开启。验收阈值：错误率 ≤ 1%，p95 ≤ 2s。
+2026-10-12 结果：1440 ops，0 错误，p95 1.524s，p99 2.018s。
+
+## 9. 生产可观测性
 
 API gateway 暴露：
 
