@@ -1,6 +1,10 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from economy_service.errors import (
+    CreatorRequiredError,
+    TemplateStateError,
+)
 from economy_service.services.marketplace_service import MarketplaceService
 
 YAML_CONTENT = "saga:\n  name: welcome\n"
@@ -46,6 +50,24 @@ async def test_create_saga_template_serializes_npc_deps(pool):
 
 
 @pytest.mark.asyncio
+async def test_create_saga_template_supports_draft_status(pool):
+    service = MarketplaceService(pool)
+
+    await service.create_saga_template(
+        creator_id="00000000-0000-0000-0000-000000000003",
+        name="Draft Saga",
+        price_gold=100,
+        yaml_content=YAML_CONTENT,
+        semantic_version="1.0.0",
+        status="draft",
+    )
+
+    sql, *params = pool._conn.fetchrow.call_args.args
+    assert "status" in sql
+    assert params[-1] == "draft"
+
+
+@pytest.mark.asyncio
 async def test_list_saga_templates_filters_by_status(pool):
     service = MarketplaceService(pool)
 
@@ -55,6 +77,18 @@ async def test_list_saga_templates_filters_by_status(pool):
     sql, *params = pool._conn.fetch.call_args.args
     assert "WHERE status = $1" in sql
     assert tuple(params) == ("live", 10, 5)
+
+
+@pytest.mark.asyncio
+async def test_list_saga_templates_filters_by_creator(pool):
+    creator_id = "00000000-0000-0000-0000-000000000003"
+    service = MarketplaceService(pool)
+
+    await service.list_saga_templates(status="draft", creator_id=creator_id)
+
+    sql, *params = pool._conn.fetch.call_args.args
+    assert "WHERE status = $1 AND creator_id = $2" in sql
+    assert tuple(params[:2]) == ("draft", creator_id)
 
 
 @pytest.mark.asyncio
@@ -77,3 +111,50 @@ async def test_take_down_saga_template_updates_status(pool):
     assert "UPDATE saga_template" in sql
     assert "SET status = 'taken_down'" in sql
     assert tuple(params) == (31,)
+
+
+@pytest.mark.asyncio
+async def test_publish_saga_template_allows_owner_and_updates_draft(pool):
+    creator_id = "00000000-0000-0000-0000-000000000003"
+    pool._conn.fetchrow.return_value = {
+        "creator_id": creator_id,
+        "status": "draft",
+    }
+    service = MarketplaceService(pool)
+
+    result = await service.publish_saga_template(31, actor_id=creator_id)
+
+    assert result == {"status": "live"}
+    sql, *params = pool._conn.execute.call_args.args
+    assert "SET status = 'live'" in sql
+    assert "WHERE id = $1 AND status = 'draft'" in sql
+    assert tuple(params) == (31,)
+
+
+@pytest.mark.asyncio
+async def test_publish_saga_template_rejects_other_creator(pool):
+    creator_id = "00000000-0000-0000-0000-000000000003"
+    pool._conn.fetchrow.return_value = {
+        "creator_id": creator_id,
+        "status": "draft",
+    }
+    service = MarketplaceService(pool)
+
+    with pytest.raises(CreatorRequiredError):
+        await service.publish_saga_template(
+            31,
+            actor_id="00000000-0000-0000-0000-000000000002",
+        )
+
+
+@pytest.mark.asyncio
+async def test_publish_saga_template_rejects_live_template(pool):
+    creator_id = "00000000-0000-0000-0000-000000000003"
+    pool._conn.fetchrow.return_value = {
+        "creator_id": creator_id,
+        "status": "live",
+    }
+    service = MarketplaceService(pool)
+
+    with pytest.raises(TemplateStateError):
+        await service.publish_saga_template(31, actor_id=creator_id)

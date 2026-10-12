@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -25,6 +26,7 @@ class NpcTemplateCreate(BaseModel):
     bt_skeleton: str | None = None
     product_catalog: list[ProductItem] | None = None
     price_gold: int = Field(ge=10)
+    status: Literal["draft", "live"] = "live"
 
 
 class NpcTemplateResponse(NpcTemplateCreate):

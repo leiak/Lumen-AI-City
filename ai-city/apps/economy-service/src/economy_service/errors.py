@@ -98,6 +98,12 @@ class RevenueWithdrawalDuplicateError(EconomyError):
     default_msg = "revenue withdrawal idempotency conflict"
 
 
+class TemplateStateError(EconomyError):
+    code = "R_037"
+    http_status = 409
+    default_msg = "template state transition is not allowed"
+
+
 class CrossCityValidationError(EconomyError):
     code = "CROSS_CITY_VALIDATION_FAILED"
     http_status = 400

@@ -255,6 +255,12 @@ class ApiClient {
   listSagaTemplates = () =>
     this.request<SagaMarketTemplate[]>('/v1/marketplace/saga-templates');
 
+  listDraftNpcTemplates = () =>
+    this.request<NpcMarketTemplate[]>('/v1/marketplace/npc-templates/drafts');
+
+  listDraftSagaTemplates = () =>
+    this.request<SagaMarketTemplate[]>('/v1/marketplace/saga-templates/drafts');
+
   purchaseMarketplaceTemplate = (params: {
     templateKind: 'npc' | 'saga';
     templateId: number;
@@ -290,6 +296,7 @@ class ApiClient {
     name: string;
     priceGold: number;
     ocean: { O: number; C: number; E: number; A: number; N: number };
+    status?: 'draft' | 'live';
   }) =>
     this.request<CreateTemplateResponse>('/v1/marketplace/npc-templates', {
       method: 'POST',
@@ -297,6 +304,7 @@ class ApiClient {
         name: params.name,
         price_gold: params.priceGold,
         ocean_json: params.ocean,
+        status: params.status || 'live',
       }),
     });
 
@@ -307,6 +315,7 @@ class ApiClient {
     description?: string;
     yamlContent: string;
     npcDeps: string[];
+    status?: 'draft' | 'live';
   }) =>
     this.request<CreateTemplateResponse>('/v1/marketplace/saga-templates', {
       method: 'POST',
@@ -317,12 +326,19 @@ class ApiClient {
         description: params.description || undefined,
         yaml_content: params.yamlContent,
         npc_deps: params.npcDeps,
+        status: params.status || 'live',
       }),
     });
 
   takeDownMarketTemplate = (params: { kind: 'npc' | 'saga'; templateId: number }) =>
     this.request<{ status: string }>(
       `/v1/marketplace/${params.kind === 'npc' ? 'npc' : 'saga'}-templates/${params.templateId}/take-down`,
+      { method: 'POST' },
+    );
+
+  publishMarketTemplate = (params: { kind: 'npc' | 'saga'; templateId: number }) =>
+    this.request<{ status: string }>(
+      `/v1/marketplace/${params.kind === 'npc' ? 'npc' : 'saga'}-templates/${params.templateId}/publish`,
       { method: 'POST' },
     );
 

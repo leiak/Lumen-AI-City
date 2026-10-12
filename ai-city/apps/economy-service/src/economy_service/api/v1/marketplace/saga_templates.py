@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from economy_service.auth import AuthenticatedPlayer, require_roles
+from economy_service.auth import AuthenticatedPlayer, get_current_player, require_roles
 from economy_service.db import get_pool
 from economy_service.schemas.marketplace_saga import SagaTemplateCreate
 from economy_service.services.marketplace_service import MarketplaceService
@@ -35,6 +35,7 @@ async def create_saga_template(
         icon_url=body.icon_url,
         description=body.description,
         npc_deps=body.npc_deps,
+        status=body.status,
     )
     return {"id": template_id}
 
@@ -48,6 +49,20 @@ async def list_saga_templates(
 ) -> list[dict]:
     service = MarketplaceService(pool)
     return await service.list_saga_templates(status=status, limit=limit, offset=offset)
+
+
+@router.get("/drafts")
+async def list_saga_drafts(
+    player: Annotated[AuthenticatedPlayer, Depends(get_current_player)],
+    pool: Annotated[object, Depends(get_pool)] = None,
+) -> list[dict]:
+    service = MarketplaceService(pool)
+    return await service.list_saga_templates(
+        status="draft",
+        creator_id=player.id,
+        limit=20,
+        offset=0,
+    )
 
 
 @router.get("/{template_id}")
@@ -85,3 +100,17 @@ async def take_down_saga_template(
         )
     await service.take_down_saga_template(template_id, actor_id=player.id)
     return {"status": "taken_down"}
+
+
+@router.post("/{template_id}/publish")
+async def publish_saga_template(
+    template_id: int,
+    player: Annotated[AuthenticatedPlayer, Depends(require_roles({"creator", "admin"}))],
+    pool: Annotated[object, Depends(get_pool)] = None,
+) -> dict:
+    service = MarketplaceService(pool)
+    return await service.publish_saga_template(
+        template_id,
+        actor_id=player.id,
+        actor_role=player.role,
+    )

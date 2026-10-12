@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -9,3 +11,4 @@ class SagaTemplateCreate(BaseModel):
     npc_deps: list[str] = Field(default_factory=list)
     price_gold: int = Field(ge=10)
     semantic_version: str = Field(pattern=r"^\d+\.\d+\.\d+$")
+    status: Literal["draft", "live"] = "live"

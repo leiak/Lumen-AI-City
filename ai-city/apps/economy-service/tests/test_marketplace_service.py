@@ -2,7 +2,11 @@ import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from economy_service.errors import NoWithdrawableRevenueError
+from economy_service.errors import (
+    CreatorRequiredError,
+    NoWithdrawableRevenueError,
+    TemplateStateError,
+)
 from economy_service.services.marketplace_service import MarketplaceService
 
 OCEAN = {"O": 0.7, "C": 0.8, "E": 0.5, "A": 0.6, "N": 0.3}
@@ -45,6 +49,23 @@ async def test_create_npc_template_serializes_json_columns(pool):
 
 
 @pytest.mark.asyncio
+async def test_create_npc_template_supports_draft_status(pool):
+    service = MarketplaceService(pool)
+
+    await service.create_npc_template(
+        creator_id="00000000-0000-0000-0000-000000000001",
+        name="Draft Chef",
+        ocean_json=OCEAN,
+        price_gold=100,
+        status="draft",
+    )
+
+    sql, *params = pool._conn.fetchrow.call_args.args
+    assert "status" in sql
+    assert params[-1] == "draft"
+
+
+@pytest.mark.asyncio
 async def test_list_npc_templates_filters_by_status(pool):
     service = MarketplaceService(pool)
 
@@ -54,6 +75,18 @@ async def test_list_npc_templates_filters_by_status(pool):
     sql, *params = pool._conn.fetch.call_args.args
     assert "WHERE status = $1" in sql
     assert tuple(params) == ("live", 10, 5)
+
+
+@pytest.mark.asyncio
+async def test_list_npc_templates_filters_by_creator(pool):
+    creator_id = "00000000-0000-0000-0000-000000000001"
+    service = MarketplaceService(pool)
+
+    await service.list_npc_templates(status="draft", creator_id=creator_id)
+
+    sql, *params = pool._conn.fetch.call_args.args
+    assert "WHERE status = $1 AND creator_id = $2" in sql
+    assert tuple(params[:2]) == ("draft", creator_id)
 
 
 @pytest.mark.asyncio
@@ -76,6 +109,53 @@ async def test_take_down_npc_template_updates_status(pool):
     assert "UPDATE npc_template" in sql
     assert "SET status = 'taken_down'" in sql
     assert tuple(params) == (11,)
+
+
+@pytest.mark.asyncio
+async def test_publish_npc_template_allows_owner_and_updates_draft(pool):
+    creator_id = "00000000-0000-0000-0000-000000000001"
+    pool._conn.fetchrow.return_value = {
+        "creator_id": creator_id,
+        "status": "draft",
+    }
+    service = MarketplaceService(pool)
+
+    result = await service.publish_npc_template(11, actor_id=creator_id)
+
+    assert result == {"status": "live"}
+    sql, *params = pool._conn.execute.call_args.args
+    assert "SET status = 'live'" in sql
+    assert "WHERE id = $1 AND status = 'draft'" in sql
+    assert tuple(params) == (11,)
+
+
+@pytest.mark.asyncio
+async def test_publish_npc_template_rejects_other_creator(pool):
+    creator_id = "00000000-0000-0000-0000-000000000001"
+    pool._conn.fetchrow.return_value = {
+        "creator_id": creator_id,
+        "status": "draft",
+    }
+    service = MarketplaceService(pool)
+
+    with pytest.raises(CreatorRequiredError):
+        await service.publish_npc_template(
+            11,
+            actor_id="00000000-0000-0000-0000-000000000002",
+        )
+
+
+@pytest.mark.asyncio
+async def test_publish_npc_template_rejects_live_template(pool):
+    creator_id = "00000000-0000-0000-0000-000000000001"
+    pool._conn.fetchrow.return_value = {
+        "creator_id": creator_id,
+        "status": "live",
+    }
+    service = MarketplaceService(pool)
+
+    with pytest.raises(TemplateStateError):
+        await service.publish_npc_template(11, actor_id=creator_id)
 
 
 @pytest.mark.asyncio

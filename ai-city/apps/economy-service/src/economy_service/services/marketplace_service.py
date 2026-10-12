@@ -4,11 +4,13 @@ from asyncpg import Pool
 
 from economy_service.clients.kafka_producer import KafkaProducer
 from economy_service.errors import (
+    CreatorRequiredError,
     InsufficientBalance,
     NoWithdrawableRevenueError,
     RevenueWithdrawalDuplicateError,
     SelfPurchaseError,
     TemplateNotFoundError,
+    TemplateStateError,
     TemplateTakenDownError,
     WalletNotFound,
 )
@@ -35,15 +37,16 @@ class MarketplaceService:
         avatar_url: str | None = None,
         bt_skeleton: str | None = None,
         product_catalog: list[dict] | None = None,
+        status: str = "live",
     ) -> int:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
                 INSERT INTO npc_template (
                     creator_id, name, avatar_url, ocean_json,
-                    bt_skeleton, product_catalog, price_gold
+                    bt_skeleton, product_catalog, price_gold, status
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING id
                 """,
                 creator_id,
@@ -53,27 +56,43 @@ class MarketplaceService:
                 bt_skeleton,
                 json.dumps(product_catalog) if product_catalog is not None else None,
                 price_gold,
+                status,
             )
         return row["id"]
 
     async def list_npc_templates(
         self,
         status: str = "live",
+        creator_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict]:
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT * FROM npc_template
-                WHERE status = $1
-                ORDER BY created_at DESC
-                LIMIT $2 OFFSET $3
-                """,
-                status,
-                limit,
-                offset,
-            )
+            if creator_id is None:
+                rows = await conn.fetch(
+                    """
+                    SELECT * FROM npc_template
+                    WHERE status = $1
+                    ORDER BY created_at DESC
+                    LIMIT $2 OFFSET $3
+                    """,
+                    status,
+                    limit,
+                    offset,
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT * FROM npc_template
+                    WHERE status = $1 AND creator_id = $2
+                    ORDER BY created_at DESC
+                    LIMIT $3 OFFSET $4
+                    """,
+                    status,
+                    creator_id,
+                    limit,
+                    offset,
+                )
         return [dict(row) for row in rows]
 
     async def get_npc_template(self, template_id: int) -> dict | None:
@@ -82,6 +101,34 @@ class MarketplaceService:
                 "SELECT * FROM npc_template WHERE id = $1",
                 template_id,
             )
+        return dict(row) if row is not None else None
+
+    async def publish_npc_template(
+        self,
+        template_id: int,
+        actor_id: str,
+        actor_role: str = "creator",
+    ) -> dict:
+        async with self.pool.acquire() as conn:
+            template = await conn.fetchrow(
+                "SELECT creator_id, status FROM npc_template WHERE id = $1",
+                template_id,
+            )
+            if template is None:
+                raise TemplateNotFoundError(f"template not found: {template_id}")
+            if actor_role != "admin" and str(template["creator_id"]) != actor_id:
+                raise CreatorRequiredError("creator or admin role required")
+            if template["status"] != "draft":
+                raise TemplateStateError("only draft templates can be published")
+            await conn.execute(
+                """
+                UPDATE npc_template
+                SET status = 'live', updated_at = NOW()
+                WHERE id = $1 AND status = 'draft'
+                """,
+                template_id,
+            )
+        return {"status": "live"}
         return dict(row) if row is not None else None
 
 
@@ -106,15 +153,16 @@ class MarketplaceService:
         icon_url: str | None = None,
         description: str | None = None,
         npc_deps: list[str] | None = None,
+        status: str = "live",
     ) -> int:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
                 INSERT INTO saga_template (
                     creator_id, name, price_gold, icon_url, description,
-                    yaml_content, npc_deps, semantic_version
+                    yaml_content, npc_deps, semantic_version, status
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 RETURNING id
                 """,
                 creator_id,
@@ -125,6 +173,7 @@ class MarketplaceService:
                 yaml_content,
                 npc_deps or [],
                 semantic_version,
+                status,
             )
         return row["id"]
 
@@ -349,21 +398,36 @@ class MarketplaceService:
     async def list_saga_templates(
         self,
         status: str = "live",
+        creator_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict]:
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT * FROM saga_template
-                WHERE status = $1
-                ORDER BY created_at DESC
-                LIMIT $2 OFFSET $3
-                """,
-                status,
-                limit,
-                offset,
-            )
+            if creator_id is None:
+                rows = await conn.fetch(
+                    """
+                    SELECT * FROM saga_template
+                    WHERE status = $1
+                    ORDER BY created_at DESC
+                    LIMIT $2 OFFSET $3
+                    """,
+                    status,
+                    limit,
+                    offset,
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT * FROM saga_template
+                    WHERE status = $1 AND creator_id = $2
+                    ORDER BY created_at DESC
+                    LIMIT $3 OFFSET $4
+                    """,
+                    status,
+                    creator_id,
+                    limit,
+                    offset,
+                )
         return [dict(row) for row in rows]
 
     async def get_saga_template(self, template_id: int) -> dict | None:
@@ -373,6 +437,33 @@ class MarketplaceService:
                 template_id,
             )
         return dict(row) if row is not None else None
+
+    async def publish_saga_template(
+        self,
+        template_id: int,
+        actor_id: str,
+        actor_role: str = "creator",
+    ) -> dict:
+        async with self.pool.acquire() as conn:
+            template = await conn.fetchrow(
+                "SELECT creator_id, status FROM saga_template WHERE id = $1",
+                template_id,
+            )
+            if template is None:
+                raise TemplateNotFoundError(f"template not found: {template_id}")
+            if actor_role != "admin" and str(template["creator_id"]) != actor_id:
+                raise CreatorRequiredError("creator or admin role required")
+            if template["status"] != "draft":
+                raise TemplateStateError("only draft templates can be published")
+            await conn.execute(
+                """
+                UPDATE saga_template
+                SET status = 'live', updated_at = NOW()
+                WHERE id = $1 AND status = 'draft'
+                """,
+                template_id,
+            )
+        return {"status": "live"}
 
     async def get_creator_revenue_summary(self, creator_id: str) -> dict:
         async with self.pool.acquire() as conn:

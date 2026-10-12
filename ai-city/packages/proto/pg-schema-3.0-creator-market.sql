@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS npc_template (
     product_catalog JSONB,
     price_gold      BIGINT NOT NULL CHECK (price_gold >= 10),
     status          TEXT NOT NULL DEFAULT 'live'
-                    CHECK (status IN ('live', 'taken_down')),
+                    CHECK (status IN ('draft', 'live', 'taken_down')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -43,6 +43,13 @@ CREATE INDEX IF NOT EXISTS idx_npc_template_creator
 CREATE INDEX IF NOT EXISTS idx_npc_template_live
     ON npc_template(status)
     WHERE status = 'live';
+
+ALTER TABLE npc_template
+    DROP CONSTRAINT IF EXISTS npc_template_status_check;
+
+ALTER TABLE npc_template
+    ADD CONSTRAINT npc_template_status_check
+    CHECK (status IN ('draft', 'live', 'taken_down'));
 
 CREATE TABLE IF NOT EXISTS saga_template (
     id               BIGSERIAL PRIMARY KEY,
@@ -56,7 +63,7 @@ CREATE TABLE IF NOT EXISTS saga_template (
                      CONSTRAINT saga_template_price_min CHECK (price_gold >= 10),
     semantic_version TEXT NOT NULL,
     status           TEXT NOT NULL DEFAULT 'live'
-                     CHECK (status IN ('live', 'taken_down')),
+                     CHECK (status IN ('draft', 'live', 'taken_down')),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -66,6 +73,13 @@ CREATE INDEX IF NOT EXISTS idx_saga_template_creator
 CREATE INDEX IF NOT EXISTS idx_saga_template_live
     ON saga_template(status)
     WHERE status = 'live';
+
+ALTER TABLE saga_template
+    DROP CONSTRAINT IF EXISTS saga_template_status_check;
+
+ALTER TABLE saga_template
+    ADD CONSTRAINT saga_template_status_check
+    CHECK (status IN ('draft', 'live', 'taken_down'));
 
 ALTER TABLE saga_template
     ADD COLUMN IF NOT EXISTS price_gold BIGINT NOT NULL DEFAULT 10;

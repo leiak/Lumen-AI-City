@@ -111,6 +111,40 @@ func (p *EconomyProxy) TakeDownSagaTemplate(c *gin.Context) {
 	p.forward(c, target, nil)
 }
 
+func (p *EconomyProxy) NpcDrafts(c *gin.Context) {
+	if _, exists := c.Get("player_id"); !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	p.forward(c, p.baseURL+"/v1/marketplace/npc-templates/drafts", nil)
+}
+
+func (p *EconomyProxy) PublishNpcTemplate(c *gin.Context) {
+	if _, exists := c.Get("player_id"); !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	target := p.baseURL + "/v1/marketplace/npc-templates/" + url.PathEscape(c.Param("templateId")) + "/publish"
+	p.forward(c, target, nil)
+}
+
+func (p *EconomyProxy) SagaDrafts(c *gin.Context) {
+	if _, exists := c.Get("player_id"); !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	p.forward(c, p.baseURL+"/v1/marketplace/saga-templates/drafts", nil)
+}
+
+func (p *EconomyProxy) PublishSagaTemplate(c *gin.Context) {
+	if _, exists := c.Get("player_id"); !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "no_player_in_token"})
+		return
+	}
+	target := p.baseURL + "/v1/marketplace/saga-templates/" + url.PathEscape(c.Param("templateId")) + "/publish"
+	p.forward(c, target, nil)
+}
+
 type EconomyMarketplacePurchaseRequest struct {
 	TemplateKind   string `json:"template_kind" binding:"required,oneof=npc saga"`
 	TemplateID     int64  `json:"template_id" binding:"required,gt=0"`

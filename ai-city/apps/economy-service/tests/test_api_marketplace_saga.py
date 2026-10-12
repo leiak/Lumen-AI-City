@@ -91,6 +91,70 @@ def test_create_saga_template_returns_id(client):
     assert response.json() == {"id": 41}
 
 
+def test_create_saga_template_creates_draft(client):
+    test_client, conn = client
+    conn.fetchrow.side_effect = [
+        {"id": CREATOR_ID, "role": "creator"},
+        {"id": 41},
+    ]
+
+    response = test_client.post(
+        "/v1/marketplace/saga-templates",
+        json={
+            "name": "Draft Saga",
+            "yaml_content": VALID_YAML,
+            "price_gold": 100,
+            "semantic_version": "1.0.0",
+            "status": "draft",
+        },
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 201
+    assert response.json() == {"id": 41}
+    assert conn.fetchrow.call_args.args[-1] == "draft"
+
+
+def test_saga_drafts_requires_authentication(client):
+    test_client, _ = client
+
+    response = test_client.get("/v1/marketplace/saga-templates/drafts")
+
+    assert response.status_code == 401
+
+
+def test_saga_drafts_returns_owner_drafts(client):
+    test_client, conn = client
+    conn.fetchrow.return_value = {"id": CREATOR_ID, "role": "creator"}
+    conn.fetch.return_value = [{"id": 41, "status": "draft", "name": "Draft Saga"}]
+
+    response = test_client.get(
+        "/v1/marketplace/saga-templates/drafts",
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == [{"id": 41, "status": "draft", "name": "Draft Saga"}]
+    assert "creator_id = $2" in conn.fetch.call_args.args[0]
+    assert conn.fetch.call_args.args[2] == CREATOR_ID
+
+
+def test_publish_saga_draft_allows_owner(client):
+    test_client, conn = client
+    conn.fetchrow.side_effect = [
+        {"id": CREATOR_ID, "role": "creator"},
+        {"creator_id": CREATOR_ID, "status": "draft"},
+    ]
+
+    response = test_client.post(
+        "/v1/marketplace/saga-templates/41/publish",
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "live"}
+
+
 def test_get_saga_template_returns_not_found(client):
     test_client, conn = client
     conn.fetchrow.return_value = None

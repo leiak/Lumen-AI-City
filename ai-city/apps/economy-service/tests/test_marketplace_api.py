@@ -105,6 +105,61 @@ def test_post_npc_template_creates_template(client):
     assert response.json() == {"id": 21}
 
 
+def test_post_npc_template_creates_draft(client):
+    test_client, conn, _ = client
+    set_player_role(conn, "creator")
+
+    response = test_client.post(
+        "/v1/marketplace/npc-templates",
+        json={"name": "Chef Draft", "ocean_json": OCEAN, "price_gold": 100, "status": "draft"},
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 201
+    assert response.json() == {"id": 21}
+    assert conn.fetchrow.call_args.args[-1] == "draft"
+
+
+def test_npc_drafts_requires_authentication(client):
+    test_client, _, _ = client
+
+    response = test_client.get("/v1/marketplace/npc-templates/drafts")
+
+    assert response.status_code == 401
+
+
+def test_npc_drafts_returns_owner_drafts(client):
+    test_client, conn, _ = client
+    conn.fetchrow.return_value = {"id": CREATOR_ID, "role": "creator"}
+    conn.fetch.return_value = [{"id": 21, "status": "draft", "name": "Draft Chef"}]
+
+    response = test_client.get(
+        "/v1/marketplace/npc-templates/drafts",
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == [{"id": 21, "status": "draft", "name": "Draft Chef"}]
+    assert "creator_id = $2" in conn.fetch.call_args.args[0]
+    assert conn.fetch.call_args.args[2] == CREATOR_ID
+
+
+def test_publish_npc_draft_allows_owner(client):
+    test_client, conn, _ = client
+    conn.fetchrow.side_effect = [
+        {"id": CREATOR_ID, "role": "creator"},
+        {"creator_id": CREATOR_ID, "status": "draft"},
+    ]
+
+    response = test_client.post(
+        "/v1/marketplace/npc-templates/21/publish",
+        headers=auth_header(CREATOR_ID),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "live"}
+
+
 def test_get_npc_template_returns_not_found(client):
     test_client, conn, _ = client
     conn.fetchrow.return_value = None

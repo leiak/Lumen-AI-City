@@ -27,11 +27,12 @@ def test_creator_market_migration_uses_player_uuid_foreign_keys() -> None:
     assert "CREATE TABLE IF NOT EXISTS npc_template" in sql
     assert "creator_id UUID NOT NULL REFERENCES player(id)" in compact_sql
     assert "CHECK (price_gold >= 10)" in sql
-    assert "CHECK (status IN ('live', 'taken_down'))" in sql
+    assert "CHECK (status IN ('draft', 'live', 'taken_down'))" in sql
 
     assert "CREATE TABLE IF NOT EXISTS saga_template" in sql
     assert "npc_deps TEXT[] NOT NULL DEFAULT '{}'" in compact_sql
     assert "price_gold BIGINT NOT NULL CHECK (price_gold >= 10)" in compact_sql
+    assert "CHECK (status IN ('draft', 'live', 'taken_down'))" in compact_sql
 
     assert "CREATE TABLE IF NOT EXISTS template_purchase" in sql
     assert "user_id UUID NOT NULL REFERENCES player(id)" in compact_sql

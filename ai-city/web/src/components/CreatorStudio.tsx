@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useGameStore } from '@/store/game';
 
@@ -13,9 +13,29 @@ export function CreatorStudio({ onPublished }: { onPublished?: () => void }) {
   const [yamlContent, setYamlContent] = useState('saga:\n  name: example\n');
   const [npcDeps, setNpcDeps] = useState('');
   const [publishing, setPublishing] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [drafts, setDrafts] = useState<Array<{ id: number; name: string; status: string }> | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const sessionStatus = useGameStore((s) => s.sessionStatus);
+
+  const loadDrafts = useCallback(async (templateKind: 'npc' | 'saga') => {
+    setDrafts(null);
+    try {
+      setDrafts(
+        templateKind === 'npc'
+          ? await api.listDraftNpcTemplates()
+          : await api.listDraftSagaTemplates(),
+      );
+    } catch {
+      setDrafts([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (sessionStatus !== 'authenticated') return;
+    void loadDrafts(kind);
+  }, [kind, loadDrafts, sessionStatus]);
 
   async function publish() {
     if (sessionStatus !== 'authenticated') return;
@@ -56,6 +76,62 @@ export function CreatorStudio({ onPublished }: { onPublished?: () => void }) {
       setError(caughtError instanceof Error ? caughtError.message : '发布失败');
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function saveDraft() {
+    if (sessionStatus !== 'authenticated') return;
+    const parsedPrice = Number(price);
+    if (!Number.isInteger(parsedPrice) || parsedPrice < 10) {
+      setError('价格必须是不低于 10 的整数');
+      return;
+    }
+    setSavingDraft(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response =
+        kind === 'npc'
+          ? await api.createNpcTemplate({
+              name,
+              priceGold: parsedPrice,
+              ocean: { O: 0.5, C: 0.5, E: 0.5, A: 0.5, N: 0.5 },
+              status: 'draft',
+            })
+          : await api.createSagaTemplate({
+              name,
+              priceGold: parsedPrice,
+              semanticVersion: semanticVersion,
+              description: description || undefined,
+              yamlContent,
+              npcDeps: npcDeps.split(',').map((value) => value.trim()).filter(Boolean),
+              status: 'draft',
+            });
+      setSuccess(`已保存草稿 #${response.id}`);
+      setName('');
+      setDescription('');
+      await loadDrafts(kind);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : '保存草稿失败');
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
+  async function publishDraft(templateId: number) {
+    if (sessionStatus !== 'authenticated') return;
+    setSavingDraft(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await api.publishMarketTemplate({ kind, templateId });
+      setSuccess(`草稿 #${templateId} 已发布`);
+      await loadDrafts(kind);
+      onPublished?.();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : '发布草稿失败');
+    } finally {
+      setSavingDraft(false);
     }
   }
 
@@ -124,6 +200,36 @@ export function CreatorStudio({ onPublished }: { onPublished?: () => void }) {
       >
         {publishing ? '发布中' : '发布到市场'}
       </button>
+      <button
+        type="button"
+        disabled={savingDraft || !name}
+        onClick={() => void saveDraft()}
+        className="w-full rounded border border-brand-500 px-3 py-1 text-xs font-semibold text-brand-300 hover:bg-brand-900/30 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {savingDraft ? '处理中' : '存为草稿'}
+      </button>
+      <div className="space-y-1 border-t border-slate-700 pt-2">
+        <div className="text-xs font-semibold text-slate-300">我的草稿</div>
+        {drafts == null ? (
+          <div className="text-xs text-slate-400">草稿加载中...</div>
+        ) : drafts.length === 0 ? (
+          <div className="text-xs text-slate-400">暂无草稿</div>
+        ) : (
+          drafts.map((draft) => (
+            <div key={draft.id} className="flex items-center justify-between gap-2 text-xs">
+              <span className="min-w-0 truncate text-slate-300">{draft.name}</span>
+              <button
+                type="button"
+                disabled={savingDraft}
+                onClick={() => void publishDraft(draft.id)}
+                className="rounded bg-brand-500 px-2 py-1 font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+              >
+                发布草稿 #{draft.id}
+              </button>
+            </div>
+          ))
+        )}
+      </div>
       {success && <div className="text-xs text-green-400">{success}</div>}
       {error && <div className="text-xs text-red-400">{error}</div>}
     </div>
