@@ -140,7 +140,25 @@ python scripts/load-test-ga.py --duration 60
 `AICITY_LOADTEST_AUTH=1` 显式开启。验收阈值：错误率 ≤ 1%，p95 ≤ 2s。
 2026-10-12 结果：1440 ops，0 错误，p95 1.524s，p99 2.018s。
 
-## 9. 生产可观测性
+## 9. 本机生产栈演练
+
+2026-10-12 在本机 Docker 上用 `.env.production` 启动生产 overlay：
+
+```bash
+docker compose --env-file .env.production \
+  -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+演练结论：
+
+- 生产数据卷使用独立 `prod_pg_data` / `prod_redis_data`。
+- PostgreSQL 使用 SCRAM-SHA-256；Redis / Kafka / Milvus / etcd / Minio 不发布宿主机端口。
+- `world-engine` 修复了 Redis URL password 被丢弃的问题，现在 `PING` / `PUBLISH` / `SUBSCRIBE` 前都会先 `AUTH`。
+- `a2a-gateway` 生产 overlay 补上带密码的 `REDIS_URL`。
+- 20 条 golden path 在生产栈通过：20/20。
+- 压测：1440 ops，0 错误，p95 2.267s，p99 3.114s。错误率达标；p95 略高于 2s，受本机 Windows Docker + 同机其他工作负载影响，不能作为生产容量结论。
+
+## 10. 生产可观测性
 
 API gateway 暴露：
 

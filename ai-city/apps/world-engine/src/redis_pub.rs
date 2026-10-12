@@ -29,6 +29,7 @@ pub struct RedisStats {
 #[derive(Clone)]
 pub struct RedisPub {
     addr: String,
+    password: Option<String>,
     conn: std::sync::Arc<Mutex<Option<BufWriter<TcpStream>>>>,
     stats: std::sync::Arc<RedisStatsInner>,
 }
@@ -58,9 +59,10 @@ impl Default for RedisStatsInner {
 impl RedisPub {
     pub fn new(addr: impl Into<String>) -> Self {
         let raw = addr.into();
-        let parsed = parse_redis_addr(&raw).unwrap_or_else(|_| raw.clone());
+        let parsed = parse_redis_endpoint(&raw).unwrap_or_else(|_| (raw.clone(), None));
         Self {
-            addr: parsed,
+            addr: parsed.0,
+            password: parsed.1,
             conn: std::sync::Arc::new(Mutex::new(None)),
             stats: std::sync::Arc::new(RedisStatsInner::default()),
         }
@@ -83,7 +85,7 @@ impl RedisPub {
         if guard.is_some() {
             return Ok(());
         }
-        let stream = tokio::time::timeout(Duration::from_secs(2), TcpStream::connect(&self.addr))
+        let mut stream = tokio::time::timeout(Duration::from_secs(2), TcpStream::connect(&self.addr))
             .await
             .map_err(|_| {
                 self.stats.connect_errors.fetch_add(1, Ordering::Relaxed);
@@ -94,6 +96,7 @@ impl RedisPub {
                 e
             })?;
         stream.set_nodelay(true)?;
+        authenticate(&mut stream, self.password.as_deref()).await?;
         *guard = Some(BufWriter::new(stream));
         Ok(())
     }
@@ -148,6 +151,11 @@ impl RedisPub {
             }
         };
         let mut stream = stream;
+        if let Err(e) = authenticate(&mut stream, self.password.as_deref()).await {
+            warn!(addr = %self.addr, error = %e, "redis ping: auth failed");
+            self.stats.ping_failure.fetch_add(1, Ordering::Relaxed);
+            return false;
+        }
         if let Err(e) = stream.write_all(b"*1\r\n$4\r\nPING\r\n").await {
             warn!(error = %e, "redis ping: write failed");
             self.stats.ping_failure.fetch_add(1, Ordering::Relaxed);
@@ -181,21 +189,46 @@ fn write_bulk(buf: &mut Vec<u8>, s: &[u8]) {
     buf.extend_from_slice(b"\r\n");
 }
 
-/// 极简 redis URL 解析：只提取 host:port，丢弃 scheme/path/password。
+/// 极简 redis URL 解析：提取 host:port 和 password。
 /// 输入示例：`redis://localhost:6379/0` → `localhost:6379`
 ///         `redis://:pw@127.0.0.1:6379/2` → `127.0.0.1:6379`
 ///         `localhost:6379`（无 scheme）→  原样返回
-fn parse_redis_addr(raw: &str) -> anyhow::Result<String> {
+fn parse_redis_endpoint(raw: &str) -> anyhow::Result<(String, Option<String>)> {
     let s = raw.trim();
     let after_scheme = s.strip_prefix("redis://").unwrap_or(s);
     // 去掉 `/db` 路径
     let host_port = after_scheme.split('/').next().unwrap_or("");
     // 去掉 `:password@`（不支持 AUTH）
-    let host_port = host_port.rsplit('@').next().unwrap_or("");
+    let (password, host_port) = match host_port.split_once('@') {
+        Some((credentials, host_port)) => {
+            let password = credentials.split_once(':').map(|(_, password)| password.to_string());
+            (password, host_port)
+        }
+        None => (None, host_port),
+    };
     if host_port.is_empty() {
         anyhow::bail!("invalid redis url: {}", raw);
     }
-    Ok(host_port.to_string())
+    Ok((host_port.to_string(), password))
+}
+
+async fn authenticate<S>(stream: &mut S, password: Option<&str>) -> anyhow::Result<()>
+where
+    S: AsyncReadExt + AsyncWriteExt + Unpin,
+{
+    let Some(password) = password else {
+        return Ok(());
+    };
+
+    let auth = format!("*2\r\n$4\r\nAUTH\r\n${}\r\n{}\r\n", password.len(), password);
+    stream.write_all(auth.as_bytes()).await?;
+    stream.flush().await?;
+    let mut reply = [0u8; 5];
+    stream.read_exact(&mut reply).await?;
+    if reply != *b"+OK\r\n" {
+        anyhow::bail!("redis auth failed: {:?}", String::from_utf8_lossy(&reply));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -214,13 +247,13 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_redis_addr() {
-        assert_eq!(parse_redis_addr("redis://localhost:6379/0").unwrap(), "localhost:6379");
-        assert_eq!(parse_redis_addr("redis://localhost:6379").unwrap(), "localhost:6379");
-        assert_eq!(parse_redis_addr("redis://:pw@127.0.0.1:6379/2").unwrap(), "127.0.0.1:6379");
-        assert_eq!(parse_redis_addr("localhost:6379").unwrap(), "localhost:6379");
-        assert_eq!(parse_redis_addr("redis://[::1]:6379/0").unwrap(), "[::1]:6379");
-        assert!(parse_redis_addr("redis://").is_err());
+    fn test_parse_redis_endpoint() {
+        assert_eq!(parse_redis_endpoint("redis://localhost:6379/0").unwrap(), ("localhost:6379".to_string(), None));
+        assert_eq!(parse_redis_endpoint("redis://localhost:6379").unwrap(), ("localhost:6379".to_string(), None));
+        assert_eq!(parse_redis_endpoint("redis://:pw@127.0.0.1:6379/2").unwrap(), ("127.0.0.1:6379".to_string(), Some("pw".to_string())));
+        assert_eq!(parse_redis_endpoint("localhost:6379").unwrap(), ("localhost:6379".to_string(), None));
+        assert_eq!(parse_redis_endpoint("redis://[::1]:6379/0").unwrap(), ("[::1]:6379".to_string(), None));
+        assert!(parse_redis_endpoint("redis://").is_err());
     }
 
     /// 集成测试：需要本机 127.0.0.1:6379 可达的 Redis。
