@@ -2,7 +2,7 @@
 name = "world-engine"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.82"
 
 [dependencies]
 tonic = "0.12"
@@ -20,9 +20,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 axum = "0.7"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["trace", "cors"] }
+# Standard PostgreSQL protocol client. It supports SCRAM-SHA-256 password auth
+# while preserving the async runtime already used by the service.
+tokio-postgres = { version = "0.7", default-features = false }
 # Sprint 2: 从 PG `tile` 表加载世界数据
-# 手写极简 PG Simple Query 客户端（src/tile_loader.rs::pg_client）—— 与 redis_pub 同思路
-# 避免 sqlx 拉入 rustls / ring / parking_lot 等 native 链（Windows 1.82 + GNU 无 gcc/dlltool 编译不过）
+# PG 使用 tokio-postgres（支持 SCRAM）；Redis 仍保留轻量 RESP 实现。
 # Sprint 2: Prometheus /metrics（手写 text format，无额外依赖）
 # Redis Pub/Sub: 用 tokio TCP 直写 RESP，避免 redis-rs 拉入大依赖链
 # 仅支持 PUBLISH；订阅由 api-gateway 用 go-redis 处理

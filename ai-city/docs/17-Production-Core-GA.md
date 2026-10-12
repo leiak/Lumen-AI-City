@@ -105,7 +105,7 @@ restore 脚本会停止核心写服务、重建数据库对象，再重启核心
 
 ## 7. 当前已知约束
 
-1. `world-engine` 的手写 PostgreSQL 客户端目前只支持 trust 认证，因此生产 overlay 仍在容器网络内使用 trust。生产 GA 前必须替换为标准 PG 客户端或实现安全认证。
+1. `world-engine` 已使用标准 PostgreSQL 协议客户端，支持 SCRAM-SHA-256。新建生产数据卷会使用密码认证；既有 trust 卷必须在维护窗口重置或手动升级为 SCRAM。
 2. Redis 已启用 requirepass；数据面端口仍关闭。生产 GA 前继续评估内部 TLS / ACL 细分权限。
 3. Kafka、Milvus、etcd、Minio 仅关闭宿主机端口，还未完成生产级集群配置。
 

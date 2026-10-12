@@ -4,9 +4,7 @@
 //!
 //! 每 30s 调一次 upsert：记录 `last_seen_ms` + 简易系统指标（cpu_percent / memory_mb）。
 //!
-//! 实现注：本文件用 `crate::pg_client`（手写极简 PG Simple Query 客户端），**没用 sqlx**。
-//! 原因见 `Cargo.toml` + `pg_client.rs` 顶部注释 —— sqlx 拉入 rustls / ring / parking_lot
-//! 等 native 链，Windows 1.82 + GNU 工具链缺 gcc.exe / dlltool.exe 编译不过。
+//! 实现注：本文件通过 `crate::pg_client` 使用标准 tokio-postgres 客户端，支持 SCRAM。
 //!
 //! 此外：
 //! - `chrono` → `std::time::SystemTime`（项目其他模块一致，见 `grpc.rs::r#move`）
@@ -29,7 +27,7 @@ pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 /// 启动心跳上报 loop：每 30s 写一次 `a2a_npc_heartbeats`（upsert）。
 ///
 /// 参数：
-/// - `conn`：已 connect 的 PG 连接（trust 模式；compose `POSTGRES_HOST_AUTH_METHOD=trust` 保证）
+/// - `conn`：已 connect 的 PG 连接（生产使用 SCRAM-SHA-256）
 /// - `npc_id`：当前 world-engine 实例的 NPC 标识（如 `npc_wang_boss_001`）
 ///
 /// 行为：
