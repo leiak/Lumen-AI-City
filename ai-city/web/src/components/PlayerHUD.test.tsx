@@ -53,6 +53,15 @@ vi.mock('@/lib/api', () => ({
         { day: '2026-10-06', gold: 40, purchases: 2 },
         { day: '2026-10-07', gold: 0, purchases: 0 },
       ],
+      top_templates: [
+        {
+          template_kind: 'npc' as const,
+          template_id: 12,
+          name: 'Studio NPC',
+          gold: 40,
+          purchases: 2,
+        },
+      ],
     }),
     withdrawCreatorRevenue: vi.fn().mockResolvedValue({
       withdrawal_id: 9,
@@ -142,8 +151,18 @@ describe('PlayerHUD inventory', () => {
     fireEvent.click(screen.getByRole('button', { name: '收益' }));
 
     expect(await screen.findByText('最近 7 天')).toBeInTheDocument();
-    expect(screen.getByText('40 G · 2 单')).toBeInTheDocument();
+    expect(screen.getAllByText('40 G · 2 单').length).toBeGreaterThan(0);
     expect(screen.getByText('0 G · 0 单')).toBeInTheDocument();
+  });
+
+  it('attributes creator revenue to templates', async () => {
+    render(<PlayerHUD />);
+
+    fireEvent.click(screen.getByRole('button', { name: '收益' }));
+
+    expect(await screen.findByText('作品归因')).toBeInTheDocument();
+    expect(screen.getByText(/Studio NPC · NPC/)).toBeInTheDocument();
+    expect(screen.getAllByText('40 G · 2 单').length).toBeGreaterThan(0);
   });
 
   it('withdraws available creator revenue', async () => {

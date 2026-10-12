@@ -151,6 +151,13 @@ export interface CreatorRevenueSummary {
     gold: number;
     purchases: number;
   }>;
+  top_templates: Array<{
+    template_kind: 'npc' | 'saga';
+    template_id: number;
+    name: string;
+    gold: number;
+    purchases: number;
+  }>;
 }
 
 export interface CreatorRevenueWithdrawalResponse {

@@ -543,6 +543,36 @@ class MarketplaceService:
                 """,
                 creator_id,
             )
+            by_template = await conn.fetch(
+                """
+                SELECT
+                    p.template_kind,
+                    p.template_id,
+                    COALESCE(
+                        CASE
+                            WHEN p.template_kind = 'npc' THEN npc.name
+                            WHEN p.template_kind = 'saga' THEN saga.name
+                        END,
+                        '未知作品'
+                    ) AS name,
+                    COALESCE(SUM(r.amount_gold), 0)::BIGINT AS gold,
+                    COUNT(r.id)::BIGINT AS purchases
+                FROM creator_revenue AS r
+                JOIN template_purchase AS p
+                    ON p.id = r.purchase_id
+                LEFT JOIN npc_template AS npc
+                    ON p.template_kind = 'npc'
+                    AND npc.id = p.template_id
+                LEFT JOIN saga_template AS saga
+                    ON p.template_kind = 'saga'
+                    AND saga.id = p.template_id
+                WHERE r.creator_id = $1
+                GROUP BY p.template_kind, p.template_id, npc.name, saga.name
+                ORDER BY gold DESC, p.template_kind, p.template_id
+                LIMIT 10
+                """,
+                creator_id,
+            )
 
         earned_gold = int(earned["total"]) if earned else 0
         withdrawn_gold = int(withdrawn["total"]) if withdrawn else 0
@@ -551,6 +581,7 @@ class MarketplaceService:
             "withdrawn_gold": withdrawn_gold,
             "available_gold": earned_gold - withdrawn_gold,
             "last_7_days": [dict(row) for row in trend],
+            "top_templates": [dict(row) for row in by_template],
         }
 
     async def withdraw_creator_revenue(self, creator_id: str, idempotency_key: str) -> dict:

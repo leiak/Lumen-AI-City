@@ -178,9 +178,17 @@ async def test_creator_revenue_summary_returns_earned_and_withdrawn(pool):
         {"total": 100},
         {"total": 30},
     ]
-    pool._conn.fetch.return_value = [
+    pool._conn.fetch.side_effect = [
         {"day": "2026-10-06", "gold": 40, "purchases": 2},
         {"day": "2026-10-07", "gold": 0, "purchases": 0},
+    ], [
+        {
+            "template_kind": "npc",
+            "template_id": 11,
+            "name": "Chef Wang",
+            "gold": 40,
+            "purchases": 2,
+        }
     ]
     service = MarketplaceService(pool)
 
@@ -196,14 +204,27 @@ async def test_creator_revenue_summary_returns_earned_and_withdrawn(pool):
             {"day": "2026-10-06", "gold": 40, "purchases": 2},
             {"day": "2026-10-07", "gold": 0, "purchases": 0},
         ],
+        "top_templates": [
+            {
+                "template_kind": "npc",
+                "template_id": 11,
+                "name": "Chef Wang",
+                "gold": 40,
+                "purchases": 2,
+            }
+        ],
     }
     first_sql = pool._conn.fetchrow.call_args_list[0].args[0]
     second_sql = pool._conn.fetchrow.call_args_list[1].args[0]
     assert "FROM creator_revenue" in first_sql
     assert "FROM creator_withdrawal" in second_sql
-    trend_sql = pool._conn.fetch.call_args.args[0]
+    trend_sql = pool._conn.fetch.call_args_list[0].args[0]
     assert "generate_series" in trend_sql
     assert "creator_revenue" in trend_sql
+    attribution_sql = pool._conn.fetch.call_args_list[1].args[0]
+    assert "template_purchase" in attribution_sql
+    assert "npc_template" in attribution_sql
+    assert "saga_template" in attribution_sql
 
 
 @pytest.mark.asyncio

@@ -117,6 +117,24 @@ export function CreatorRevenue() {
               })}
             </div>
           )}
+          {summary?.top_templates && summary.top_templates.length > 0 && (
+            <div className="space-y-1 rounded border border-slate-700 p-2">
+              <div className="text-xs font-semibold text-slate-300">作品归因</div>
+              {summary.top_templates.map((item) => (
+                <div
+                  key={`${item.template_kind}-${item.template_id}`}
+                  className="flex items-center justify-between gap-2 text-xs"
+                >
+                  <span className="min-w-0 truncate text-slate-300">
+                    {item.name} · {item.template_kind === 'npc' ? 'NPC' : '剧本'}
+                  </span>
+                  <span className="text-green-400">
+                    {item.gold} G · {item.purchases} 单
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           <button
             type="button"
             disabled={withdrawing || !summary || summary.available_gold <= 0}
