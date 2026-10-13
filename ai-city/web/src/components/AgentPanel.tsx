@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 
-const A2A_BASE = 'http://localhost:8083';
+const A2A_BASE = process.env.NEXT_PUBLIC_A2A_GATEWAY || 'http://localhost:8083';
 
 interface AgentCard {
   agent_id: string;
@@ -48,6 +48,7 @@ interface ChatEntry {
 export function AgentPanel() {
   const [agentId, setAgentId] = useState('my-bot-' + Date.now().toString(36));
   const [registered, setRegistered] = useState(false);
+  const [gatewayOnline, setGatewayOnline] = useState<boolean | null>(null);
   const [status, setStatus] = useState('');
   const [cards, setCards] = useState<AgentCard[]>([]);
   const [selectedContact, setSelectedContact] = useState('');
@@ -66,6 +67,22 @@ export function AgentPanel() {
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkGateway = async () => {
+      try {
+        const resp = await fetch(`${A2A_BASE}/v1/healthz`);
+        if (!cancelled) setGatewayOnline(resp.ok);
+      } catch {
+        if (!cancelled) setGatewayOnline(false);
+      }
+    };
+    checkGateway();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const addMsg = useCallback((role: ChatEntry['role'], from: string, text: string) => {
     setMessages((m) => [...m, { role, from, text, ts: Date.now() }]);
@@ -230,10 +247,17 @@ export function AgentPanel() {
     <div className="absolute top-4 right-4 w-80 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 32px)' }}>
       <div className="px-4 py-3 bg-gradient-to-r from-indigo-600/40 to-purple-600/40 border-b border-white/10">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          <span className={`w-2 h-2 rounded-full ${
+            gatewayOnline === null ? 'bg-yellow-400' : gatewayOnline ? 'bg-green-400 animate-pulse' : 'bg-red-500'
+          }`} />
           <span className="font-semibold text-sm text-white">Agent Console</span>
           {registered && <span className="ml-auto text-xs text-green-400">● online</span>}
         </div>
+        {gatewayOnline === false && (
+          <div className="mt-2 rounded-lg bg-red-500/10 px-2 py-1 text-xs text-red-300">
+            A2A gateway unreachable at {A2A_BASE}
+          </div>
+        )}
         {registered && (
           <div className="mt-2 grid grid-cols-3 gap-1 text-xs">
             {(['chat', 'world', 'behavior'] as const).map((item) => (
@@ -252,7 +276,7 @@ export function AgentPanel() {
           <input value={agentId} onChange={(e) => setAgentId(e.target.value)}
             className="w-full bg-gray-800/80 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 outline-none" />
           <button onClick={register}
-            disabled={busy}
+            disabled={busy || gatewayOnline === false}
             className="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">
             {busy ? 'Registering...' : 'Register Agent'}
           </button>

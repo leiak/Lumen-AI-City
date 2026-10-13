@@ -240,6 +240,7 @@ services:
         # 且由浏览器端代码消费 → 必须是 host 可达 URL，不能用 compose 服务名。
         NEXT_PUBLIC_API_GATEWAY: http://localhost:8080
         NEXT_PUBLIC_WS_GATEWAY: ws://localhost:8082/ws
+        NEXT_PUBLIC_A2A_GATEWAY: http://localhost:8083
     ports:
       - '3000:3000'
     depends_on:

@@ -8,6 +8,7 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_API_GATEWAY: process.env.NEXT_PUBLIC_API_GATEWAY || 'http://localhost:8080',
     NEXT_PUBLIC_WS_GATEWAY: process.env.NEXT_PUBLIC_WS_GATEWAY || 'ws://localhost:8082/ws',
+    NEXT_PUBLIC_A2A_GATEWAY: process.env.NEXT_PUBLIC_A2A_GATEWAY || 'http://localhost:8083',
   },
 };
 
