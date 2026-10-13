@@ -42,6 +42,7 @@ interface ChatEntry {
   role: 'agent' | 'npc' | 'system';
   from: string;
   text: string;
+  contact: string;
   ts: number;
 }
 
@@ -84,8 +85,8 @@ export function AgentPanel() {
     };
   }, []);
 
-  const addMsg = useCallback((role: ChatEntry['role'], from: string, text: string) => {
-    setMessages((m) => [...m, { role, from, text, ts: Date.now() }]);
+  const addMsg = useCallback((role: ChatEntry['role'], from: string, text: string, contact = 'system') => {
+    setMessages((m) => [...m, { role, from, text, contact, ts: Date.now() }]);
   }, []);
 
   const register = useCallback(async () => {
@@ -138,7 +139,7 @@ export function AgentPanel() {
   const send = useCallback(async () => {
     if (!input.trim() || !registered || !selectedContact) return;
     setSending(true);
-    addMsg('agent', agentId, input.trim());
+    addMsg('agent', agentId, input.trim(), selectedContact);
     try {
       await fetch(`${A2A_BASE}/v1/messages`, {
         method: 'POST',
@@ -209,7 +210,7 @@ export function AgentPanel() {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.message || 'Node rejected');
       setBehaviorNode(nodeID);
-      addMsg('npc', data.npc_id, data.say);
+      addMsg('npc', data.npc_id, data.say, behavior.npc_id);
     } catch (e) {
       addMsg('system', 'behavior', `Action failed: ${e}`);
     } finally {
@@ -230,7 +231,7 @@ export function AgentPanel() {
             const p = JSON.parse(msg.payload);
             text = p.say || p.text || msg.payload;
           } catch { /* raw */ }
-          addMsg('npc', msg.from_agent_id, text);
+          addMsg('npc', msg.from_agent_id, text, msg.from_agent_id);
         }
       } catch { /* silent */ }
     }, 2000);
@@ -242,6 +243,10 @@ export function AgentPanel() {
   }, [registered, startInbox]);
 
   useEffect(() => { discover(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const visibleMessages = messages.filter(
+    (m) => m.contact === selectedContact || m.contact === 'system'
+  );
 
   return (
     <div className="absolute top-4 right-4 w-80 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 32px)' }}>
@@ -402,7 +407,7 @@ export function AgentPanel() {
             {messages.length === 0 && (
               <div className="text-gray-500 text-xs text-center py-8">Select NPC and send a message</div>
             )}
-            {messages.map((m, i) => (
+            {visibleMessages.map((m, i) => (
               <div key={i} className={`text-xs ${m.role === 'agent' ? 'text-right' : 'text-left'}`}>
                 <span className={`font-medium ${m.role === 'agent' ? 'text-indigo-400' : m.role === 'npc' ? 'text-emerald-400' : 'text-gray-500'}`}>
                   {m.from}
