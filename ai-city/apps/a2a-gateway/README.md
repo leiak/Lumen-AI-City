@@ -124,6 +124,24 @@ curl -s -X POST http://127.0.0.1:8083/v1/messages \
 curl -s 'http://127.0.0.1:8083/v1/inbox/bob?limit=10&mark_read=true'
 ```
 
+## Agent NPC 模板与 BT Editor 桥
+
+M2 模板链路保持 Draft → Submitted → Approved / Rejected，且不会修改运行时 NPC YAML。
+M3 增加所有者隔离的编辑桥：
+
+```bash
+# 加载持久化 talk_tree + 有效 BT 投影 + 边列表
+curl -s 'http://127.0.0.1:8083/v1/agent/actions/npc-templates/1/editor?agent_id=alice'
+
+# Owner 保存新的节点树；仅 draft/rejected 可编辑，version 递增并记录 revision
+curl -s -X PUT 'http://127.0.0.1:8083/v1/agent/actions/npc-templates/1/editor' \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_id":"alice","talk_tree":{"initial":"root","nodes":{"root":{"say":"hello"}}}}'
+```
+
+`bt_editor_tree` 是给 BT Editor 展示/校验的 projection；`talk_tree` 仍是唯一持久化
+source of truth。保存只在沙箱草稿上生效，Operator 审批后才进入后续发布流程。
+
 ## 测试
 
 ```bash

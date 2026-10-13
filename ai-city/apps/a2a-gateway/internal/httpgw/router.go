@@ -71,6 +71,8 @@ func NewWithRuntime(svc *a2asrv.Service, apiKey string, cfg RuntimeConfig) *Serv
 	engine.POST("/v1/agent/actions/npc-talk", s.NPCTalk)
 	engine.POST("/v1/agent/actions/npc-templates", s.CreateNPCTemplate)
 	engine.GET("/v1/agent/actions/npc-templates", s.ListNPCTemplates)
+	engine.GET("/v1/agent/actions/npc-templates/:id/editor", s.GetNPCTemplateEditor)
+	engine.PUT("/v1/agent/actions/npc-templates/:id/editor", s.SaveNPCTemplateEditor)
 	engine.POST("/v1/agent/actions/npc-templates/:id/submit", s.SubmitNPCTemplate)
 	engine.POST("/v1/agent/actions/npc-templates/:id/simulate", s.SimulateNPCTemplate)
 	engine.GET("/v1/operator/npc-templates", s.ListNPCTemplatesForReview)
@@ -94,7 +96,7 @@ func (s *Server) corsMiddleware() gin.HandlerFunc {
 			if _, ok := allowed[origin]; ok {
 				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 				c.Writer.Header().Add("Vary", "Origin")
-				c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+				c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
 				c.Writer.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Operator-Key, X-Trace-Id")
 				c.Writer.Header().Set("Access-Control-Max-Age", "86400")
 			}

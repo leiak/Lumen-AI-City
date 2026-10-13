@@ -29,6 +29,7 @@ type AgentTemplateDraft struct {
 	TalkTree        map[string]any
 	ProductCatalog  []map[string]any
 	Status          string
+	Version         int64
 	ValidationTrace map[string]any
 	SimulationTrace map[string]any
 	ReviewedBy      string
@@ -58,6 +59,7 @@ type TemplateStore interface {
 	CreateDraft(ctx context.Context, draft AgentTemplateDraft) (int64, error)
 	ListDrafts(ctx context.Context, agentID string, limit int) ([]AgentTemplateDraft, error)
 	GetDraft(ctx context.Context, id int64) (AgentTemplateDraft, error)
+	UpdateDraftTalkTree(ctx context.Context, id int64, agentID string, talkTree map[string]any, validationTrace map[string]any) (int64, error)
 	SubmitDraft(ctx context.Context, id int64, agentID string) error
 	SaveSimulationTrace(ctx context.Context, id int64, agentID string, trace map[string]any) error
 	ReviewDraft(ctx context.Context, id int64, status, reviewer, reason string) error
@@ -153,6 +155,13 @@ RETURNING id
 		draft.Description, personality, talkTree, catalog, trace).Scan(&id); err != nil {
 		return 0, fmt.Errorf("create template draft: %w", err)
 	}
+	if _, err := tx.Exec(ctx, `
+INSERT INTO a2a_npc_template_revision
+    (template_id, version, talk_tree, edited_by)
+VALUES ($1, 1, $2::jsonb, $3)
+`, id, talkTree, draft.AgentID); err != nil {
+		return 0, fmt.Errorf("create template revision: %w", err)
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return 0, fmt.Errorf("commit template draft: %w", err)
 	}
@@ -162,7 +171,7 @@ RETURNING id
 func (s *TemplatePGStore) ListDrafts(ctx context.Context, agentID string, limit int) ([]AgentTemplateDraft, error) {
 	const q = `
 SELECT id, agent_id, name, home_tile_id, description, personality, talk_tree,
-       product_catalog, status, validation_trace, simulation_trace,
+       product_catalog, status, version, validation_trace, simulation_trace,
        reviewed_by, review_reason, created_at
 FROM a2a_npc_template_draft
 WHERE agent_id = $1
@@ -187,7 +196,7 @@ LIMIT $2
 		)
 		if err := rows.Scan(&draft.ID, &draft.AgentID, &draft.Name, &draft.HomeTileID,
 			&draft.Description, &personality, &talkTree, &catalog, &draft.Status,
-			&validationTrace, &simulationTrace, &draft.ReviewedBy,
+			&draft.Version, &validationTrace, &simulationTrace, &draft.ReviewedBy,
 			&draft.ReviewReason, &draft.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan template draft: %w", err)
 		}
@@ -217,7 +226,7 @@ LIMIT $2
 func (s *TemplatePGStore) GetDraft(ctx context.Context, id int64) (AgentTemplateDraft, error) {
 	const q = `
 SELECT id, agent_id, name, home_tile_id, description, personality, talk_tree,
-       product_catalog, status, validation_trace, simulation_trace,
+       product_catalog, status, version, validation_trace, simulation_trace,
        reviewed_by, review_reason, created_at
 FROM a2a_npc_template_draft
 WHERE id = $1
@@ -232,7 +241,7 @@ WHERE id = $1
 	)
 	err := s.pool.QueryRow(ctx, q, id).Scan(&draft.ID, &draft.AgentID, &draft.Name,
 		&draft.HomeTileID, &draft.Description, &personality, &talkTree, &catalog,
-		&draft.Status, &validationTrace, &simulationTrace, &draft.ReviewedBy,
+		&draft.Status, &draft.Version, &validationTrace, &simulationTrace, &draft.ReviewedBy,
 		&draft.ReviewReason, &draft.CreatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -256,6 +265,67 @@ WHERE id = $1
 		return AgentTemplateDraft{}, fmt.Errorf("decode simulation trace: %w", err)
 	}
 	return draft, nil
+}
+
+func (s *TemplatePGStore) UpdateDraftTalkTree(ctx context.Context, id int64, agentID string,
+	talkTree map[string]any, validationTrace map[string]any) (int64, error) {
+	encodedTree, err := json.Marshal(talkTree)
+	if err != nil {
+		return 0, fmt.Errorf("encode editor talk tree: %w", err)
+	}
+	encodedTrace, err := json.Marshal(validationTrace)
+	if err != nil {
+		return 0, fmt.Errorf("encode editor validation trace: %w", err)
+	}
+
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("acquire editor connection: %w", err)
+	}
+	defer conn.Release()
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin editor transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var currentStatus string
+	err = tx.QueryRow(ctx,
+		`SELECT status FROM a2a_npc_template_draft WHERE id = $1 AND agent_id = $2`,
+		id, agentID).Scan(&currentStatus)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return 0, ErrTemplateNotFound
+		}
+		return 0, fmt.Errorf("editor draft query: %w", err)
+	}
+	if currentStatus != "draft" && currentStatus != "rejected" {
+		return 0, ErrTemplateState
+	}
+
+	var version int64
+	err = tx.QueryRow(ctx, `
+UPDATE a2a_npc_template_draft
+SET talk_tree = $3::jsonb, validation_trace = $4::jsonb,
+    version = version + 1, updated_at = NOW()
+WHERE id = $1 AND agent_id = $2 AND status IN ('draft', 'rejected')
+RETURNING version
+`, id, agentID, encodedTree, encodedTrace).Scan(&version)
+	if err != nil {
+		return 0, fmt.Errorf("update editor talk tree: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+INSERT INTO a2a_npc_template_revision
+    (template_id, version, talk_tree, edited_by)
+VALUES ($1, $2, $3::jsonb, $4)
+`, id, version, encodedTree, agentID); err != nil {
+		return 0, fmt.Errorf("insert editor revision: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit editor talk tree: %w", err)
+	}
+	return version, nil
 }
 
 func (s *TemplatePGStore) SubmitDraft(ctx context.Context, id int64, agentID string) error {
@@ -314,7 +384,7 @@ WHERE id = $1 AND status = 'submitted'
 func (s *TemplatePGStore) ListDraftsByStatus(ctx context.Context, status string, limit int) ([]AgentTemplateDraft, error) {
 	const q = `
 SELECT id, agent_id, name, home_tile_id, description, personality, talk_tree,
-       product_catalog, status, validation_trace, simulation_trace,
+       product_catalog, status, version, validation_trace, simulation_trace,
        reviewed_by, review_reason, created_at
 FROM a2a_npc_template_draft
 WHERE status = $1
@@ -339,7 +409,7 @@ LIMIT $2
 		)
 		if err := rows.Scan(&draft.ID, &draft.AgentID, &draft.Name, &draft.HomeTileID,
 			&draft.Description, &personality, &talkTree, &catalog, &draft.Status,
-			&validationTrace, &simulationTrace, &draft.ReviewedBy,
+			&draft.Version, &validationTrace, &simulationTrace, &draft.ReviewedBy,
 			&draft.ReviewReason, &draft.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan review draft: %w", err)
 		}
@@ -420,6 +490,7 @@ func (s *MemoryTemplateStore) CanCreateNPC(_ context.Context, agentID string) (b
 func (s *MemoryTemplateStore) CreateDraft(_ context.Context, draft AgentTemplateDraft) (int64, error) {
 	draft.ID = s.nextID
 	draft.Status = "draft"
+	draft.Version = 1
 	draft.CreatedAt = time.Now()
 	s.nextID++
 	s.drafts = append(s.drafts, draft)
@@ -443,6 +514,23 @@ func (s *MemoryTemplateStore) GetDraft(_ context.Context, id int64) (AgentTempla
 		}
 	}
 	return AgentTemplateDraft{}, ErrTemplateNotFound
+}
+
+func (s *MemoryTemplateStore) UpdateDraftTalkTree(_ context.Context, id int64, agentID string,
+	talkTree map[string]any, validationTrace map[string]any) (int64, error) {
+	for index, draft := range s.drafts {
+		if draft.ID != id || draft.AgentID != agentID {
+			continue
+		}
+		if draft.Status != "draft" && draft.Status != "rejected" {
+			return 0, ErrTemplateState
+		}
+		s.drafts[index].TalkTree = talkTree
+		s.drafts[index].ValidationTrace = validationTrace
+		s.drafts[index].Version = draft.Version + 1
+		return s.drafts[index].Version, nil
+	}
+	return 0, ErrTemplateNotFound
 }
 
 func (s *MemoryTemplateStore) SubmitDraft(_ context.Context, id int64, agentID string) error {

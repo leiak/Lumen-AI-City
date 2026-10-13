@@ -3,6 +3,7 @@ package httpgw
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -219,6 +220,137 @@ func TestAgentActions_CreateAndListNPCTemplate(t *testing.T) {
 	w = doRequest(t, h, http.MethodGet, "/v1/agent/actions/npc-templates?agent_id=bob", "", nil)
 	if w.Code != http.StatusOK || strings.Contains(w.Body.String(), "Draft NPC") {
 		t.Fatalf("other agent saw foreign draft: status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgentActions_EditorLoadAndSaveRevision(t *testing.T) {
+	store := a2asrv.NewMemoryTemplateStore(map[string]bool{"alice": true})
+	svc := newTestServer()
+	srv := NewWithRuntime(svc, "", RuntimeConfig{TemplateStore: store})
+	h := srv.Handler()
+	registerAgentForActions(t, h, "alice")
+
+	w := doRequest(t, h, http.MethodPost, "/v1/agent/actions/npc-templates", "", map[string]any{
+		"agent_id": "alice", "name": "Editor NPC", "home_tile_id": "tile_1_0",
+		"personality": map[string]any{"O": 0.5, "C": 0.5, "E": 0.5, "A": 0.5, "N": 0.5},
+		"talk_tree": map[string]any{
+			"initial": "root", "nodes": map[string]any{
+				"root": map[string]any{
+					"say": "hello",
+					"options": []any{map[string]any{
+						"id": "go", "text": "go", "target": "terminal",
+					}},
+				},
+				"terminal": map[string]any{"say": "bye"},
+			},
+		},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create status=%d body=%s", w.Code, w.Body.String())
+	}
+	var created struct {
+		ID int64 `json:"id"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
+
+	w = doRequest(t, h, http.MethodGet, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor?agent_id=alice", created.ID), "", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("editor load status=%d body=%s", w.Code, w.Body.String())
+	}
+	var loaded struct {
+		Version int64          `json:"version"`
+		BTTree  map[string]any `json:"bt_editor_tree"`
+		Edges   []any          `json:"node_edges"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &loaded); err != nil {
+		t.Fatalf("decode editor load: %v", err)
+	}
+	if loaded.Version != 1 || loaded.BTTree["type"] != "sequence" || len(loaded.Edges) != 1 {
+		t.Fatalf("editor load=%#v", loaded)
+	}
+
+	savedTree := map[string]any{
+		"initial": "root", "nodes": map[string]any{
+			"root": map[string]any{
+				"say": "edited hello",
+				"options": []any{map[string]any{
+					"id": "go", "text": "go", "target": "terminal",
+				}},
+			},
+			"terminal": map[string]any{"say": "bye"},
+		},
+	}
+	w = doRequest(t, h, http.MethodPut, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor", created.ID), "", map[string]any{
+		"agent_id": "alice", "talk_tree": savedTree,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("editor save status=%d body=%s", w.Code, w.Body.String())
+	}
+	var saved struct {
+		Version  int64          `json:"version"`
+		Status   string         `json:"status"`
+		TalkTree map[string]any `json:"talk_tree"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &saved); err != nil {
+		t.Fatalf("decode editor save: %v", err)
+	}
+	if saved.Version != 2 || saved.Status != "draft" {
+		t.Fatalf("editor save=%#v", saved)
+	}
+	nodes := saved.TalkTree["nodes"].(map[string]any)
+	root := nodes["root"].(map[string]any)
+	if root["say"] != "edited hello" {
+		t.Fatalf("saved tree root=%#v", root)
+	}
+}
+
+func TestAgentActions_EditorSaveEnforcesOwnerAndState(t *testing.T) {
+	store := a2asrv.NewMemoryTemplateStore(map[string]bool{"alice": true})
+	svc := newTestServer()
+	srv := NewWithRuntime(svc, "", RuntimeConfig{TemplateStore: store})
+	h := srv.Handler()
+	registerAgentForActions(t, h, "alice")
+	registerAgentForActions(t, h, "bob")
+
+	w := doRequest(t, h, http.MethodPost, "/v1/agent/actions/npc-templates", "", map[string]any{
+		"agent_id": "alice", "name": "Owned NPC", "home_tile_id": "tile_1_0",
+		"personality": map[string]any{"O": 0.5, "C": 0.5, "E": 0.5, "A": 0.5, "N": 0.5},
+		"talk_tree": map[string]any{
+			"initial": "root", "nodes": map[string]any{
+				"root": map[string]any{"say": "hello"},
+			},
+		},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create status=%d body=%s", w.Code, w.Body.String())
+	}
+	var created struct {
+		ID int64 `json:"id"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
+	tree := map[string]any{
+		"initial": "root", "nodes": map[string]any{
+			"root": map[string]any{"say": "hijack"},
+		},
+	}
+	w = doRequest(t, h, http.MethodPut, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor", created.ID), "", map[string]any{
+		"agent_id": "bob", "talk_tree": tree,
+	})
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("foreign save status=%d body=%s", w.Code, w.Body.String())
+	}
+
+	w = doRequest(t, h, http.MethodPost, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/submit", created.ID), "", map[string]any{
+		"agent_id": "alice",
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("submit status=%d body=%s", w.Code, w.Body.String())
+	}
+	w = doRequest(t, h, http.MethodPut, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor", created.ID), "", map[string]any{
+		"agent_id": "alice", "talk_tree": tree,
+	})
+	if w.Code != http.StatusConflict {
+		t.Fatalf("submitted save status=%d body=%s", w.Code, w.Body.String())
 	}
 }
 

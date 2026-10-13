@@ -79,8 +79,9 @@ async function readBody(
   };
 }
 
-function isSecure(): boolean {
-  return process.env.NODE_ENV === 'production';
+function isSecure(req: NextRequest): boolean {
+  const forwardedProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  return forwardedProto === 'https' || req.nextUrl.protocol === 'https:';
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const cookieOpts = {
     httpOnly: true,
-    secure: isSecure(),
+    secure: isSecure(req),
     sameSite: 'lax' as const,
     path: '/',
     maxAge: SESSION_MAX_AGE_SEC,

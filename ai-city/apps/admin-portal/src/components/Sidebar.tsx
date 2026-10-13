@@ -9,6 +9,7 @@ const navItems = [
   { href: '/wallet', label: 'Wallet' },
   { href: '/transactions', label: 'Transactions' },
   { href: '/admin', label: 'Admin Tools' },
+  { href: '/admin/agent-templates', label: 'Agent Review' },
   { href: '/bt-editor', label: 'BT Editor' },
   { href: '/saga-viz', label: 'Saga Viz' },
   { href: '/creator/npc-templates', label: 'Creator Templates' },

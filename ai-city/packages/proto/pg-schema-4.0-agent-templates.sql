@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS a2a_npc_template_draft (
     product_catalog  JSONB NOT NULL DEFAULT '[]'::jsonb,
     status           TEXT NOT NULL DEFAULT 'draft'
                      CHECK (status IN ('draft', 'submitted', 'approved', 'rejected')),
+    version          BIGINT NOT NULL DEFAULT 1,
     validation_trace JSONB NOT NULL DEFAULT '{}'::jsonb,
     simulation_trace JSONB NOT NULL DEFAULT '{}'::jsonb,
     submitted_at     TIMESTAMPTZ,
@@ -41,6 +42,8 @@ CREATE INDEX IF NOT EXISTS idx_a2a_npc_template_draft_agent
 CREATE INDEX IF NOT EXISTS idx_a2a_npc_template_draft_status
     ON a2a_npc_template_draft(status);
 
+ALTER TABLE a2a_npc_template_draft
+    ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
 ALTER TABLE a2a_npc_template_draft
     ADD COLUMN IF NOT EXISTS simulation_trace JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE a2a_npc_template_draft
@@ -68,3 +71,16 @@ CREATE INDEX IF NOT EXISTS idx_a2a_agent_action_audit_agent_time
     ON a2a_agent_action_audit(agent_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_a2a_agent_action_audit_action
     ON a2a_agent_action_audit(action);
+
+CREATE TABLE IF NOT EXISTS a2a_npc_template_revision (
+    id          BIGSERIAL PRIMARY KEY,
+    template_id BIGINT NOT NULL REFERENCES a2a_npc_template_draft(id) ON DELETE CASCADE,
+    version     BIGINT NOT NULL,
+    talk_tree   JSONB NOT NULL,
+    edited_by   VARCHAR(128) NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (template_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_a2a_npc_template_revision_template
+    ON a2a_npc_template_revision(template_id, version DESC);

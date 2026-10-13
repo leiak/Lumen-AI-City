@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"time"
 	"unicode/utf8"
@@ -147,6 +148,29 @@ type npcReviewRequest struct {
 type npcPermissionRequest struct {
 	CanCreateNPC bool `json:"can_create_npc"`
 	DailyQuota   int  `json:"daily_quota"`
+}
+
+type npcEditorSaveRequest struct {
+	AgentID  string         `json:"agent_id"`
+	TalkTree map[string]any `json:"talk_tree"`
+}
+
+type npcEditorResponse struct {
+	ID           int64           `json:"id"`
+	AgentID      string          `json:"agent_id"`
+	Name         string          `json:"name"`
+	Status       string          `json:"status"`
+	Version      int64           `json:"version"`
+	TalkTree     map[string]any  `json:"talk_tree"`
+	BTEditorTree map[string]any  `json:"bt_editor_tree"`
+	NodeEdges    []npcEditorEdge `json:"node_edges"`
+}
+
+type npcEditorEdge struct {
+	NodeID   string `json:"node_id"`
+	OptionID string `json:"option_id"`
+	Text     string `json:"text"`
+	Target   string `json:"target"`
 }
 
 const npcActionTimeout = 5 * time.Second
@@ -456,6 +480,190 @@ func templateDraftResponses(drafts []a2asrv.AgentTemplateDraft) []npcTemplateDra
 		})
 	}
 	return response
+}
+
+func npcEditorProjection(talkTree map[string]any) (map[string]any, []npcEditorEdge) {
+	nodes, _ := talkTree["nodes"].(map[string]any)
+	initial, _ := talkTree["initial"].(string)
+	nodeIDs := make([]string, 0, len(nodes))
+	for nodeID := range nodes {
+		nodeIDs = append(nodeIDs, nodeID)
+	}
+	sort.Strings(nodeIDs)
+
+	nodeActions := make([]map[string]any, 0, len(nodes))
+	edges := []npcEditorEdge{}
+	for _, nodeID := range nodeIDs {
+		node, _ := nodes[nodeID].(map[string]any)
+		say, _ := node["say"].(string)
+		nodeChildren := []map[string]any{{
+			"id": "say_" + nodeID, "type": "action", "name": "say_to_player",
+			"args": []any{say, "neutral"},
+		}}
+		options, _ := node["options"].([]any)
+		optionActions := make([]map[string]any, 0, len(options))
+		for index, optionRaw := range options {
+			option, ok := optionRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+			optionID, _ := option["id"].(string)
+			optionText, _ := option["text"].(string)
+			target, _ := option["target"].(string)
+			if optionID == "" || target == "" {
+				continue
+			}
+			edges = append(edges, npcEditorEdge{
+				NodeID: nodeID, OptionID: optionID,
+				Text: optionText, Target: target,
+			})
+			edgeID := fmt.Sprintf("edge_%d", index)
+			optionActions = append(optionActions, map[string]any{
+				"id": edgeID, "type": "sequence",
+				"children": []map[string]any{
+					{
+						"id": edgeID + "_select", "type": "action", "name": "set_npc_state",
+						"args": []any{"dialogue_option", map[string]any{
+							"node_id": nodeID, "option_id": optionID,
+							"text": optionText, "target": target,
+						}},
+					},
+					{"id": edgeID + "_accept", "type": "action", "name": "noop", "args": []any{}},
+				},
+			})
+		}
+		if len(optionActions) > 0 {
+			nodeChildren = append(nodeChildren, map[string]any{
+				"id": "options_" + nodeID, "type": "selector",
+				"children": optionActions,
+			})
+		}
+		nodeActions = append(nodeActions, map[string]any{
+			"id": "node_" + nodeID, "type": "sequence",
+			"children": nodeChildren,
+		})
+	}
+	if initial != "" {
+		// Keep the runtime entry point visible to the editor as a deterministic
+		// synthetic state write before the graph branches are shown.
+		nodeActions = append([]map[string]any{{
+			"id": "entrypoint", "type": "action", "name": "set_npc_state",
+			"args": []any{"dialogue_entry", initial},
+		}}, nodeActions...)
+	}
+	return map[string]any{
+		"id": "root", "type": "sequence", "children": nodeActions,
+	}, edges
+}
+
+func npcEditorPayload(draft a2asrv.AgentTemplateDraft) npcEditorResponse {
+	editorTree, edges := npcEditorProjection(draft.TalkTree)
+	return npcEditorResponse{
+		ID: draft.ID, AgentID: draft.AgentID, Name: draft.Name,
+		Status: draft.Status, Version: draft.Version,
+		TalkTree: draft.TalkTree, BTEditorTree: editorTree,
+		NodeEdges: edges,
+	}
+}
+
+func (s *Server) loadOwnedDraft(c *gin.Context, templateID int64, agentID string) (a2asrv.AgentTemplateDraft, bool) {
+	traceID := traceIDFromCtx(c)
+	if agentID == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "agent_id required", traceID))
+		return a2asrv.AgentTemplateDraft{}, false
+	}
+	if !s.svc.HasAgent(agentID) || s.templateStore == nil {
+		status := http.StatusForbidden
+		message := "agent not registered"
+		if s.templateStore == nil {
+			status = http.StatusServiceUnavailable
+			message = "template store not configured"
+		}
+		c.JSON(status, errorEnvelope("F_005", message, traceID))
+		return a2asrv.AgentTemplateDraft{}, false
+	}
+	draft, err := s.templateStore.GetDraft(c.Request.Context(), templateID)
+	if err != nil || draft.AgentID != agentID {
+		c.JSON(http.StatusNotFound, errorEnvelope("R_028", "template draft not found", traceID))
+		return a2asrv.AgentTemplateDraft{}, false
+	}
+	return draft, true
+}
+
+// GetNPCTemplateEditor exposes the owner's draft as both the persisted dialogue
+// source and a valid BT projection for the existing BT editor validation.
+func (s *Server) GetNPCTemplateEditor(c *gin.Context) {
+	templateID, ok := parseTemplateID(c)
+	if !ok {
+		return
+	}
+	draft, ok := s.loadOwnedDraft(c, templateID, c.Query("agent_id"))
+	if !ok {
+		return
+	}
+	c.JSON(http.StatusOK, npcEditorPayload(draft))
+}
+
+// SaveNPCTemplateEditor performs an owner-scoped, sandbox-only draft save.
+// It records a monotonic revision and never mutates runtime NPC YAML.
+func (s *Server) SaveNPCTemplateEditor(c *gin.Context) {
+	traceID := traceIDFromCtx(c)
+	templateID, ok := parseTemplateID(c)
+	if !ok {
+		return
+	}
+	var req npcEditorSaveRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.AgentID == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "agent_id required", traceID))
+		return
+	}
+	draft, ok := s.loadOwnedDraft(c, templateID, req.AgentID)
+	if !ok {
+		return
+	}
+	allowed, err := s.templateStore.CanCreateNPC(c.Request.Context(), req.AgentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorEnvelope("F_INTERNAL", err.Error(), traceID))
+		return
+	}
+	if !allowed {
+		_ = s.templateStore.Audit(c.Request.Context(), a2asrv.AgentActionAudit{
+			AgentID: req.AgentID, Action: "npc_template.editor_save",
+			ResourceID: strconv.FormatInt(templateID, 10), Allowed: false,
+			Reason: "permission denied", TraceID: traceID,
+		})
+		c.JSON(http.StatusForbidden, errorEnvelope("F_017", "agent may not edit NPC templates", traceID))
+		return
+	}
+	trace, err := validateNPCDraft(draft.Name, draft.Personality, req.TalkTree, draft.ProductCatalog)
+	if err != nil {
+		_ = s.templateStore.Audit(c.Request.Context(), a2asrv.AgentActionAudit{
+			AgentID: req.AgentID, Action: "npc_template.editor_save",
+			ResourceID: strconv.FormatInt(templateID, 10), Allowed: false,
+			Reason: err.Error(), TraceID: traceID,
+		})
+		c.JSON(http.StatusBadRequest, errorEnvelope("R_019", err.Error(), traceID))
+		return
+	}
+	version, err := s.templateStore.UpdateDraftTalkTree(
+		c.Request.Context(), templateID, req.AgentID, req.TalkTree, trace)
+	if err != nil {
+		if err == a2asrv.ErrTemplateState {
+			c.JSON(http.StatusConflict, errorEnvelope("R_030", "draft cannot be edited", traceID))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, errorEnvelope("F_INTERNAL", err.Error(), traceID))
+		return
+	}
+	draft.TalkTree = req.TalkTree
+	draft.ValidationTrace = trace
+	draft.Version = version
+	_ = s.templateStore.Audit(c.Request.Context(), a2asrv.AgentActionAudit{
+		AgentID: req.AgentID, Action: "npc_template.editor_save",
+		ResourceID: strconv.FormatInt(templateID, 10), Allowed: true, TraceID: traceID,
+		Metadata: map[string]any{"version": version, "nodes": trace["nodes"]},
+	})
+	c.JSON(http.StatusOK, npcEditorPayload(draft))
 }
 
 func (s *Server) SubmitNPCTemplate(c *gin.Context) {

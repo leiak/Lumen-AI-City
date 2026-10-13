@@ -241,7 +241,7 @@ services:
       args:
         # NEXT_PUBLIC_* 是 build-time inline（web/next.config.js 的 env: 块），
         # 且由浏览器端代码消费 → 必须是 host 可达 URL，不能用 compose 服务名。
-        NEXT_PUBLIC_API_GATEWAY: http://localhost:8080
+        NEXT_PUBLIC_API_GATEWAY: "http://localhost:${API_GATEWAY_HOST_PORT:-8080}"
         NEXT_PUBLIC_WS_GATEWAY: ws://localhost:8082/ws
         NEXT_PUBLIC_A2A_GATEWAY: http://localhost:8083
     ports:
@@ -362,6 +362,8 @@ services:
     environment:
       # 必须用 compose 服务名 + 端口（浏览器侧用 localhost:8005，agent-os 同款）
       ADMIN_PORTAL_ECONOMY_URL: "http://economy-service:8005"
+      ADMIN_PORTAL_A2A_URL: "http://a2a-gateway:8083"
+      A2A_OPERATOR_API_KEY: "${OPERATOR_API_KEY:-}"
       # 与 economy-service 共用 ADMIN_TOKEN；二者密钥一致即可通过 Bearer 校验
       # （economy-service/api/v1/admin.py:12 默认 dev-admin-token）
       ADMIN_PORTAL_ADMIN_TOKEN: "${ADMIN_TOKEN:-dev-admin-token}"
