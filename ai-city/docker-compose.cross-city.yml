@@ -44,16 +44,20 @@ services:
     image: redis:7-alpine
     environment:
       REDIS_ACL_PASSWORD_PROBE: "${REDIS_ACL_PASSWORD_PROBE:-acl_probe_dev}"
+      REDIS_ACL_PASSWORD_METRICS: "${REDIS_ACL_PASSWORD_METRICS:-acl_metrics_dev}"
       REDIS_ACL_PASSWORD_ECONOMY: "${REDIS_ACL_PASSWORD_ECONOMY:-economy_dev}"
       REDIS_ACL_PASSWORD_A2A_GATEWAY: "${REDIS_ACL_PASSWORD_A2A_GATEWAY:-a2a_gateway_dev}"
       REDIS_ACL_PASSWORD_WORLD_ENGINE: "${REDIS_ACL_PASSWORD_WORLD_ENGINE:-world_engine_dev}"
       REDIS_ACL_PASSWORD_AGENT_OS: "${REDIS_ACL_PASSWORD_AGENT_OS:-agent_os_dev}"
       REDIS_ACL_PASSWORD_API_GATEWAY: "${REDIS_ACL_PASSWORD_API_GATEWAY:-api_gateway_dev}"
       REDIS_ACL_PASSWORD_WS_GATEWAY: "${REDIS_ACL_PASSWORD_WS_GATEWAY:-ws_gateway_dev}"
+      REDIS_MAXMEMORY: "${REDIS_MAXMEMORY:-512mb}"
+      REDIS_MAXMEMORY_POLICY: "${REDIS_MAXMEMORY_POLICY:-allkeys-lru}"
     command: ["sh", "/usr/local/bin/start-redis.sh"]
     volumes:
       - ./deploy/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
       - ./deploy/redis/start-redis.sh:/usr/local/bin/start-redis.sh:ro
+      - redis_city_b_data:/data
     healthcheck:
       test: ['CMD-SHELL', "redis-cli --user probe --pass \"$$REDIS_ACL_PASSWORD_PROBE\" ping | grep -q PONG"]
       interval: 5s
@@ -139,3 +143,4 @@ services:
 
 volumes:
   pg_city_b_data:
+  redis_city_b_data:

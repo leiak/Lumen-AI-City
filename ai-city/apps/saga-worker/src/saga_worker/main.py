@@ -1,58 +1,71 @@
-# ai-city/apps/saga-worker/src/saga_worker/main.py
-from fastapi import FastAPI
-from kafka import KafkaConsumer
-import json
-import asyncio
-import os
-import time
+from __future__ import annotations
 
-app = FastAPI(title="saga-worker", version="2.0.0")
+import asyncio
+import contextlib
+import logging
+import os
+
+from fastapi import FastAPI
+
+from saga_worker.worker import SagaWorker
+
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper())
 
 WORKER_ID = os.getenv("WORKER_ID", "worker-1")
 KAFKA_BROKERS = os.getenv("KAFKA_BROKERS", "kafka:9092")
-TOPIC = os.getenv("KAFKA_TOPIC", "saga.npc.action")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "saga.steps")
+KAFKA_GROUP = os.getenv("KAFKA_GROUP", "saga-worker-group")
+KAFKA_DLQ_TOPIC = os.getenv("KAFKA_DLQ_TOPIC", "saga.steps.dlq")
+
+app = FastAPI(title="saga-worker", version="2.1.0")
+_worker: SagaWorker | None = None
+_task: asyncio.Task[None] | None = None
 
 
 @app.get("/healthz")
 async def healthz():
-    return {"status": "ok", "worker_id": WORKER_ID}
+    return {"status": "ok", "worker_id": WORKER_ID, "topic": KAFKA_TOPIC}
+
+
+@app.get("/readyz")
+async def readyz():
+    if _worker is None or _worker._consumer is None or _worker._producer is None:
+        return {"status": "not_ready", "topic": KAFKA_TOPIC}
+    task_error = None
+    if _task is not None and _task.done():
+        task_error = repr(_task.exception())
+    return {
+        "status": "not_ready" if task_error else "ready",
+        "worker_id": WORKER_ID,
+        "topic": KAFKA_TOPIC,
+        "group_id": KAFKA_GROUP,
+        "task_error": task_error,
+    }
 
 
 @app.on_event("startup")
 async def startup():
-    asyncio.create_task(consume_loop())
+    global _worker, _task
+    if _worker is None:
+        _worker = SagaWorker(
+            KAFKA_BROKERS,
+            group_id=KAFKA_GROUP,
+            topic=KAFKA_TOPIC,
+            dlq_topic=KAFKA_DLQ_TOPIC,
+        )
+        _task = asyncio.create_task(_worker.start(), name="saga-worker-consumer")
 
 
-async def consume_loop():
-    consumer = await asyncio.to_thread(
-        KafkaConsumer,
-        TOPIC,
-        bootstrap_servers=KAFKA_BROKERS.split(","),
-        group_id=f"saga-worker-{WORKER_ID}",
-        auto_offset_reset="earliest",
-    )
-    while True:
-        msg = await asyncio.to_thread(next, consumer)
-        event = json.loads(msg.value.decode())
-        await process_event(event)
-
-
-async def process_event(event):
-    """幂等：检查 idempotency_key (TODO: Redis SETNX dedup)"""
-    idem_key = f"{event['saga_id']}:{event.get('worker_id', '')}"
-    npc_id = event["npc_id"]
-    action = event["action"]
-    payload = event["payload"]
-    # 失败注入：如果 payload 含 force_fail=true，跳过并 publish 补偿
-    if payload.get("force_fail"):
-        await publish_compensation(event)
-        return
-    # 模拟执行：调 agent-os 或更新 DB
-    await asyncio.sleep(0.5)
-    print(f"worker {WORKER_ID} processed {npc_id} {action}")
-
-
-async def publish_compensation(event):
-    """发布补偿事件"""
-    print(f"worker {WORKER_ID} triggered compensation for {event['saga_id']}")
-    # TODO: publish to saga.compensation topic
+@app.on_event("shutdown")
+async def shutdown():
+    global _worker, _task
+    if _task is not None:
+        _task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await _task
+    if _worker is not None:
+        await _worker.stop()
+    _worker = None
+    _task = None

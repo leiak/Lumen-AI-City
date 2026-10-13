@@ -31,6 +31,18 @@ async def test_kafka_producer_send_calls_underlying():
 
 
 @pytest.mark.asyncio
+async def test_kafka_producer_uses_stable_partition_key():
+    p = KafkaProducer()
+    p._producer = MagicMock()
+    p._producer.send_and_wait = AsyncMock()
+    await p.send("econ.crosscity.gold.credited", {"global_id": "transfer-1"})
+
+    await asyncio.sleep(0)
+    _, kwargs = p._producer.send_and_wait.call_args
+    assert kwargs["key"] == b"transfer-1"
+
+
+@pytest.mark.asyncio
 async def test_kafka_producer_send_returns_immediately_without_blocking():
     """send() is fire-and-forget: caller returns before broker roundtrip."""
     p = KafkaProducer()

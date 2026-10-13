@@ -57,23 +57,45 @@ services:
     image: redis:7-alpine
     environment:
       REDIS_ACL_PASSWORD_PROBE: "${REDIS_ACL_PASSWORD_PROBE:-acl_probe_dev}"
+      REDIS_ACL_PASSWORD_METRICS: "${REDIS_ACL_PASSWORD_METRICS:-acl_metrics_dev}"
       REDIS_ACL_PASSWORD_WORLD_ENGINE: "${REDIS_ACL_PASSWORD_WORLD_ENGINE:-world_engine_dev}"
       REDIS_ACL_PASSWORD_AGENT_OS: "${REDIS_ACL_PASSWORD_AGENT_OS:-agent_os_dev}"
       REDIS_ACL_PASSWORD_API_GATEWAY: "${REDIS_ACL_PASSWORD_API_GATEWAY:-api_gateway_dev}"
       REDIS_ACL_PASSWORD_WS_GATEWAY: "${REDIS_ACL_PASSWORD_WS_GATEWAY:-ws_gateway_dev}"
       REDIS_ACL_PASSWORD_A2A_GATEWAY: "${REDIS_ACL_PASSWORD_A2A_GATEWAY:-a2a_gateway_dev}"
       REDIS_ACL_PASSWORD_ECONOMY: "${REDIS_ACL_PASSWORD_ECONOMY:-economy_dev}"
+      REDIS_MAXMEMORY: "${REDIS_MAXMEMORY:-512mb}"
+      REDIS_MAXMEMORY_POLICY: "${REDIS_MAXMEMORY_POLICY:-allkeys-lru}"
     command: ["sh", "/usr/local/bin/start-redis.sh"]
     ports:
       - '127.0.0.1:16379:6379'
     volumes:
       - ./deploy/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
       - ./deploy/redis/start-redis.sh:/usr/local/bin/start-redis.sh:ro
+      - redis_data:/data
     healthcheck:
       test: ['CMD-SHELL', "redis-cli --user probe --pass \"$$REDIS_ACL_PASSWORD_PROBE\" ping | grep -q PONG"]
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.61.0-alpine
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_USER: probe
+      REDIS_PASSWORD: "${REDIS_ACL_PASSWORD_METRICS:-acl_metrics_dev}"
+    ports:
+      - '127.0.0.1:9121:9121'
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:9121/metrics']
+      interval: 10s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
 
   world-engine:
@@ -345,10 +367,12 @@ services:
       # redis_client.py:8 启动即 PING；wallet/purchase 都走 redis 缓存余额
       redis:
         condition: service_healthy
-      # Kafka producer 启动 best-effort（kafka_producer.py:60 失败不致命），
-      # 用 service_started 即可——和 saga-orchestrator 一致。
+      # Kafka producer 启动 best-effort（kafka_producer.py 内部兜底），
+      # 但 broker 与 canonical topics 必须先就绪。
       kafka:
-        condition: service_started
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     healthcheck:
       # /health 不依赖 PG/Redis 真实活着（app.py:43 仅返 {"status":"ok"}）；
       # 与 agent-os 同款 wget 调用，保证 economy-service 进程在 listen。
@@ -403,12 +427,17 @@ services:
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
+      MINIO_ACCESS_KEY_ID: "${MINIO_ROOT_USER:-minioadmin}"
+      MINIO_SECRET_ACCESS_KEY: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+      MINIO_BUCKET_NAME: "${MILVUS_MINIO_BUCKET:-aicity-milvus}"
     ports:
       - '19530:19530'
       - '9091:9091'
     depends_on:
-      - etcd
-      - minio
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     healthcheck:
       # milvusdb/milvus 镜像基于 Ubuntu，自带 curl（不同于本仓库 alpine busybox）。
       # 9091/healthz 端点由 milvus 内置；返回 body 含 "OK"。
@@ -429,16 +458,30 @@ services:
     volumes:
       - etcd_data:/etcd
     command: ['etcd', '-advertise-client-urls=http://etcd:2379', '-listen-client-urls=http://0.0.0.0:2379', '--data-dir=/etcd']
+    healthcheck:
+      test: ["CMD-SHELL", "ETCDCTL_API=3 etcdctl --endpoints=http://127.0.0.1:2379 endpoint health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
 
   minio:
     image: minio/minio:RELEASE.2023-09-20T20-32-50Z
     container_name: milvus-minio
     environment:
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
     volumes:
       - minio_data:/minio_data
     command: ['minio', 'server', '/minio_data']
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
 
   # 2.0 阶段 1：Kafka 3.7 Kraft 模式（无 Zookeeper）
   kafka:
@@ -456,10 +499,48 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_NUM_PARTITIONS: "3"
+      KAFKA_LOG_RETENTION_HOURS: "168"
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     ports:
       - "9092:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    restart: unless-stopped
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-init
+    entrypoint: ["bash", "/opt/kafka/create-topics.sh"]
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      REPLICATION_FACTOR: "1"
+    volumes:
+      - ./deploy/kafka/create-topics.sh:/opt/kafka/create-topics.sh:ro
+      - ./deploy/kafka/topics.env:/opt/kafka/topics.env:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    container_name: kafka-exporter
+    command:
+      - --kafka.server=kafka:9092
+      - --web.listen-address=:9308
+    ports:
+      - "9308:9308"
+    depends_on:
+      kafka:
+        condition: service_healthy
     restart: unless-stopped
 
   # 2.0 阶段 1：memory-service 骨架（FastAPI + /healthz）。
@@ -514,13 +595,18 @@ services:
       - "9101:9101"
     environment:
       KAFKA_BROKERS: kafka:9092
-      KAFKA_TOPIC: saga.npc.action
+      KAFKA_TOPIC: saga.steps
+      KAFKA_DLQ_TOPIC: saga.steps.dlq
       KAFKA_GROUP: saga-worker-group
       SAGA_ORCHESTRATOR_URL: http://saga-orchestrator:9100
       WORKER_ID: worker-1
     depends_on:
-      - kafka
-      - saga-orchestrator
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      saga-orchestrator:
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9101/healthz', timeout=3)"]
@@ -530,6 +616,8 @@ services:
 
 volumes:
   pg_data:
+  redis_data:
+  kafka_data:
   milvus_data:
   etcd_data:
   minio_data:

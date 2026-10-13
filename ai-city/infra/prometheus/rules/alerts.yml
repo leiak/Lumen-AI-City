@@ -107,3 +107,85 @@ groups:
         annotations:
           summary: "认证或资金操作限流持续触发"
           description: "可能存在暴力尝试或异常客户端"
+
+  - name: aicity-redis-production
+    interval: 30s
+    rules:
+      - alert: Redis_Down
+        expr: up{job="aicity-redis"} == 0
+        for: 1m
+        labels:
+          severity: p0
+        annotations:
+          summary: "Redis exporter 无法抓取"
+          description: "玩家移动、NPC 流式对话或限流链路可能中断"
+
+      - alert: Redis_Memory_Usage_High
+        expr: |
+          redis_memory_used_bytes{job="aicity-redis"}
+            /
+          redis_memory_max_bytes{job="aicity-redis"} > 0.90
+          and redis_memory_max_bytes{job="aicity-redis"} > 0
+        for: 10m
+        labels:
+          severity: p1
+        annotations:
+          summary: "Redis 内存使用超过 90%"
+          description: "缓存和限流状态可能开始被驱逐"
+
+      - alert: Redis_Evictions_Increasing
+        expr: increase(redis_evicted_keys_total{job="aicity-redis"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: p1
+        annotations:
+          summary: "Redis 最近 15 分钟发生 key 驱逐"
+          description: "maxmemory 过低或 TTL 策略异常"
+
+      - alert: Redis_Rejected_Connections
+        expr: increase(redis_rejected_connections_total{job="aicity-redis"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: p1
+        annotations:
+          summary: "Redis 拒绝新连接"
+          description: "连接数或系统资源已达上限"
+
+      - alert: Redis_Slowlog_Growing
+        expr: increase(redis_slowlog_length{job="aicity-redis"}[10m]) > 0
+        for: 5m
+        labels:
+          severity: p2
+        annotations:
+          summary: "Redis slowlog 持续增长"
+          description: "存在超过 10ms 的命令，需检查热 key 或大负载"
+
+  - name: aicity-kafka-production
+    interval: 30s
+    rules:
+      - alert: Kafka_Broker_Down
+        expr: up{job="aicity-kafka"} == 0 or absent(kafka_brokers)
+        for: 1m
+        labels:
+          severity: p0
+        annotations:
+          summary: "Kafka exporter 或 broker 不可用"
+          description: "购买事务、Saga 执行或跨城结算事件可能无法发布"
+
+      - alert: Kafka_Consumer_Lag_High
+        expr: max(kafka_consumergroup_lag{job="aicity-kafka"}) > 1000
+        for: 5m
+        labels:
+          severity: p1
+        annotations:
+          summary: "Kafka consumer lag 超过 1000"
+          description: "Saga 或经济事件消费速度不足，需要扩容消费者"
+
+      - alert: Economy_Kafka_Send_Failed
+        expr: increase(economy_kafka_send_failures_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: p1
+        annotations:
+          summary: "Economy Kafka 发送失败"
+          description: "Topic {{ $labels.topic }} 5 分钟内出现发布失败，请检查 broker 与网络"

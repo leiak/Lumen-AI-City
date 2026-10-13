@@ -79,7 +79,7 @@
 > - **钱包 + 转账 + 交易历史**：append-only `transaction` 表 + balance_after 快照；PG trigger 阻止 UPDATE/DELETE
 > - **NPC 商品目录 + 玩家购买**：`product` 表 + `SELECT FOR UPDATE` 原子扣款 + stock-1
 > - **中央银行发钞 + NPC sink**：asyncio scheduler 6h 跑 1 次发钞 + 反通胀公式 + `MAX_GOLD_PER_PLAYER = 100000` 硬上限（数学上不可能溢出）
-> - **Kafka 3 topic**：`econ.tx.completed` / `econ.gold.emitted` / `econ.gold.sunk`（fire-and-forget）
+> - **Kafka canonical topics**：经济/市场/跨城 8 个事件 + `saga.steps` / `saga.steps.dlq`；生产端 `acks=all` + 幂等重试
 > - **Redis 余额缓存**：`aicity:econ:{user_id}:{gold,token}` TTL 1h + partial-update kwargs 写时双写
 > - **agent-os BT 集成**：`npc_sell_to_player` action（5 → 6 entries）+ dispatcher post-hook（opt-in via env + kwarg）
 > - **新错误码**：R_018~R_026（BAD_REQUEST / INSUFFICIENT_BALANCE / TRANSFER_SELF / OUT_OF_STOCK / NOT_FOUND / ADMIN_REQUIRED）

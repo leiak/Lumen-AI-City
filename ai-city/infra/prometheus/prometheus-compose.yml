@@ -17,3 +17,11 @@ scrape_configs:
   - job_name: aicity-economy-service
     static_configs:
       - targets: ["economy-service:8005"]
+
+  - job_name: aicity-redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  - job_name: aicity-kafka
+    static_configs:
+      - targets: ["kafka-exporter:9308"]
