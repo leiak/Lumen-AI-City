@@ -54,6 +54,13 @@ type AgentActionAudit struct {
 	Metadata   map[string]any
 }
 
+type AgentTemplateRevision struct {
+	Version   int64
+	TalkTree  map[string]any
+	EditedBy  string
+	CreatedAt time.Time
+}
+
 type TemplateStore interface {
 	CanCreateNPC(ctx context.Context, agentID string) (bool, error)
 	CreateDraft(ctx context.Context, draft AgentTemplateDraft) (int64, error)
@@ -66,6 +73,8 @@ type TemplateStore interface {
 	ListDraftsByStatus(ctx context.Context, status string, limit int) ([]AgentTemplateDraft, error)
 	GrantPermission(ctx context.Context, permission AgentTemplatePermission) error
 	Audit(ctx context.Context, audit AgentActionAudit) error
+	ListDraftRevisions(ctx context.Context, id int64, agentID string) ([]AgentTemplateRevision, error)
+	RollbackDraftToVersion(ctx context.Context, id int64, agentID string, version int64) (int64, error)
 }
 
 type TemplatePGStore struct {
@@ -328,6 +337,104 @@ VALUES ($1, $2, $3::jsonb, $4)
 	return version, nil
 }
 
+func (s *TemplatePGStore) ListDraftRevisions(ctx context.Context, id int64, agentID string,
+) ([]AgentTemplateRevision, error) {
+	const q = `
+SELECT r.version, r.talk_tree, r.edited_by, r.created_at
+FROM a2a_npc_template_revision r
+JOIN a2a_npc_template_draft d ON d.id = r.template_id
+WHERE d.id = $1 AND d.agent_id = $2
+ORDER BY r.version DESC
+`
+	rows, err := s.pool.Query(ctx, q, id, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("list template revisions: %w", err)
+	}
+	defer rows.Close()
+
+	revisions := []AgentTemplateRevision{}
+	for rows.Next() {
+		var revision AgentTemplateRevision
+		var talkTree []byte
+		if err := rows.Scan(&revision.Version, &talkTree, &revision.EditedBy,
+			&revision.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan template revision: %w", err)
+		}
+		if err := json.Unmarshal(talkTree, &revision.TalkTree); err != nil {
+			return nil, fmt.Errorf("decode template revision: %w", err)
+		}
+		revisions = append(revisions, revision)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate template revisions: %w", err)
+	}
+	return revisions, nil
+}
+
+func (s *TemplatePGStore) RollbackDraftToVersion(ctx context.Context, id int64,
+	agentID string, version int64) (int64, error) {
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("acquire rollback connection: %w", err)
+	}
+	defer conn.Release()
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin rollback transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var status string
+	err = tx.QueryRow(ctx,
+		`SELECT status FROM a2a_npc_template_draft WHERE id = $1 AND agent_id = $2`,
+		id, agentID).Scan(&status)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return 0, ErrTemplateNotFound
+		}
+		return 0, fmt.Errorf("rollback draft query: %w", err)
+	}
+	if status != "draft" && status != "rejected" {
+		return 0, ErrTemplateState
+	}
+
+	var targetTree []byte
+	err = tx.QueryRow(ctx, `
+SELECT talk_tree FROM a2a_npc_template_revision
+WHERE template_id = $1 AND version = $2
+`, id, version).Scan(&targetTree)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return 0, ErrTemplateNotFound
+		}
+		return 0, fmt.Errorf("rollback revision query: %w", err)
+	}
+
+	var newVersion int64
+	err = tx.QueryRow(ctx, `
+UPDATE a2a_npc_template_draft
+SET talk_tree = $3::jsonb, validation_trace = '{}'::jsonb,
+    version = version + 1, updated_at = NOW()
+WHERE id = $1 AND agent_id = $2 AND status IN ('draft', 'rejected')
+RETURNING version
+`, id, agentID, targetTree).Scan(&newVersion)
+	if err != nil {
+		return 0, fmt.Errorf("rollback template draft: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+INSERT INTO a2a_npc_template_revision
+    (template_id, version, talk_tree, edited_by)
+VALUES ($1, $2, $3::jsonb, $4)
+`, id, newVersion, targetTree, agentID); err != nil {
+		return 0, fmt.Errorf("insert rollback revision: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit rollback: %w", err)
+	}
+	return newVersion, nil
+}
+
 func (s *TemplatePGStore) SubmitDraft(ctx context.Context, id int64, agentID string) error {
 	const q = `
 UPDATE a2a_npc_template_draft
@@ -579,6 +686,44 @@ func (s *MemoryTemplateStore) ListDraftsByStatus(_ context.Context, status strin
 func (s *MemoryTemplateStore) GrantPermission(_ context.Context, permission AgentTemplatePermission) error {
 	s.permissions[permission.AgentID] = permission.CanCreateNPC
 	return nil
+}
+
+func (s *MemoryTemplateStore) ListDraftRevisions(_ context.Context, id int64, agentID string,
+) ([]AgentTemplateRevision, error) {
+	for _, draft := range s.drafts {
+		if draft.ID == id && draft.AgentID == agentID {
+			revisions := []AgentTemplateRevision{}
+			for version := draft.Version; version >= 1; version-- {
+				revisions = append(revisions, AgentTemplateRevision{
+					Version:   version,
+					TalkTree:  draft.TalkTree,
+					EditedBy:  agentID,
+					CreatedAt: draft.CreatedAt,
+				})
+			}
+			return revisions, nil
+		}
+	}
+	return nil, ErrTemplateNotFound
+}
+
+func (s *MemoryTemplateStore) RollbackDraftToVersion(_ context.Context, id int64,
+	agentID string, version int64) (int64, error) {
+	for index, draft := range s.drafts {
+		if draft.ID != id || draft.AgentID != agentID {
+			continue
+		}
+		if draft.Status != "draft" && draft.Status != "rejected" {
+			return 0, ErrTemplateState
+		}
+		if version < 1 || version > draft.Version {
+			return 0, ErrTemplateNotFound
+		}
+		s.drafts[index].ValidationTrace = map[string]any{}
+		s.drafts[index].Version = draft.Version + 1
+		return s.drafts[index].Version, nil
+	}
+	return 0, ErrTemplateNotFound
 }
 
 func (s *MemoryTemplateStore) Audit(_ context.Context, audit AgentActionAudit) error {

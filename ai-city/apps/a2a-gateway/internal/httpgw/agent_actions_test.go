@@ -268,20 +268,33 @@ func TestAgentActions_EditorLoadAndSaveRevision(t *testing.T) {
 	if loaded.Version != 1 || loaded.BTTree["type"] != "sequence" || len(loaded.Edges) != 1 {
 		t.Fatalf("editor load=%#v", loaded)
 	}
+	btRoot := loaded.BTTree
+	btChildren := btRoot["children"].([]any)
+	btNode := btChildren[1].(map[string]any)
+	btNodeChildren := btNode["children"].([]any)
+	btSay := btNodeChildren[0].(map[string]any)
+	btSayArgs := btSay["args"].([]any)
+	btSayArgs[0] = "edited from bt"
 
-	savedTree := map[string]any{
-		"initial": "root", "nodes": map[string]any{
-			"root": map[string]any{
-				"say": "edited hello",
-				"options": []any{map[string]any{
-					"id": "go", "text": "go", "target": "terminal",
-				}},
-			},
-			"terminal": map[string]any{"say": "bye"},
-		},
+	w = doRequest(t, h, http.MethodPost, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor/validate", created.ID), "", map[string]any{
+		"agent_id": "alice", "bt_editor_tree": btRoot,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("editor validate status=%d body=%s", w.Code, w.Body.String())
 	}
+	var validated struct {
+		Source string `json:"source"`
+		Valid  bool   `json:"valid"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &validated); err != nil {
+		t.Fatalf("decode editor validate: %v", err)
+	}
+	if !validated.Valid || validated.Source != "bt_editor_tree" {
+		t.Fatalf("editor validate=%#v", validated)
+	}
+
 	w = doRequest(t, h, http.MethodPut, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor", created.ID), "", map[string]any{
-		"agent_id": "alice", "talk_tree": savedTree,
+		"agent_id": "alice", "bt_editor_tree": btRoot,
 	})
 	if w.Code != http.StatusOK {
 		t.Fatalf("editor save status=%d body=%s", w.Code, w.Body.String())
@@ -299,8 +312,199 @@ func TestAgentActions_EditorLoadAndSaveRevision(t *testing.T) {
 	}
 	nodes := saved.TalkTree["nodes"].(map[string]any)
 	root := nodes["root"].(map[string]any)
-	if root["say"] != "edited hello" {
+	if root["say"] != "edited from bt" {
 		t.Fatalf("saved tree root=%#v", root)
+	}
+}
+
+func TestAgentActions_EditorValidateRejectsCycle(t *testing.T) {
+	store := a2asrv.NewMemoryTemplateStore(map[string]bool{"alice": true})
+	svc := newTestServer()
+	srv := NewWithRuntime(svc, "", RuntimeConfig{TemplateStore: store})
+	h := srv.Handler()
+	registerAgentForActions(t, h, "alice")
+
+	w := doRequest(t, h, http.MethodPost, "/v1/agent/actions/npc-templates", "", map[string]any{
+		"agent_id": "alice", "name": "Cycle Editor NPC", "home_tile_id": "tile_1_0",
+		"personality": map[string]any{"O": 0.5, "C": 0.5, "E": 0.5, "A": 0.5, "N": 0.5},
+		"talk_tree": map[string]any{
+			"initial": "root", "nodes": map[string]any{
+				"root": map[string]any{"say": "hello"},
+			},
+		},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create status=%d body=%s", w.Code, w.Body.String())
+	}
+	var created struct {
+		ID int64 `json:"id"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
+	cycleTree := map[string]any{
+		"initial": "root", "nodes": map[string]any{
+			"root": map[string]any{
+				"say": "loop",
+				"options": []any{map[string]any{
+					"id": "loop", "text": "loop", "target": "root",
+				}},
+			},
+		},
+	}
+	w = doRequest(t, h, http.MethodPost, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor/validate", created.ID), "", map[string]any{
+		"agent_id": "alice", "talk_tree": cycleTree,
+	})
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "cycle") {
+		t.Fatalf("validate cycle status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgentActions_EditorRunDraftAndUnsavedTree(t *testing.T) {
+	store := a2asrv.NewMemoryTemplateStore(map[string]bool{"alice": true})
+	svc := newTestServer()
+	srv := NewWithRuntime(svc, "", RuntimeConfig{TemplateStore: store})
+	h := srv.Handler()
+	registerAgentForActions(t, h, "alice")
+
+	w := doRequest(t, h, http.MethodPost, "/v1/agent/actions/npc-templates", "", map[string]any{
+		"agent_id": "alice", "name": "Run Editor NPC", "home_tile_id": "tile_1_0",
+		"personality": map[string]any{"O": 0.5, "C": 0.5, "E": 0.5, "A": 0.5, "N": 0.5},
+		"talk_tree": map[string]any{
+			"initial": "root", "nodes": map[string]any{
+				"root": map[string]any{
+					"say": "hello",
+					"options": []any{map[string]any{
+						"id": "go", "text": "go", "target": "terminal",
+					}},
+				},
+				"terminal": map[string]any{"say": "bye"},
+			},
+		},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create status=%d body=%s", w.Code, w.Body.String())
+	}
+	var created struct {
+		ID int64 `json:"id"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
+
+	w = doRequest(t, h, http.MethodGet, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor?agent_id=alice", created.ID), "", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("editor load status=%d body=%s", w.Code, w.Body.String())
+	}
+	var loaded struct {
+		BTTree map[string]any `json:"bt_editor_tree"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &loaded)
+	btChildren := loaded.BTTree["children"].([]any)
+	btNode := btChildren[1].(map[string]any)
+	btNodeChildren := btNode["children"].([]any)
+	btSay := btNodeChildren[0].(map[string]any)
+	btSayArgs := btSay["args"].([]any)
+	btSayArgs[0] = "unsaved run"
+
+	w = doRequest(t, h, http.MethodPost, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor/run", created.ID), "", map[string]any{
+		"agent_id": "alice", "bt_editor_tree": loaded.BTTree, "choices": []string{"go"},
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("unsaved run status=%d body=%s", w.Code, w.Body.String())
+	}
+	var run struct {
+		Sandbox bool   `json:"sandbox"`
+		Status  string `json:"status"`
+		Steps   []struct {
+			Say string `json:"say"`
+		} `json:"steps"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &run); err != nil {
+		t.Fatalf("decode unsaved run: %v", err)
+	}
+	if !run.Sandbox || run.Status != "completed" || run.Steps[0].Say != "unsaved run" {
+		t.Fatalf("unsaved run=%#v", run)
+	}
+
+	w = doRequest(t, h, http.MethodPost, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor/run", created.ID), "", map[string]any{
+		"agent_id": "alice", "choices": []string{"go"},
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("draft run status=%d body=%s", w.Code, w.Body.String())
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &run); err != nil {
+		t.Fatalf("decode draft run: %v", err)
+	}
+	if !run.Sandbox || run.Steps[0].Say != "hello" {
+		t.Fatalf("draft run=%#v", run)
+	}
+}
+
+func TestAgentActions_EditorListAndRollbackRevisions(t *testing.T) {
+	store := a2asrv.NewMemoryTemplateStore(map[string]bool{"alice": true})
+	svc := newTestServer()
+	srv := NewWithRuntime(svc, "", RuntimeConfig{TemplateStore: store})
+	h := srv.Handler()
+	registerAgentForActions(t, h, "alice")
+
+	w := doRequest(t, h, http.MethodPost, "/v1/agent/actions/npc-templates", "", map[string]any{
+		"agent_id": "alice", "name": "Revision NPC", "home_tile_id": "tile_1_0",
+		"personality": map[string]any{"O": 0.5, "C": 0.5, "E": 0.5, "A": 0.5, "N": 0.5},
+		"talk_tree": map[string]any{
+			"initial": "root", "nodes": map[string]any{
+				"root": map[string]any{"say": "hello"},
+			},
+		},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create status=%d body=%s", w.Code, w.Body.String())
+	}
+	var created struct {
+		ID int64 `json:"id"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
+
+	for _, say := range []string{"v2", "v3"} {
+		tree := map[string]any{
+			"initial": "root", "nodes": map[string]any{
+				"root": map[string]any{"say": say},
+			},
+		}
+		w = doRequest(t, h, http.MethodPut, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor", created.ID), "", map[string]any{
+			"agent_id": "alice", "talk_tree": tree,
+		})
+		if w.Code != http.StatusOK {
+			t.Fatalf("save %s status=%d body=%s", say, w.Code, w.Body.String())
+		}
+	}
+
+	w = doRequest(t, h, http.MethodGet, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor/revisions?agent_id=alice", created.ID), "", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list revisions status=%d body=%s", w.Code, w.Body.String())
+	}
+	var revisions struct {
+		Items []struct {
+			Version int64 `json:"version"`
+		} `json:"revisions"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &revisions); err != nil {
+		t.Fatalf("decode revisions: %v", err)
+	}
+	if len(revisions.Items) != 3 {
+		t.Fatalf("revisions=%#v", revisions)
+	}
+
+	w = doRequest(t, h, http.MethodPost, fmt.Sprintf("/v1/agent/actions/npc-templates/%d/editor/rollback", created.ID), "", map[string]any{
+		"agent_id": "alice", "version": 1,
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("rollback status=%d body=%s", w.Code, w.Body.String())
+	}
+	var rollback struct {
+		Version int64 `json:"version"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &rollback); err != nil {
+		t.Fatalf("decode rollback: %v", err)
+	}
+	if rollback.Version != 4 {
+		t.Fatalf("rollback version=%#v", rollback)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -151,8 +152,20 @@ type npcPermissionRequest struct {
 }
 
 type npcEditorSaveRequest struct {
-	AgentID  string         `json:"agent_id"`
-	TalkTree map[string]any `json:"talk_tree"`
+	AgentID      string         `json:"agent_id"`
+	TalkTree     map[string]any `json:"talk_tree"`
+	BTEditorTree map[string]any `json:"bt_editor_tree"`
+}
+
+type npcEditorRunRequest struct {
+	npcEditorSaveRequest
+	StartNode string   `json:"start_node"`
+	Choices   []string `json:"choices"`
+}
+
+type npcEditorRollbackRequest struct {
+	AgentID string `json:"agent_id"`
+	Version int64  `json:"version"`
 }
 
 type npcEditorResponse struct {
@@ -566,6 +579,127 @@ func npcEditorPayload(draft a2asrv.AgentTemplateDraft) npcEditorResponse {
 	}
 }
 
+func decodeNPCProjection(root map[string]any) (map[string]any, error) {
+	if rootType, _ := root["type"].(string); rootType != "sequence" {
+		return nil, fmt.Errorf("bt_editor_tree.root must be a sequence")
+	}
+	if rootID, _ := root["id"].(string); rootID != "root" {
+		return nil, fmt.Errorf("bt_editor_tree.root id must be root")
+	}
+	children, _ := root["children"].([]any)
+	if len(children) == 0 {
+		return nil, fmt.Errorf("bt_editor_tree.root children is required")
+	}
+	entrypoint, ok := children[0].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("bt_editor_tree entrypoint must be an object")
+	}
+	entrypointName, _ := entrypoint["name"].(string)
+	if entrypointName != "set_npc_state" {
+		return nil, fmt.Errorf("bt_editor_tree entrypoint is invalid")
+	}
+	entrypointArgs, _ := entrypoint["args"].([]any)
+	if len(entrypointArgs) != 2 || entrypointArgs[0] != "dialogue_entry" {
+		return nil, fmt.Errorf("bt_editor_tree entrypoint is invalid")
+	}
+	initial, ok := entrypointArgs[1].(string)
+	if !ok || initial == "" {
+		return nil, fmt.Errorf("bt_editor_tree entrypoint is invalid")
+	}
+
+	nodes := map[string]any{}
+	for _, childRaw := range children[1:] {
+		child, ok := childRaw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("bt_editor_tree node must be an object")
+		}
+		if childType, _ := child["type"].(string); childType != "sequence" {
+			return nil, fmt.Errorf("bt_editor_tree node must be a sequence")
+		}
+		childID, _ := child["id"].(string)
+		nodeID, found := strings.CutPrefix(childID, "node_")
+		if !found || nodeID == "" || nodes[nodeID] != nil {
+			return nil, fmt.Errorf("bt_editor_tree node id is invalid or duplicated: %s", childID)
+		}
+		nodeChildren, _ := child["children"].([]any)
+		if len(nodeChildren) == 0 {
+			return nil, fmt.Errorf("bt_editor_tree node %s is invalid", nodeID)
+		}
+		sayAction, ok := nodeChildren[0].(map[string]any)
+		if !ok || sayAction["name"] != "say_to_player" {
+			return nil, fmt.Errorf("bt_editor_tree node %s must start with say_to_player", nodeID)
+		}
+		sayArgs, _ := sayAction["args"].([]any)
+		say, _ := sayArgs[0].(string)
+		if say == "" {
+			return nil, fmt.Errorf("bt_editor_tree node %s.say is required", nodeID)
+		}
+
+		options := []any{}
+		if len(nodeChildren) > 1 {
+			optionsSelector, ok := nodeChildren[1].(map[string]any)
+			if !ok || optionsSelector["type"] != "selector" {
+				return nil, fmt.Errorf("bt_editor_tree node %s options are invalid", nodeID)
+			}
+			optionChildren, _ := optionsSelector["children"].([]any)
+			for _, optionChildRaw := range optionChildren {
+				optionChild, ok := optionChildRaw.(map[string]any)
+				if !ok || optionChild["type"] != "sequence" {
+					return nil, fmt.Errorf("bt_editor_tree node %s option is invalid", nodeID)
+				}
+				optionActions, _ := optionChild["children"].([]any)
+				if len(optionActions) != 2 {
+					return nil, fmt.Errorf("bt_editor_tree node %s option is invalid", nodeID)
+				}
+				selectAction, ok := optionActions[0].(map[string]any)
+				if !ok || selectAction["name"] != "set_npc_state" {
+					return nil, fmt.Errorf("bt_editor_tree node %s option is invalid", nodeID)
+				}
+				selectArgs, _ := selectAction["args"].([]any)
+				if len(selectArgs) != 2 || selectArgs[0] != "dialogue_option" {
+					return nil, fmt.Errorf("bt_editor_tree node %s option is invalid", nodeID)
+				}
+				optionData, ok := selectArgs[1].(map[string]any)
+				if !ok {
+					return nil, fmt.Errorf("bt_editor_tree node %s option data is invalid", nodeID)
+				}
+				optionID, _ := optionData["option_id"].(string)
+				optionText, _ := optionData["text"].(string)
+				target, _ := optionData["target"].(string)
+				if optionID == "" || optionText == "" || target == "" {
+					return nil, fmt.Errorf("bt_editor_tree node %s option is incomplete", nodeID)
+				}
+				acceptAction, ok := optionActions[1].(map[string]any)
+				if !ok || acceptAction["name"] != "noop" {
+					return nil, fmt.Errorf("bt_editor_tree node %s option is invalid", nodeID)
+				}
+				options = append(options, map[string]any{
+					"id": optionID, "text": optionText, "target": target,
+				})
+			}
+		}
+		node := map[string]any{"say": say}
+		if len(options) > 0 {
+			node["options"] = options
+		}
+		nodes[nodeID] = node
+	}
+	return map[string]any{"initial": initial, "nodes": nodes}, nil
+}
+
+func (req npcEditorSaveRequest) talkTreeForSave() (map[string]any, error) {
+	if req.TalkTree != nil && req.BTEditorTree != nil {
+		return nil, fmt.Errorf("provide either talk_tree or bt_editor_tree, not both")
+	}
+	if req.TalkTree != nil {
+		return req.TalkTree, nil
+	}
+	if req.BTEditorTree != nil {
+		return decodeNPCProjection(req.BTEditorTree)
+	}
+	return nil, fmt.Errorf("talk_tree is required")
+}
+
 func (s *Server) loadOwnedDraft(c *gin.Context, templateID int64, agentID string) (a2asrv.AgentTemplateDraft, bool) {
 	traceID := traceIDFromCtx(c)
 	if agentID == "" {
@@ -635,7 +769,12 @@ func (s *Server) SaveNPCTemplateEditor(c *gin.Context) {
 		c.JSON(http.StatusForbidden, errorEnvelope("F_017", "agent may not edit NPC templates", traceID))
 		return
 	}
-	trace, err := validateNPCDraft(draft.Name, draft.Personality, req.TalkTree, draft.ProductCatalog)
+	talkTree, err := req.talkTreeForSave()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, errorEnvelope("R_019", err.Error(), traceID))
+		return
+	}
+	trace, err := validateNPCDraft(draft.Name, draft.Personality, talkTree, draft.ProductCatalog)
 	if err != nil {
 		_ = s.templateStore.Audit(c.Request.Context(), a2asrv.AgentActionAudit{
 			AgentID: req.AgentID, Action: "npc_template.editor_save",
@@ -646,7 +785,7 @@ func (s *Server) SaveNPCTemplateEditor(c *gin.Context) {
 		return
 	}
 	version, err := s.templateStore.UpdateDraftTalkTree(
-		c.Request.Context(), templateID, req.AgentID, req.TalkTree, trace)
+		c.Request.Context(), templateID, req.AgentID, talkTree, trace)
 	if err != nil {
 		if err == a2asrv.ErrTemplateState {
 			c.JSON(http.StatusConflict, errorEnvelope("R_030", "draft cannot be edited", traceID))
@@ -655,13 +794,161 @@ func (s *Server) SaveNPCTemplateEditor(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, errorEnvelope("F_INTERNAL", err.Error(), traceID))
 		return
 	}
-	draft.TalkTree = req.TalkTree
+	draft.TalkTree = talkTree
 	draft.ValidationTrace = trace
 	draft.Version = version
 	_ = s.templateStore.Audit(c.Request.Context(), a2asrv.AgentActionAudit{
 		AgentID: req.AgentID, Action: "npc_template.editor_save",
 		ResourceID: strconv.FormatInt(templateID, 10), Allowed: true, TraceID: traceID,
 		Metadata: map[string]any{"version": version, "nodes": trace["nodes"]},
+	})
+	c.JSON(http.StatusOK, npcEditorPayload(draft))
+}
+
+// ValidateNPCTemplateEditor dry-runs the editor payload without persisting it.
+func (s *Server) ValidateNPCTemplateEditor(c *gin.Context) {
+	traceID := traceIDFromCtx(c)
+	templateID, ok := parseTemplateID(c)
+	if !ok {
+		return
+	}
+	var req npcEditorSaveRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.AgentID == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "agent_id required", traceID))
+		return
+	}
+	draft, ok := s.loadOwnedDraft(c, templateID, req.AgentID)
+	if !ok {
+		return
+	}
+	talkTree, err := req.talkTreeForSave()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, errorEnvelope("R_019", err.Error(), traceID))
+		return
+	}
+	trace, err := validateNPCDraft(draft.Name, draft.Personality, talkTree, draft.ProductCatalog)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, errorEnvelope("R_019", err.Error(), traceID))
+		return
+	}
+	source := "talk_tree"
+	if req.BTEditorTree != nil {
+		source = "bt_editor_tree"
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id": templateID, "valid": true, "source": source,
+		"validation_trace": trace,
+	})
+}
+
+// RunNPCTemplateEditor executes a stateless dry-run for the draft or an
+// unsaved editor payload. It never writes simulation state or runtime data.
+func (s *Server) RunNPCTemplateEditor(c *gin.Context) {
+	traceID := traceIDFromCtx(c)
+	templateID, ok := parseTemplateID(c)
+	if !ok {
+		return
+	}
+	var req npcEditorRunRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.AgentID == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "agent_id required", traceID))
+		return
+	}
+	draft, ok := s.loadOwnedDraft(c, templateID, req.AgentID)
+	if !ok {
+		return
+	}
+	source := "draft"
+	talkTree := draft.TalkTree
+	if req.TalkTree != nil || req.BTEditorTree != nil {
+		var err error
+		talkTree, err = req.talkTreeForSave()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, errorEnvelope("R_019", err.Error(), traceID))
+			return
+		}
+		if req.BTEditorTree != nil {
+			source = "bt_editor_tree"
+		} else {
+			source = "talk_tree"
+		}
+	}
+	if _, err := validateNPCDraft(draft.Name, draft.Personality, talkTree, draft.ProductCatalog); err != nil {
+		c.JSON(http.StatusBadRequest, errorEnvelope("R_019", err.Error(), traceID))
+		return
+	}
+	steps, status, simulationError, err := simulateNPCTalkTree(talkTree, req.StartNode, req.Choices)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, errorEnvelope("R_019", err.Error(), traceID))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id": templateID, "sandbox": true, "source": source,
+		"status": status, "steps": steps, "error": simulationError,
+	})
+}
+
+func (s *Server) ListNPCTemplateRevisions(c *gin.Context) {
+	templateID, ok := parseTemplateID(c)
+	if !ok {
+		return
+	}
+	if _, ok := s.loadOwnedDraft(c, templateID, c.Query("agent_id")); !ok {
+		return
+	}
+	revisions, err := s.templateStore.ListDraftRevisions(
+		c.Request.Context(), templateID, c.Query("agent_id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorEnvelope("F_INTERNAL", err.Error(), traceIDFromCtx(c)))
+		return
+	}
+	response := make([]map[string]any, 0, len(revisions))
+	for _, revision := range revisions {
+		response = append(response, map[string]any{
+			"version": revision.Version, "talk_tree": revision.TalkTree,
+			"edited_by": revision.EditedBy, "created_at": revision.CreatedAt,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"revisions": response})
+}
+
+func (s *Server) RollbackNPCTemplateRevision(c *gin.Context) {
+	traceID := traceIDFromCtx(c)
+	templateID, ok := parseTemplateID(c)
+	if !ok {
+		return
+	}
+	var req npcEditorRollbackRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.AgentID == "" || req.Version < 1 {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "agent_id and version required", traceID))
+		return
+	}
+	if _, ok := s.loadOwnedDraft(c, templateID, req.AgentID); !ok {
+		return
+	}
+	version, err := s.templateStore.RollbackDraftToVersion(
+		c.Request.Context(), templateID, req.AgentID, req.Version)
+	if err != nil {
+		if err == a2asrv.ErrTemplateState {
+			c.JSON(http.StatusConflict, errorEnvelope("R_030", "draft cannot be rolled back", traceID))
+			return
+		}
+		if err == a2asrv.ErrTemplateNotFound {
+			c.JSON(http.StatusNotFound, errorEnvelope("R_028", "revision not found", traceID))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, errorEnvelope("F_INTERNAL", err.Error(), traceID))
+		return
+	}
+	draft, err := s.templateStore.GetDraft(c.Request.Context(), templateID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorEnvelope("F_INTERNAL", err.Error(), traceID))
+		return
+	}
+	_ = s.templateStore.Audit(c.Request.Context(), a2asrv.AgentActionAudit{
+		AgentID: req.AgentID, Action: "npc_template.rollback",
+		ResourceID: strconv.FormatInt(templateID, 10), Allowed: true, TraceID: traceID,
+		Metadata: map[string]any{"from_version": req.Version, "version": version},
 	})
 	c.JSON(http.StatusOK, npcEditorPayload(draft))
 }
@@ -738,65 +1025,11 @@ func (s *Server) SimulateNPCTemplate(c *gin.Context) {
 		c.JSON(http.StatusNotFound, errorEnvelope("R_028", "template draft not found", traceID))
 		return
 	}
-	nodesRaw, nodesOK := draft.TalkTree["nodes"].(map[string]any)
-	initialRaw, initialOK := draft.TalkTree["initial"].(string)
-	if !nodesOK || !initialOK || initialRaw == "" {
+	steps, simulationStatus, simulationError, err := simulateNPCTalkTree(
+		draft.TalkTree, req.StartNode, req.Choices)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, errorEnvelope("R_019", "draft talk tree is invalid", traceID))
 		return
-	}
-
-	current := req.StartNode
-	if current == "" {
-		current = initialRaw
-	}
-	steps := []npcSimulationStep{}
-	simulationStatus := "completed"
-	simulationError := ""
-	choiceIndex := 0
-	for index := 0; index < 20; index++ {
-		nodeRaw, nodeOK := nodesRaw[current].(map[string]any)
-		if !nodeOK {
-			simulationStatus = "failed"
-			simulationError = "node not found: " + current
-			break
-		}
-		say, _ := nodeRaw["say"].(string)
-		options, _ := nodeRaw["options"].([]any)
-		if len(options) == 0 {
-			steps = append(steps, npcSimulationStep{Index: index, NodeID: current, Say: say})
-			break
-		}
-		if choiceIndex >= len(req.Choices) {
-			simulationStatus = "waiting_choice"
-			steps = append(steps, npcSimulationStep{Index: index, NodeID: current, Say: say})
-			break
-		}
-		selected := req.Choices[choiceIndex]
-		choiceIndex++
-		target := ""
-		found := false
-		for _, optionRaw := range options {
-			option, optionOK := optionRaw.(map[string]any)
-			if !optionOK {
-				continue
-			}
-			optionID, _ := option["id"].(string)
-			if optionID == selected {
-				target, _ = option["target"].(string)
-				found = true
-				break
-			}
-		}
-		if !found || target == "" {
-			simulationStatus = "failed"
-			simulationError = "invalid option: " + selected
-			break
-		}
-		steps = append(steps, npcSimulationStep{
-			Index: index, NodeID: current, Say: say,
-			SelectedOption: selected, TargetNodeID: target,
-		})
-		current = target
 	}
 
 	trace := map[string]any{
@@ -1081,4 +1314,68 @@ func validateNPCDraft(name string, personality map[string]float64,
 		"valid": true, "nodes": len(nodes), "options": optionCount,
 		"initial": initial, "depth": treeDepth,
 	}, nil
+}
+
+func simulateNPCTalkTree(talkTree map[string]any, startNode string, choices []string,
+) ([]npcSimulationStep, string, string, error) {
+	nodesRaw, nodesOK := talkTree["nodes"].(map[string]any)
+	initialRaw, initialOK := talkTree["initial"].(string)
+	if !nodesOK || !initialOK || initialRaw == "" {
+		return nil, "", "invalid_talk_tree", fmt.Errorf("talk tree is invalid")
+	}
+
+	current := startNode
+	if current == "" {
+		current = initialRaw
+	}
+	steps := []npcSimulationStep{}
+	status := "completed"
+	simulationError := ""
+	choiceIndex := 0
+	for index := 0; index < 20; index++ {
+		nodeRaw, nodeOK := nodesRaw[current].(map[string]any)
+		if !nodeOK {
+			status = "failed"
+			simulationError = "node not found: " + current
+			break
+		}
+		say, _ := nodeRaw["say"].(string)
+		options, _ := nodeRaw["options"].([]any)
+		if len(options) == 0 {
+			steps = append(steps, npcSimulationStep{Index: index, NodeID: current, Say: say})
+			break
+		}
+		if choiceIndex >= len(choices) {
+			status = "waiting_choice"
+			steps = append(steps, npcSimulationStep{Index: index, NodeID: current, Say: say})
+			break
+		}
+		selected := choices[choiceIndex]
+		choiceIndex++
+		target := ""
+		found := false
+		for _, optionRaw := range options {
+			option, optionOK := optionRaw.(map[string]any)
+			if !optionOK {
+				continue
+			}
+			optionID, _ := option["id"].(string)
+			if optionID == selected {
+				target, _ = option["target"].(string)
+				found = true
+				break
+			}
+		}
+		if !found || target == "" {
+			status = "failed"
+			simulationError = "invalid option: " + selected
+			break
+		}
+		steps = append(steps, npcSimulationStep{
+			Index: index, NodeID: current, Say: say,
+			SelectedOption: selected, TargetNodeID: target,
+		})
+		current = target
+	}
+	return steps, status, simulationError, nil
 }

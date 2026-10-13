@@ -58,8 +58,8 @@ test.describe('Saga viz page', () => {
     await expect(page.getByTestId('saga-node-worker_a · say')).toBeVisible();
     await expect(page.getByTestId('saga-node-worker_a · revert_say')).toBeVisible();
 
-    // Verify metadata panel appears
-    await expect(page.getByText('Saga 元数据')).toBeVisible();
-    await expect(page.getByText('节点数: 8')).toBeVisible();
+    // Verify the editor became active and the loaded graph passes validation
+    await expect(page.getByTestId('saga-validation-state')).toHaveText('校验通过');
+    await expect(page.getByRole('button', { name: '导出 YAML' })).toBeEnabled();
   });
 });

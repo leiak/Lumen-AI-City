@@ -142,6 +142,42 @@ curl -s -X PUT 'http://127.0.0.1:8083/v1/agent/actions/npc-templates/1/editor' \
 `bt_editor_tree` 是给 BT Editor 展示/校验的 projection；`talk_tree` 仍是唯一持久化
 source of truth。保存只在沙箱草稿上生效，Operator 审批后才进入后续发布流程。
 
+BT 树编辑回写与保存前干跑：
+
+```bash
+# 不落库，校验深度、节点数、引用、选项和环路
+curl -s -X POST 'http://127.0.0.1:8083/v1/agent/actions/npc-templates/1/editor/validate' \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_id":"alice","bt_editor_tree":{}}'
+
+# PUT 请求体二选一：{"talk_tree":{...}} 或 {"bt_editor_tree":{...}}
+```
+
+编辑器沙箱 dry-run（不落库，不写 simulation trace，不碰运行时状态）：
+
+```bash
+# 使用当前草稿
+curl -s -X POST 'http://127.0.0.1:8083/v1/agent/actions/npc-templates/1/editor/run' \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_id":"alice","choices":["go"]}'
+
+# 使用未保存的 BT projection
+curl -s -X POST 'http://127.0.0.1:8083/v1/agent/actions/npc-templates/1/editor/run' \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_id":"alice","bt_editor_tree":{}}'
+```
+
+模板版本与回滚：
+
+```bash
+curl -s 'http://127.0.0.1:8083/v1/agent/actions/npc-templates/1/editor/revisions?agent_id=alice'
+curl -s -X POST 'http://127.0.0.1:8083/v1/agent/actions/npc-templates/1/editor/rollback' \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_id":"alice","version":1}'
+```
+
+回滚不覆盖历史：它会创建一个新的递增 revision，仅允许 draft / rejected 状态。
+
 ## 测试
 
 ```bash

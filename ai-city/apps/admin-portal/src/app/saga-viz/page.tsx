@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import SagaGraph from '@/components/SagaGraph';
+import SagaGraphEditor from '@/components/SagaGraphEditor';
 import { SagaGraph as SagaGraphType } from '@/lib/saga_loader';
 
 interface SagaListItem {
@@ -42,7 +42,7 @@ export default function SagaVizPage() {
       <main className="min-h-screen p-8">
         <header className="mb-6">
           <h1 className="text-3xl font-bold">Saga 可视化</h1>
-          <p className="text-gray-600">Phase B — Saga DSL 只读流程图</p>
+          <p className="text-gray-600">Saga DSL 可视化编辑器：编辑图谱、校验结构、导出 YAML</p>
         </header>
 
         <div className="mb-4">
@@ -65,17 +65,7 @@ export default function SagaVizPage() {
 
         {error && <p className="text-red-600" data-testid="saga-error">{error}</p>}
         {loading && <p className="text-gray-600" data-testid="saga-loading">加载中…</p>}
-        {graph && !loading && <SagaGraph graph={graph} />}
-
-        {graph && (
-          <section className="mt-6 text-sm text-gray-700">
-            <h2 className="text-lg font-semibold mb-2">Saga 元数据</h2>
-            <p><strong>ID:</strong> {graph.saga_id}</p>
-            <p><strong>描述:</strong> {graph.description}</p>
-            <p><strong>节点数:</strong> {graph.nodes.length}（forward={graph.nodes.filter((n) => n.type === 'forward').length}, compensation={graph.nodes.filter((n) => n.type === 'compensation').length}）</p>
-            <p><strong>边数:</strong> {graph.edges.length}（forward={graph.edges.filter((e) => e.kind === 'forward').length}, compensation={graph.edges.filter((e) => e.kind === 'compensation').length}）</p>
-          </section>
-        )}
+        {graph && !loading && <SagaGraphEditor key={`${graph.saga_id}-${selected}`} graph={graph} />}
       </main>
   );
 }
