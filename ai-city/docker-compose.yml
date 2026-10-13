@@ -44,6 +44,8 @@ services:
       - ./packages/proto/pg-schema-3.0-creator-market.sql:/docker-entrypoint-initdb.d/09-creator-market.sql:ro
       # Phase 3.0 v3: creator demo 身份与钱包种子
       - ./db/seed/seed-creator-market.sql:/docker-entrypoint-initdb.d/10-seed-creator-market.sql:ro
+      # Phase 4.0 M2: Agent template permissions + sandbox drafts
+      - ./packages/proto/pg-schema-4.0-agent-templates.sql:/docker-entrypoint-initdb.d/11-agent-templates.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U aicity']
       interval: 5s

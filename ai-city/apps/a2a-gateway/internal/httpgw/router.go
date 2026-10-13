@@ -19,6 +19,7 @@ type Server struct {
 	engine         *gin.Engine
 	worldURL       string
 	npcTemplateDir string
+	templateStore  a2asrv.TemplateStore
 	httpClient     *http.Client
 	corsOrigins    []string
 }
@@ -40,6 +41,7 @@ func NewWithRuntime(svc *a2asrv.Service, apiKey string, cfg RuntimeConfig) *Serv
 		engine:         engine,
 		worldURL:       cfg.WorldURL,
 		npcTemplateDir: cfg.NPCTemplateDir,
+		templateStore:  cfg.TemplateStore,
 		httpClient:     &http.Client{Timeout: 6 * time.Second},
 		corsOrigins:    cfg.CORSOrigins,
 	}
@@ -65,6 +67,8 @@ func NewWithRuntime(svc *a2asrv.Service, apiKey string, cfg RuntimeConfig) *Serv
 	engine.POST("/v1/agent/actions/move", s.AgentMove)
 	engine.GET("/v1/agent/actions/npc-behavior", s.NPCBehavior)
 	engine.POST("/v1/agent/actions/npc-talk", s.NPCTalk)
+	engine.POST("/v1/agent/actions/npc-templates", s.CreateNPCTemplate)
+	engine.GET("/v1/agent/actions/npc-templates", s.ListNPCTemplates)
 
 	return s
 }

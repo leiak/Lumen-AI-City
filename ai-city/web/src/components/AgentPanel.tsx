@@ -49,6 +49,13 @@ interface ChatEntry {
   ts: number;
 }
 
+interface TemplateDraft {
+  id: number;
+  name: string;
+  status: string;
+  validation_trace?: Record<string, unknown>;
+}
+
 function inboxCursorKey(agentId: string): string {
   return `aicity_agent_inbox_cursor_${agentId}`;
 }
@@ -61,7 +68,7 @@ export function AgentPanel() {
   const [cards, setCards] = useState<AgentCard[]>([]);
   const [selectedContact, setSelectedContact] = useState('');
   const [selectedNpc, setSelectedNpc] = useState('');
-  const [tab, setTab] = useState<'chat' | 'world' | 'behavior'>('chat');
+  const [tab, setTab] = useState<'chat' | 'world' | 'behavior' | 'template'>('chat');
   const [behavior, setBehavior] = useState<BehaviorTree | null>(null);
   const [behaviorNode, setBehaviorNode] = useState('');
   const [tileId, setTileId] = useState('tile_1_0');
@@ -69,6 +76,12 @@ export function AgentPanel() {
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateTile, setTemplateTile] = useState('tile_1_0');
+  const [templateSay, setTemplateSay] = useState('Hello, traveler!');
+  const [templateDrafts, setTemplateDrafts] = useState<TemplateDraft[]>([]);
+  const [templateMessage, setTemplateMessage] = useState('');
+  const [creatingTemplate, setCreatingTemplate] = useState(false);
   const inboxTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const inboxCursor = useRef<string>('');
   const chatRef = useRef<HTMLDivElement>(null);
@@ -275,10 +288,61 @@ export function AgentPanel() {
     }, 2000);
   }, [agentId, registered, addMsg]);
 
+  const loadTemplateDrafts = useCallback(async () => {
+    try {
+      const resp = await fetch(`${A2A_BASE}/v1/agent/actions/npc-templates?agent_id=${encodeURIComponent(agentId)}`);
+      if (!resp.ok) throw new Error('load drafts rejected');
+      const data = await resp.json();
+      setTemplateDrafts(data.drafts || []);
+    } catch (e) {
+      setTemplateMessage(`Draft load failed: ${e}`);
+    }
+  }, [agentId]);
+
+  const createTemplateDraft = useCallback(async () => {
+    if (!templateName.trim()) return;
+    setCreatingTemplate(true);
+    setTemplateMessage('Creating draft...');
+    try {
+      const resp = await fetch(`${A2A_BASE}/v1/agent/actions/npc-templates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_id: agentId,
+          name: templateName.trim(),
+          home_tile_id: templateTile.trim(),
+          description: 'Created by Agent Console',
+          personality: { O: 0.6, C: 0.7, E: 0.6, A: 0.7, N: 0.3 },
+          talk_tree: {
+            initial: 'root',
+            nodes: { root: { say: templateSay || 'Hello, traveler!', options: [] } },
+          },
+          product_catalog: [],
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        const message = data.detail?.msg || data.error || `HTTP ${resp.status}`;
+        throw new Error(message);
+      }
+      setTemplateMessage(`Draft #${data.id} created`);
+      setTemplateName('');
+      await loadTemplateDrafts();
+    } catch (e) {
+      setTemplateMessage(`Create failed: ${e}`);
+    } finally {
+      setCreatingTemplate(false);
+    }
+  }, [agentId, templateName, templateTile, templateSay, loadTemplateDrafts]);
+
   useEffect(() => {
     if (registered) startInbox();
     return () => { if (inboxTimer.current) clearInterval(inboxTimer.current); };
   }, [registered, startInbox]);
+
+  useEffect(() => {
+    if (registered && tab === 'template') loadTemplateDrafts();
+  }, [registered, tab, loadTemplateDrafts]);
 
   useEffect(() => { discover(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -302,8 +366,8 @@ export function AgentPanel() {
           </div>
         )}
         {registered && (
-          <div className="mt-2 grid grid-cols-3 gap-1 text-xs">
-            {(['chat', 'world', 'behavior'] as const).map((item) => (
+          <div className="mt-2 grid grid-cols-4 gap-1 text-xs">
+            {(['chat', 'world', 'behavior', 'template'] as const).map((item) => (
               <button key={item} onClick={() => setTab(item)}
                 className={`rounded-md py-1 capitalize transition ${tab === item ? 'bg-indigo-600 text-white' : 'bg-gray-800/80 text-gray-300 hover:bg-gray-700'}`}>
                 {item === 'behavior' ? 'Tree' : item}
@@ -372,6 +436,34 @@ export function AgentPanel() {
                   className="px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm transition">➤</button>
               </div>
             </>
+          )}
+
+          {tab === 'template' && (
+            <div className="space-y-2 p-3">
+              <div className="text-[10px] uppercase tracking-wider text-gray-500">NPC draft</div>
+              <input value={templateName} onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="NPC name"
+                className="w-full bg-gray-800/80 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              <input value={templateTile} onChange={(e) => setTemplateTile(e.target.value)}
+                placeholder="Home tile"
+                className="w-full bg-gray-800/80 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              <input value={templateSay} onChange={(e) => setTemplateSay(e.target.value)}
+                placeholder="Opening line"
+                className="w-full bg-gray-800/80 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              <button onClick={createTemplateDraft} disabled={creatingTemplate || !templateName.trim()}
+                className="w-full py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs">
+                {creatingTemplate ? 'Creating...' : 'Create sandbox draft'}
+              </button>
+              {templateMessage && <div className="text-[10px] text-gray-400">{templateMessage}</div>}
+              <div className="space-y-1">
+                {templateDrafts.map((draft) => (
+                  <div key={draft.id} className="flex items-center justify-between rounded-lg bg-gray-800/60 px-2 py-1.5 text-xs">
+                    <span className="text-gray-200">#{draft.id} {draft.name}</span>
+                    <span className="text-gray-500">{draft.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {tab === 'world' && (

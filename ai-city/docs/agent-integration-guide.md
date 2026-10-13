@@ -174,6 +174,45 @@ The response contains `say` plus the next `options`. Use `node_id: ""` to reques
 the initial node. The endpoints are read/execute-only; YAML remains the single
 source of truth.
 
+## Step 8: Create an NPC Template Draft
+
+Agents with explicit operator permission can create sandbox draft templates.
+The draft is owned by the calling `agent_id` and never mutates runtime NPC YAML
+or the live marketplace:
+
+```bash
+curl -X POST http://localhost:8083/v1/agent/actions/npc-templates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id":"my-external-agent",
+    "name":"Guide Bot",
+    "home_tile_id":"tile_1_0",
+    "description":"A city guide draft",
+    "personality":{"O":0.6,"C":0.7,"E":0.6,"A":0.7,"N":0.3},
+    "talk_tree":{
+      "initial":"root",
+      "nodes":{"root":{"say":"Where would you like to go?","options":[]}}
+    },
+    "product_catalog":[]
+  }'
+```
+
+Before this call succeeds, an operator must grant permission:
+
+```sql
+INSERT INTO a2a_agent_permission (agent_id, can_create_npc, granted_by, reason)
+VALUES ('my-external-agent', true, 'admin', 'M2 sandbox authoring')
+ON CONFLICT (agent_id) DO UPDATE SET can_create_npc = true;
+```
+
+List only your own drafts:
+
+```bash
+curl "http://localhost:8083/v1/agent/actions/npc-templates?agent_id=my-external-agent&limit=20"
+```
+
+Every denied or successful create is written to `a2a_agent_action_audit`.
+
 ## Runnable Example
 
 See [`examples/agent_demo.py`](../examples/agent_demo.md) for a

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/aicity/a2a-gateway/internal/a2asrv"
 )
 
 func registerAgentForActions(t *testing.T, h http.Handler, agentID string) {
@@ -124,5 +126,125 @@ func TestCORS_PreflightAllowedForCityUI(t *testing.T) {
 	}
 	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
 		t.Fatalf("allow-origin=%q", got)
+	}
+}
+
+func TestAgentActions_CreateNPCTemplate_DefaultDeny(t *testing.T) {
+	store := a2asrv.NewMemoryTemplateStore(nil)
+	svc := newTestServer()
+	srv := NewWithRuntime(svc, "", RuntimeConfig{TemplateStore: store})
+	h := srv.Handler()
+	registerAgentForActions(t, h, "alice")
+
+	w := doRequest(t, h, http.MethodPost, "/v1/agent/actions/npc-templates", "", map[string]any{
+		"agent_id":     "alice",
+		"name":         "Draft NPC",
+		"home_tile_id": "tile_1_0",
+		"personality":  map[string]any{"O": 0.5, "C": 0.5, "E": 0.5, "A": 0.5, "N": 0.5},
+		"talk_tree":    map[string]any{"initial": "root", "nodes": map[string]any{"root": map[string]any{"say": "hello"}}},
+	})
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "F_017") {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	audits := store.Audits()
+	if len(audits) != 1 || audits[0].Allowed {
+		t.Fatalf("audits=%#v", audits)
+	}
+}
+
+func TestAgentActions_CreateAndListNPCTemplate(t *testing.T) {
+	store := a2asrv.NewMemoryTemplateStore(map[string]bool{"alice": true})
+	svc := newTestServer()
+	srv := NewWithRuntime(svc, "", RuntimeConfig{TemplateStore: store})
+	h := srv.Handler()
+	registerAgentForActions(t, h, "alice")
+	registerAgentForActions(t, h, "bob")
+
+	w := doRequest(t, h, http.MethodPost, "/v1/agent/actions/npc-templates", "", map[string]any{
+		"agent_id":     "alice",
+		"name":         "Draft NPC",
+		"home_tile_id": "tile_1_0",
+		"description":  "sandbox draft",
+		"personality":  map[string]any{"O": 0.5, "C": 0.5, "E": 0.5, "A": 0.5, "N": 0.5},
+		"talk_tree": map[string]any{
+			"initial": "root",
+			"nodes": map[string]any{
+				"root": map[string]any{
+					"say": "hello",
+					"options": []any{map[string]any{
+						"id": "stay", "text": "stay", "target": "terminal",
+					}},
+				},
+				"terminal": map[string]any{"say": "bye"},
+			},
+		},
+		"product_catalog": []any{map[string]any{"name": "stew", "price_gold": 10}},
+	})
+	if w.Code != http.StatusCreated || !strings.Contains(w.Body.String(), `"status":"draft"`) {
+		t.Fatalf("create status=%d body=%s", w.Code, w.Body.String())
+	}
+
+	w = doRequest(t, h, http.MethodGet, "/v1/agent/actions/npc-templates?agent_id=alice", "", nil)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "Draft NPC") {
+		t.Fatalf("list status=%d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"valid":true`) {
+		t.Fatalf("validation trace missing: %s", w.Body.String())
+	}
+
+	w = doRequest(t, h, http.MethodGet, "/v1/agent/actions/npc-templates?agent_id=bob", "", nil)
+	if w.Code != http.StatusOK || strings.Contains(w.Body.String(), "Draft NPC") {
+		t.Fatalf("other agent saw foreign draft: status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgentActions_CreateNPCTemplate_RejectsTalkTreeCycle(t *testing.T) {
+	store := a2asrv.NewMemoryTemplateStore(map[string]bool{"alice": true})
+	svc := newTestServer()
+	srv := NewWithRuntime(svc, "", RuntimeConfig{TemplateStore: store})
+	h := srv.Handler()
+	registerAgentForActions(t, h, "alice")
+
+	w := doRequest(t, h, http.MethodPost, "/v1/agent/actions/npc-templates", "", map[string]any{
+		"agent_id":     "alice",
+		"name":         "Looping NPC",
+		"home_tile_id": "tile_1_0",
+		"personality":  map[string]any{"O": 0.5, "C": 0.5, "E": 0.5, "A": 0.5, "N": 0.5},
+		"talk_tree": map[string]any{
+			"initial": "root",
+			"nodes": map[string]any{
+				"root": map[string]any{
+					"say": "hello",
+					"options": []any{map[string]any{
+						"id": "loop", "text": "loop", "target": "root",
+					}},
+				},
+			},
+		},
+	})
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "cycle") {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgentActions_CreateNPCTemplate_ValidationFails(t *testing.T) {
+	store := a2asrv.NewMemoryTemplateStore(map[string]bool{"alice": true})
+	svc := newTestServer()
+	srv := NewWithRuntime(svc, "", RuntimeConfig{TemplateStore: store})
+	h := srv.Handler()
+	registerAgentForActions(t, h, "alice")
+
+	w := doRequest(t, h, http.MethodPost, "/v1/agent/actions/npc-templates", "", map[string]any{
+		"agent_id":     "alice",
+		"name":         "Bad NPC",
+		"home_tile_id": "tile_1_0",
+		"personality":  map[string]any{"O": 1.5, "C": 0.5, "E": 0.5, "A": 0.5, "N": 0.5},
+		"talk_tree":    map[string]any{"initial": "root", "nodes": map[string]any{"root": map[string]any{"say": "hello"}}},
+	})
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "R_019") {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	if drafts, _ := store.ListDrafts(nil, "alice", 10); len(drafts) != 0 {
+		t.Fatalf("invalid draft persisted")
 	}
 }

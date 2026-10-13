@@ -11,3 +11,4 @@ db/seed/seed-economy.sql
 packages/proto/pg-schema-3.0-creator-market.sql
 db/seed/seed-creator-market.sql
 packages/proto/pg-schema-3.0-cross-city-gold.sql
+packages/proto/pg-schema-4.0-agent-templates.sql
