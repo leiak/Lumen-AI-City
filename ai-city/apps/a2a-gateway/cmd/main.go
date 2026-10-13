@@ -192,6 +192,7 @@ func main() {
 		WorldURL:       getEnv("WORLD_ENGINE_URL", ""),
 		NPCTemplateDir: getEnv("NPC_TEMPLATE_DIR", ""),
 		TemplateStore:  a2asrv.NewTemplatePGStore(pool),
+		OperatorAPIKey: getEnv("OPERATOR_API_KEY", ""),
 		CORSOrigins:    []string{"http://localhost:3000", "http://127.0.0.1:3000"},
 	})
 	// Task 54：跨城 NPC 对话路由（POST /v1/cross_city/talk/:npc_id）

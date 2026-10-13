@@ -54,6 +54,9 @@ interface TemplateDraft {
   name: string;
   status: string;
   validation_trace?: Record<string, unknown>;
+  simulation_trace?: Record<string, unknown>;
+  reviewed_by?: string;
+  review_reason?: string;
 }
 
 function inboxCursorKey(agentId: string): string {
@@ -82,6 +85,8 @@ export function AgentPanel() {
   const [templateDrafts, setTemplateDrafts] = useState<TemplateDraft[]>([]);
   const [templateMessage, setTemplateMessage] = useState('');
   const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const [submittingTemplate, setSubmittingTemplate] = useState<number | null>(null);
+  const [simulatingTemplate, setSimulatingTemplate] = useState<number | null>(null);
   const inboxTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const inboxCursor = useRef<string>('');
   const chatRef = useRef<HTMLDivElement>(null);
@@ -335,6 +340,44 @@ export function AgentPanel() {
     }
   }, [agentId, templateName, templateTile, templateSay, loadTemplateDrafts]);
 
+  const submitTemplateDraft = useCallback(async (id: number) => {
+    setSubmittingTemplate(id);
+    try {
+      const resp = await fetch(`${A2A_BASE}/v1/agent/actions/npc-templates/${id}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail?.msg || `HTTP ${resp.status}`);
+      setTemplateMessage(`Draft #${id} submitted for review`);
+      await loadTemplateDrafts();
+    } catch (e) {
+      setTemplateMessage(`Submit failed: ${e}`);
+    } finally {
+      setSubmittingTemplate(null);
+    }
+  }, [agentId, loadTemplateDrafts]);
+
+  const simulateTemplateDraft = useCallback(async (id: number) => {
+    setSimulatingTemplate(id);
+    try {
+      const resp = await fetch(`${A2A_BASE}/v1/agent/actions/npc-templates/${id}/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail?.msg || `HTTP ${resp.status}`);
+      setTemplateMessage(`Sandbox #${id}: ${data.status}${data.error ? ` (${data.error})` : ''}`);
+      await loadTemplateDrafts();
+    } catch (e) {
+      setTemplateMessage(`Simulation failed: ${e}`);
+    } finally {
+      setSimulatingTemplate(null);
+    }
+  }, [agentId, loadTemplateDrafts]);
+
   useEffect(() => {
     if (registered) startInbox();
     return () => { if (inboxTimer.current) clearInterval(inboxTimer.current); };
@@ -457,9 +500,34 @@ export function AgentPanel() {
               {templateMessage && <div className="text-[10px] text-gray-400">{templateMessage}</div>}
               <div className="space-y-1">
                 {templateDrafts.map((draft) => (
-                  <div key={draft.id} className="flex items-center justify-between rounded-lg bg-gray-800/60 px-2 py-1.5 text-xs">
-                    <span className="text-gray-200">#{draft.id} {draft.name}</span>
-                    <span className="text-gray-500">{draft.status}</span>
+                  <div key={draft.id} className="rounded-lg bg-gray-800/60 px-2 py-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-200">#{draft.id} {draft.name}</span>
+                      <span className="text-gray-500">{draft.status}</span>
+                    </div>
+                    {draft.review_reason && (
+                      <div className="mt-1 text-[10px] text-gray-500">Review: {draft.review_reason}</div>
+                    )}
+                    <div className="mt-1 flex gap-1">
+                      <button onClick={() => simulateTemplateDraft(draft.id)} disabled={simulatingTemplate === draft.id}
+                        className="flex-1 rounded bg-blue-600/80 px-2 py-1 text-[10px] text-white hover:bg-blue-500 disabled:opacity-40">
+                        {simulatingTemplate === draft.id ? 'Running...' : 'Simulate'}
+                      </button>
+                      {(draft.status === 'draft' || draft.status === 'rejected') && (
+                        <button onClick={() => submitTemplateDraft(draft.id)} disabled={submittingTemplate === draft.id}
+                          className="flex-1 rounded bg-emerald-600/80 px-2 py-1 text-[10px] text-white hover:bg-emerald-500 disabled:opacity-40">
+                          {submittingTemplate === draft.id ? 'Sending...' : 'Submit'}
+                        </button>
+                      )}
+                    </div>
+                    {Array.isArray(draft.simulation_trace?.steps) && (
+                      <div className="mt-1 text-[10px] text-gray-500">
+                        {String(draft.simulation_trace.status)}: {(draft.simulation_trace.steps as Array<{ node_id?: string; say?: string }>)
+                          .map((step) => step.node_id || step.say)
+                          .filter(Boolean)
+                          .join(' → ')}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

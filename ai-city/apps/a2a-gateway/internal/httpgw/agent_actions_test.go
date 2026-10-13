@@ -1,11 +1,13 @@
 package httpgw
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -22,6 +24,28 @@ func registerAgentForActions(t *testing.T, h http.Handler, agentID string) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("register status = %d, body=%s", w.Code, w.Body.String())
 	}
+}
+
+func doOperatorRequest(t *testing.T, h http.Handler, method, path, key string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	var reader *bytes.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal body: %v", err)
+		}
+		reader = bytes.NewReader(data)
+	} else {
+		reader = bytes.NewReader(nil)
+	}
+	req := httptest.NewRequest(method, path, reader)
+	req.Header.Set("X-Operator-Key", key)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	return w
 }
 
 func TestAgentActions_Move_ProxiesRegisteredAgent(t *testing.T) {
@@ -246,5 +270,90 @@ func TestAgentActions_CreateNPCTemplate_ValidationFails(t *testing.T) {
 	}
 	if drafts, _ := store.ListDrafts(nil, "alice", 10); len(drafts) != 0 {
 		t.Fatalf("invalid draft persisted")
+	}
+}
+
+func TestAgentActions_SubmitApproveAndSimulateNPCTemplate(t *testing.T) {
+	store := a2asrv.NewMemoryTemplateStore(map[string]bool{"alice": true})
+	svc := newTestServer()
+	srv := NewWithRuntime(svc, "", RuntimeConfig{
+		TemplateStore:  store,
+		OperatorAPIKey: "operator-secret",
+	})
+	h := srv.Handler()
+	registerAgentForActions(t, h, "alice")
+
+	w := doRequest(t, h, http.MethodPost, "/v1/agent/actions/npc-templates", "", map[string]any{
+		"agent_id":     "alice",
+		"name":         "Review NPC",
+		"home_tile_id": "tile_1_0",
+		"personality":  map[string]any{"O": 0.5, "C": 0.5, "E": 0.5, "A": 0.5, "N": 0.5},
+		"talk_tree": map[string]any{
+			"initial": "root",
+			"nodes": map[string]any{
+				"root": map[string]any{
+					"say": "hello",
+					"options": []any{map[string]any{
+						"id": "go", "text": "go", "target": "terminal",
+					}},
+				},
+				"terminal": map[string]any{"say": "bye"},
+			},
+		},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create status=%d body=%s", w.Code, w.Body.String())
+	}
+	var created struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+	resource := strconv.FormatInt(created.ID, 10)
+
+	w = doRequest(t, h, http.MethodPost, "/v1/agent/actions/npc-templates/"+resource+"/submit", "", map[string]any{
+		"agent_id": "alice",
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("submit status=%d body=%s", w.Code, w.Body.String())
+	}
+
+	w = doOperatorRequest(t, h, http.MethodGet, "/v1/operator/npc-templates?status=submitted", "operator-secret", nil)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "Review NPC") {
+		t.Fatalf("review list status=%d body=%s", w.Code, w.Body.String())
+	}
+
+	w = doOperatorRequest(t, h, http.MethodPost, "/v1/operator/npc-templates/"+resource+"/approve", "operator-secret", map[string]any{
+		"reviewer": "ops-one",
+	})
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"status":"approved"`) {
+		t.Fatalf("approve status=%d body=%s", w.Code, w.Body.String())
+	}
+
+	w = doRequest(t, h, http.MethodPost, "/v1/agent/actions/npc-templates/"+resource+"/simulate", "", map[string]any{
+		"agent_id": "alice",
+		"choices":  []string{"go"},
+	})
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"status":"completed"`) {
+		t.Fatalf("simulate status=%d body=%s", w.Code, w.Body.String())
+	}
+
+	draft, err := store.GetDraft(nil, created.ID)
+	if err != nil {
+		t.Fatalf("get draft: %v", err)
+	}
+	if draft.SimulationTrace["sandbox"] != true || draft.Status != "approved" {
+		t.Fatalf("draft after simulate = %#v", draft)
+	}
+	audits := store.Audits()
+	foundApproval := false
+	for _, audit := range audits {
+		if audit.Action == "npc_template.approved" && audit.ResourceID == resource {
+			foundApproval = true
+		}
+	}
+	if !foundApproval {
+		t.Fatalf("approval audit missing: %#v", audits)
 	}
 }

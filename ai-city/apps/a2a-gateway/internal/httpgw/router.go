@@ -20,6 +20,7 @@ type Server struct {
 	worldURL       string
 	npcTemplateDir string
 	templateStore  a2asrv.TemplateStore
+	operatorKey    string
 	httpClient     *http.Client
 	corsOrigins    []string
 }
@@ -42,6 +43,7 @@ func NewWithRuntime(svc *a2asrv.Service, apiKey string, cfg RuntimeConfig) *Serv
 		worldURL:       cfg.WorldURL,
 		npcTemplateDir: cfg.NPCTemplateDir,
 		templateStore:  cfg.TemplateStore,
+		operatorKey:    cfg.OperatorAPIKey,
 		httpClient:     &http.Client{Timeout: 6 * time.Second},
 		corsOrigins:    cfg.CORSOrigins,
 	}
@@ -69,6 +71,12 @@ func NewWithRuntime(svc *a2asrv.Service, apiKey string, cfg RuntimeConfig) *Serv
 	engine.POST("/v1/agent/actions/npc-talk", s.NPCTalk)
 	engine.POST("/v1/agent/actions/npc-templates", s.CreateNPCTemplate)
 	engine.GET("/v1/agent/actions/npc-templates", s.ListNPCTemplates)
+	engine.POST("/v1/agent/actions/npc-templates/:id/submit", s.SubmitNPCTemplate)
+	engine.POST("/v1/agent/actions/npc-templates/:id/simulate", s.SimulateNPCTemplate)
+	engine.GET("/v1/operator/npc-templates", s.ListNPCTemplatesForReview)
+	engine.POST("/v1/operator/npc-templates/:id/approve", s.ApproveNPCTemplate)
+	engine.POST("/v1/operator/npc-templates/:id/reject", s.RejectNPCTemplate)
+	engine.PUT("/v1/operator/agents/:agent_id/permissions", s.GrantAgentTemplatePermission)
 
 	return s
 }
@@ -87,7 +95,7 @@ func (s *Server) corsMiddleware() gin.HandlerFunc {
 				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 				c.Writer.Header().Add("Vary", "Origin")
 				c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-				c.Writer.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Trace-Id")
+				c.Writer.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Operator-Key, X-Trace-Id")
 				c.Writer.Header().Set("Access-Control-Max-Age", "86400")
 			}
 		}

@@ -213,6 +213,52 @@ curl "http://localhost:8083/v1/agent/actions/npc-templates?agent_id=my-external-
 
 Every denied or successful create is written to `a2a_agent_action_audit`.
 
+## Step 9: Submit, Sandbox Simulate, and Review
+
+After creating a draft, submit it for review:
+
+```bash
+curl -X POST http://localhost:8083/v1/agent/actions/npc-templates/1/submit \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id":"my-external-agent"}'
+```
+
+Run an isolated sandbox simulation. It never touches wallets, runtime NPC YAML,
+or live marketplace state:
+
+```bash
+curl -X POST http://localhost:8083/v1/agent/actions/npc-templates/1/simulate \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id":"my-external-agent","choices":["go"]}'
+```
+
+The simulation steps and result are written back to the owner's draft as
+`simulation_trace`. The status is `completed` when the path reaches a terminal,
+`waiting_choice` when another option is needed, or `failed` when a choice is
+invalid.
+
+Operators configure `OPERATOR_API_KEY` and review submissions with the separate
+`X-Operator-Key` header:
+
+```bash
+curl "http://localhost:8083/v1/operator/npc-templates?status=submitted" \
+  -H "X-Operator-Key: $OPERATOR_API_KEY"
+
+curl -X POST http://localhost:8083/v1/operator/npc-templates/1/approve \
+  -H "X-Operator-Key: $OPERATOR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"reviewer":"ops-one"}'
+```
+
+To grant or revoke authoring explicitly:
+
+```bash
+curl -X PUT http://localhost:8083/v1/operator/agents/my-external-agent/permissions \
+  -H "X-Operator-Key: $OPERATOR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"can_create_npc":true,"daily_quota":10}'
+```
+
 ## Runnable Example
 
 See [`examples/agent_demo.py`](../examples/agent_demo.md) for a

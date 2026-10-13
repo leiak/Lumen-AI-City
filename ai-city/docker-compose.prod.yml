@@ -68,6 +68,7 @@ services:
       REDIS_URL: *prod-redis-url
       CITY_ID: "${CITY_ID:?set CITY_ID}"
       CROSS_CITY_INTERNAL_TOKEN: "${CROSS_CITY_SERVICE_TOKEN:?set CROSS_CITY_SERVICE_TOKEN}"
+      OPERATOR_API_KEY: "${OPERATOR_API_KEY:?set OPERATOR_API_KEY}"
     ports: !override
       - "${A2A_HTTP_HOST_PORT:-8083}:8083"
     depends_on:

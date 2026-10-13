@@ -179,6 +179,7 @@ services:
       A2A_ROUTING_TABLE: /app/data/a2a-routing-table.yaml
       WORLD_ENGINE_URL: http://world-engine:50052
       NPC_TEMPLATE_DIR: /app/npc-templates
+      OPERATOR_API_KEY: "${OPERATOR_API_KEY:-}"
       # 3.0 v2：跨城金币本地经济与远端 A2A RPC 接线。
       CITY_ID: city_a
       ECONOMY_SERVICE_URL: http://economy-service:8005

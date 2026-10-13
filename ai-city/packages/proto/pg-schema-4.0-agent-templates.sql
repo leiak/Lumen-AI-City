@@ -27,6 +27,11 @@ CREATE TABLE IF NOT EXISTS a2a_npc_template_draft (
     status           TEXT NOT NULL DEFAULT 'draft'
                      CHECK (status IN ('draft', 'submitted', 'approved', 'rejected')),
     validation_trace JSONB NOT NULL DEFAULT '{}'::jsonb,
+    simulation_trace JSONB NOT NULL DEFAULT '{}'::jsonb,
+    submitted_at     TIMESTAMPTZ,
+    reviewed_by      VARCHAR(128) NOT NULL DEFAULT '',
+    review_reason    TEXT NOT NULL DEFAULT '',
+    reviewed_at      TIMESTAMPTZ,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -35,6 +40,17 @@ CREATE INDEX IF NOT EXISTS idx_a2a_npc_template_draft_agent
     ON a2a_npc_template_draft(agent_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_a2a_npc_template_draft_status
     ON a2a_npc_template_draft(status);
+
+ALTER TABLE a2a_npc_template_draft
+    ADD COLUMN IF NOT EXISTS simulation_trace JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE a2a_npc_template_draft
+    ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
+ALTER TABLE a2a_npc_template_draft
+    ADD COLUMN IF NOT EXISTS reviewed_by VARCHAR(128) NOT NULL DEFAULT '';
+ALTER TABLE a2a_npc_template_draft
+    ADD COLUMN IF NOT EXISTS review_reason TEXT NOT NULL DEFAULT '';
+ALTER TABLE a2a_npc_template_draft
+    ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS a2a_agent_action_audit (
     id          BIGSERIAL PRIMARY KEY,

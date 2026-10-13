@@ -25,6 +25,7 @@ type RuntimeConfig struct {
 	WorldURL       string
 	NPCTemplateDir string
 	TemplateStore  a2asrv.TemplateStore
+	OperatorAPIKey string
 	CORSOrigins    []string
 }
 
@@ -112,6 +113,40 @@ type npcTemplateDraftResponse struct {
 	ProductCatalog  []map[string]any   `json:"product_catalog"`
 	Status          string             `json:"status"`
 	ValidationTrace map[string]any     `json:"validation_trace"`
+	SimulationTrace map[string]any     `json:"simulation_trace"`
+	ReviewedBy      string             `json:"reviewed_by"`
+	ReviewReason    string             `json:"review_reason"`
+}
+
+type npcSimulationRequest struct {
+	AgentID   string   `json:"agent_id"`
+	StartNode string   `json:"start_node"`
+	Choices   []string `json:"choices"`
+}
+
+type npcSimulationStep struct {
+	Index          int    `json:"index"`
+	NodeID         string `json:"node_id"`
+	Say            string `json:"say"`
+	SelectedOption string `json:"selected_option_id,omitempty"`
+	TargetNodeID   string `json:"target_node_id,omitempty"`
+}
+
+type npcSimulationResponse struct {
+	TemplateID int64               `json:"template_id"`
+	Status     string              `json:"status"`
+	Steps      []npcSimulationStep `json:"steps"`
+	Error      string              `json:"error,omitempty"`
+}
+
+type npcReviewRequest struct {
+	Reviewer string `json:"reviewer"`
+	Reason   string `json:"reason"`
+}
+
+type npcPermissionRequest struct {
+	CanCreateNPC bool `json:"can_create_npc"`
+	DailyQuota   int  `json:"daily_quota"`
 }
 
 const npcActionTimeout = 5 * time.Second
@@ -325,6 +360,10 @@ func (s *Server) CreateNPCTemplate(c *gin.Context) {
 	}
 	id, err := s.templateStore.CreateDraft(c.Request.Context(), draft)
 	if err != nil {
+		if err == a2asrv.ErrTemplateQuotaExceeded {
+			c.JSON(http.StatusTooManyRequests, errorEnvelope("R_021", "agent daily template quota exceeded", traceID))
+			return
+		}
 		c.JSON(http.StatusInternalServerError, errorEnvelope("F_INTERNAL", err.Error(), traceID))
 		return
 	}
@@ -376,10 +415,321 @@ func (s *Server) ListNPCTemplates(c *gin.Context) {
 			HomeTileID: draft.HomeTileID, Description: draft.Description,
 			Personality: draft.Personality, TalkTree: draft.TalkTree,
 			ProductCatalog: draft.ProductCatalog, Status: draft.Status,
-			ValidationTrace: draft.ValidationTrace,
+			ValidationTrace: draft.ValidationTrace, SimulationTrace: draft.SimulationTrace,
+			ReviewedBy: draft.ReviewedBy, ReviewReason: draft.ReviewReason,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"drafts": response})
+}
+
+func parseTemplateID(c *gin.Context) (int64, bool) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id < 1 {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "template id invalid", traceIDFromCtx(c)))
+		return 0, false
+	}
+	return id, true
+}
+
+func requireTemplateOperator(s *Server, c *gin.Context) bool {
+	if s.operatorKey == "" {
+		c.JSON(http.StatusServiceUnavailable, errorEnvelope("R_016", "operator api not configured", traceIDFromCtx(c)))
+		return false
+	}
+	if c.GetHeader("X-Operator-Key") != s.operatorKey {
+		c.JSON(http.StatusUnauthorized, errorEnvelope("F_AUTH", "invalid operator key", traceIDFromCtx(c)))
+		return false
+	}
+	return true
+}
+
+func templateDraftResponses(drafts []a2asrv.AgentTemplateDraft) []npcTemplateDraftResponse {
+	response := make([]npcTemplateDraftResponse, 0, len(drafts))
+	for _, draft := range drafts {
+		response = append(response, npcTemplateDraftResponse{
+			ID: draft.ID, AgentID: draft.AgentID, Name: draft.Name,
+			HomeTileID: draft.HomeTileID, Description: draft.Description,
+			Personality: draft.Personality, TalkTree: draft.TalkTree,
+			ProductCatalog: draft.ProductCatalog, Status: draft.Status,
+			ValidationTrace: draft.ValidationTrace, SimulationTrace: draft.SimulationTrace,
+			ReviewedBy: draft.ReviewedBy, ReviewReason: draft.ReviewReason,
+		})
+	}
+	return response
+}
+
+func (s *Server) SubmitNPCTemplate(c *gin.Context) {
+	traceID := traceIDFromCtx(c)
+	templateID, ok := parseTemplateID(c)
+	if !ok {
+		return
+	}
+	var req struct {
+		AgentID string `json:"agent_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.AgentID == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "agent_id required", traceID))
+		return
+	}
+	if !s.svc.HasAgent(req.AgentID) || s.templateStore == nil {
+		status := http.StatusForbidden
+		message := "agent not registered"
+		if s.templateStore == nil {
+			status = http.StatusServiceUnavailable
+			message = "template store not configured"
+		}
+		c.JSON(status, errorEnvelope("F_005", message, traceID))
+		return
+	}
+	if err := s.templateStore.SubmitDraft(c.Request.Context(), templateID, req.AgentID); err != nil {
+		if err == a2asrv.ErrTemplateState {
+			c.JSON(http.StatusConflict, errorEnvelope("R_030", "draft cannot be submitted", traceID))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, errorEnvelope("F_INTERNAL", err.Error(), traceID))
+		return
+	}
+	_ = s.templateStore.Audit(c.Request.Context(), a2asrv.AgentActionAudit{
+		AgentID: req.AgentID, Action: "npc_template.submit",
+		ResourceID: strconv.FormatInt(templateID, 10), Allowed: true, TraceID: traceID,
+	})
+	c.JSON(http.StatusOK, gin.H{"id": templateID, "status": "submitted"})
+}
+
+func (s *Server) SimulateNPCTemplate(c *gin.Context) {
+	traceID := traceIDFromCtx(c)
+	templateID, ok := parseTemplateID(c)
+	if !ok {
+		return
+	}
+	var req npcSimulationRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.AgentID == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "agent_id required", traceID))
+		return
+	}
+	if !s.svc.HasAgent(req.AgentID) || s.templateStore == nil {
+		status := http.StatusForbidden
+		message := "agent not registered"
+		if s.templateStore == nil {
+			status = http.StatusServiceUnavailable
+			message = "template store not configured"
+		}
+		c.JSON(status, errorEnvelope("F_005", message, traceID))
+		return
+	}
+	draft, err := s.templateStore.GetDraft(c.Request.Context(), templateID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if err == a2asrv.ErrTemplateNotFound {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, errorEnvelope("R_028", err.Error(), traceID))
+		return
+	}
+	if draft.AgentID != req.AgentID {
+		c.JSON(http.StatusNotFound, errorEnvelope("R_028", "template draft not found", traceID))
+		return
+	}
+	nodesRaw, nodesOK := draft.TalkTree["nodes"].(map[string]any)
+	initialRaw, initialOK := draft.TalkTree["initial"].(string)
+	if !nodesOK || !initialOK || initialRaw == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope("R_019", "draft talk tree is invalid", traceID))
+		return
+	}
+
+	current := req.StartNode
+	if current == "" {
+		current = initialRaw
+	}
+	steps := []npcSimulationStep{}
+	simulationStatus := "completed"
+	simulationError := ""
+	choiceIndex := 0
+	for index := 0; index < 20; index++ {
+		nodeRaw, nodeOK := nodesRaw[current].(map[string]any)
+		if !nodeOK {
+			simulationStatus = "failed"
+			simulationError = "node not found: " + current
+			break
+		}
+		say, _ := nodeRaw["say"].(string)
+		options, _ := nodeRaw["options"].([]any)
+		if len(options) == 0 {
+			steps = append(steps, npcSimulationStep{Index: index, NodeID: current, Say: say})
+			break
+		}
+		if choiceIndex >= len(req.Choices) {
+			simulationStatus = "waiting_choice"
+			steps = append(steps, npcSimulationStep{Index: index, NodeID: current, Say: say})
+			break
+		}
+		selected := req.Choices[choiceIndex]
+		choiceIndex++
+		target := ""
+		found := false
+		for _, optionRaw := range options {
+			option, optionOK := optionRaw.(map[string]any)
+			if !optionOK {
+				continue
+			}
+			optionID, _ := option["id"].(string)
+			if optionID == selected {
+				target, _ = option["target"].(string)
+				found = true
+				break
+			}
+		}
+		if !found || target == "" {
+			simulationStatus = "failed"
+			simulationError = "invalid option: " + selected
+			break
+		}
+		steps = append(steps, npcSimulationStep{
+			Index: index, NodeID: current, Say: say,
+			SelectedOption: selected, TargetNodeID: target,
+		})
+		current = target
+	}
+
+	trace := map[string]any{
+		"sandbox": true, "status": simulationStatus, "steps": steps,
+		"start_node": req.StartNode, "choices": req.Choices,
+	}
+	if simulationError != "" {
+		trace["error"] = simulationError
+	}
+	if err := s.templateStore.SaveSimulationTrace(c.Request.Context(), templateID, req.AgentID, trace); err != nil {
+		c.JSON(http.StatusInternalServerError, errorEnvelope("F_INTERNAL", err.Error(), traceID))
+		return
+	}
+	_ = s.templateStore.Audit(c.Request.Context(), a2asrv.AgentActionAudit{
+		AgentID: req.AgentID, Action: "npc_template.simulate",
+		ResourceID: strconv.FormatInt(templateID, 10), Allowed: true, TraceID: traceID,
+		Metadata: map[string]any{"status": simulationStatus, "steps": len(steps)},
+	})
+	c.JSON(http.StatusOK, npcSimulationResponse{
+		TemplateID: templateID, Status: simulationStatus, Steps: steps, Error: simulationError,
+	})
+}
+
+func (s *Server) ListNPCTemplatesForReview(c *gin.Context) {
+	traceID := traceIDFromCtx(c)
+	if !requireTemplateOperator(s, c) {
+		return
+	}
+	if s.templateStore == nil {
+		c.JSON(http.StatusServiceUnavailable, errorEnvelope("R_016", "template store not configured", traceID))
+		return
+	}
+	status := c.DefaultQuery("status", "submitted")
+	if status != "draft" && status != "submitted" && status != "approved" && status != "rejected" {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "status invalid", traceID))
+		return
+	}
+	drafts, err := s.templateStore.ListDraftsByStatus(c.Request.Context(), status, 100)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorEnvelope("F_INTERNAL", err.Error(), traceID))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"drafts": templateDraftResponses(drafts), "trace_id": traceID})
+}
+
+func (s *Server) ApproveNPCTemplate(c *gin.Context) {
+	s.reviewNPCTemplate(c, "approved")
+}
+
+func (s *Server) RejectNPCTemplate(c *gin.Context) {
+	s.reviewNPCTemplate(c, "rejected")
+}
+
+func (s *Server) reviewNPCTemplate(c *gin.Context, status string) {
+	traceID := traceIDFromCtx(c)
+	if !requireTemplateOperator(s, c) {
+		return
+	}
+	templateID, ok := parseTemplateID(c)
+	if !ok {
+		return
+	}
+	if s.templateStore == nil {
+		c.JSON(http.StatusServiceUnavailable, errorEnvelope("R_016", "template store not configured", traceID))
+		return
+	}
+	var req npcReviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.Reviewer == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "reviewer required", traceID))
+		return
+	}
+	if status == "rejected" && req.Reason == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "reject reason required", traceID))
+		return
+	}
+	draft, err := s.templateStore.GetDraft(c.Request.Context(), templateID)
+	if err != nil {
+		httpStatus := http.StatusInternalServerError
+		if err == a2asrv.ErrTemplateNotFound {
+			httpStatus = http.StatusNotFound
+		}
+		c.JSON(httpStatus, errorEnvelope("R_028", err.Error(), traceID))
+		return
+	}
+	if err := s.templateStore.ReviewDraft(c.Request.Context(), templateID, status, req.Reviewer, req.Reason); err != nil {
+		if err == a2asrv.ErrTemplateState {
+			c.JSON(http.StatusConflict, errorEnvelope("R_030", "draft is not submitted", traceID))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, errorEnvelope("F_INTERNAL", err.Error(), traceID))
+		return
+	}
+	_ = s.templateStore.Audit(c.Request.Context(), a2asrv.AgentActionAudit{
+		AgentID: draft.AgentID, Action: "npc_template." + status,
+		ResourceID: strconv.FormatInt(templateID, 10), Allowed: true,
+		Reason: req.Reason, TraceID: traceID,
+		Metadata: map[string]any{"reviewer": req.Reviewer},
+	})
+	c.JSON(http.StatusOK, gin.H{"id": templateID, "status": status})
+}
+
+func (s *Server) GrantAgentTemplatePermission(c *gin.Context) {
+	traceID := traceIDFromCtx(c)
+	if !requireTemplateOperator(s, c) {
+		return
+	}
+	if s.templateStore == nil {
+		c.JSON(http.StatusServiceUnavailable, errorEnvelope("R_016", "template store not configured", traceID))
+		return
+	}
+	agentID := c.Param("agent_id")
+	if agentID == "" {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "agent_id required", traceID))
+		return
+	}
+	var req npcPermissionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "bad_request:"+err.Error(), traceID))
+		return
+	}
+	quota := req.DailyQuota
+	if quota == 0 {
+		quota = 10
+	}
+	if quota < 1 || quota > 1000 {
+		c.JSON(http.StatusBadRequest, errorEnvelope("F_001", "daily_quota out of range [1, 1000]", traceID))
+		return
+	}
+	permission := a2asrv.AgentTemplatePermission{
+		AgentID: agentID, CanCreateNPC: req.CanCreateNPC, DailyQuota: quota,
+		GrantedBy: "operator", Reason: "M2 template authoring",
+	}
+	if err := s.templateStore.GrantPermission(c.Request.Context(), permission); err != nil {
+		c.JSON(http.StatusInternalServerError, errorEnvelope("F_INTERNAL", err.Error(), traceID))
+		return
+	}
+	_ = s.templateStore.Audit(c.Request.Context(), a2asrv.AgentActionAudit{
+		AgentID: agentID, Action: "npc_template.permission.grant", Allowed: true,
+		TraceID: traceID, Metadata: map[string]any{"can_create": req.CanCreateNPC, "quota": quota},
+	})
+	c.JSON(http.StatusOK, gin.H{"agent_id": agentID, "can_create_npc": req.CanCreateNPC, "daily_quota": quota})
 }
 
 func validateNPCDraft(name string, personality map[string]float64,
