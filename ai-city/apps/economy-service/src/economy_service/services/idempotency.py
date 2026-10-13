@@ -12,7 +12,7 @@ class IdempotencyStore:
         self.ttl = 86400  # 24h
 
     def _key(self, scope: str, key: str) -> str:
-        return f"econ:idem:{scope}:{key}"
+        return f"aicity:econ:idem:{scope}:{key}"
 
     async def check_and_set(self, scope: str, key: str, value: Any) -> bool:
         """Returns True if newly set (proceed), False if duplicate (return cached)."""

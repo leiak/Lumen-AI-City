@@ -23,6 +23,8 @@ use tokio::net::TcpStream;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tracing::{info, warn};
 
+use crate::redis_pub::{RedisCredentials, RedisEndpoint};
+
 /// 订阅者内部计数器（与 redis_pub::RedisStats 镜像，便于 metrics 后续接入）
 #[derive(Debug, Clone, Copy, Default, Serialize)]
 pub struct RedisSubStats {
@@ -34,7 +36,7 @@ pub struct RedisSubStats {
 
 pub struct RedisSub {
     addr: String,
-    password: Option<String>,
+    credentials: Option<RedisCredentials>,
     channel: String,
     inner: Arc<Inner>,
 }
@@ -68,11 +70,11 @@ impl Default for SubStatsInner {
 impl RedisSub {
     pub fn new(addr: impl Into<String>, channel: impl Into<String>) -> Self {
         let raw = addr.into();
-        let parsed = parse_redis_endpoint(&raw).unwrap_or_else(|_| (raw.clone(), None));
+        let parsed = parse_redis_endpoint(&raw).unwrap_or_else(|_| RedisEndpoint { addr: raw.clone(), credentials: None });
         let (tx, _) = broadcast::channel(256);
         Self {
-            addr: parsed.0,
-            password: parsed.1,
+            addr: parsed.addr,
+            credentials: parsed.credentials,
             channel: channel.into(),
             inner: Arc::new(Inner {
                 tx,
@@ -110,7 +112,7 @@ impl RedisSub {
         drop(started);
 
         let addr = self.addr.clone();
-        let password = self.password.clone();
+        let credentials = self.credentials.clone();
         let channel = self.channel.clone();
         let tx = self.inner.tx.clone();
         let stats = self.inner.stats.clone();
@@ -118,7 +120,7 @@ impl RedisSub {
         tokio::spawn(async move {
             let mut backoff = Duration::from_secs(1);
             loop {
-                match run_subscriber(&addr, password.as_deref(), &channel, &tx, &stats).await {
+                match run_subscriber(&addr, credentials.as_ref(), &channel, &tx, &stats).await {
                     Ok(()) => {
                         // 正常退出（被关闭）→ 跳出循环
                         info!(addr = %addr, channel = %channel, "subscriber exited cleanly");
@@ -179,7 +181,7 @@ impl RedisSub {
 /// 后台 reader task：建 TCP、发 SUBSCRIBE、循环读 message → broadcast
 async fn run_subscriber(
     addr: &str,
-    password: Option<&str>,
+    credentials: Option<&RedisCredentials>,
     channel: &str,
     tx: &broadcast::Sender<String>,
     stats: &std::sync::Arc<SubStatsInner>,
@@ -190,7 +192,7 @@ async fn run_subscriber(
         .with_context(|| format!("connect failed: {}", addr))?;
     stream.set_nodelay(true)?;
     let (read_half, mut write_half) = stream.into_split();
-    authenticate(&mut write_half, password).await?;
+    authenticate(&mut write_half, credentials).await?;
 
     // SUBSCRIBE
     let mut buf = Vec::with_capacity(64 + channel.len());
@@ -317,32 +319,50 @@ impl<T> RedisSubStream<T> {
 
 // ─── 复用 redis_pub.rs 的 URL 解析（保持一致） ─────────────────────────────
 
-fn parse_redis_endpoint(raw: &str) -> Result<(String, Option<String>)> {
+fn parse_redis_endpoint(raw: &str) -> Result<RedisEndpoint> {
     let s = raw.trim();
     let after_scheme = s.strip_prefix("redis://").unwrap_or(s);
     let host_port = after_scheme.split('/').next().unwrap_or("");
-    let (password, host_port) = match host_port.split_once('@') {
+    let (credentials, host_port) = match host_port.split_once('@') {
         Some((credentials, host_port)) => {
-            let password = credentials.split_once(':').map(|(_, password)| password.to_string());
-            (password, host_port)
+            let credentials = match credentials.split_once(':') {
+                Some((username, password)) => Some(RedisCredentials {
+                    username: Some(username.to_string()),
+                    password: password.to_string(),
+                }),
+                None => Some(RedisCredentials {
+                    username: None,
+                    password: credentials.to_string(),
+                }),
+            };
+            (credentials, host_port)
         }
         None => (None, host_port),
     };
     if host_port.is_empty() {
         bail!("invalid redis url: {}", raw);
     }
-    Ok((host_port.to_string(), password))
+    Ok(RedisEndpoint {
+        addr: host_port.to_string(),
+        credentials,
+    })
 }
 
-async fn authenticate<S>(stream: &mut S, password: Option<&str>) -> Result<()>
+async fn authenticate<S>(stream: &mut S, credentials: Option<&RedisCredentials>) -> Result<()>
 where
     S: AsyncWriteExt + Unpin,
 {
-    let Some(password) = password else {
+    let Some(credentials) = credentials else {
         return Ok(());
     };
 
-    let auth = format!("*2\r\n$4\r\nAUTH\r\n${}\r\n{}\r\n", password.len(), password);
+    let auth = match &credentials.username {
+        Some(username) => format!(
+            "*3\r\n$4\r\nAUTH\r\n${}\r\n{}\r\n${}\r\n{}\r\n",
+            username.len(), username, credentials.password.len(), credentials.password
+        ),
+        None => format!("*2\r\n$4\r\nAUTH\r\n${}\r\n{}\r\n", credentials.password.len(), credentials.password),
+    };
     stream.write_all(auth.as_bytes()).await?;
     stream.flush().await?;
     Ok(())
@@ -354,9 +374,17 @@ mod tests {
 
     #[test]
     fn test_parse_redis_endpoint() {
-        assert_eq!(parse_redis_endpoint("redis://localhost:6379/0").unwrap(), ("localhost:6379".to_string(), None));
-        assert_eq!(parse_redis_endpoint("redis://:pw@127.0.0.1:6379/2").unwrap(), ("127.0.0.1:6379".to_string(), Some("pw".to_string())));
-        assert_eq!(parse_redis_endpoint("localhost:6379").unwrap(), ("localhost:6379".to_string(), None));
+        let endpoint = parse_redis_endpoint("redis://localhost:6379/0").unwrap();
+        assert_eq!(endpoint.addr, "localhost:6379");
+        assert!(endpoint.credentials.is_none());
+        let endpoint = parse_redis_endpoint("redis://service:pw@127.0.0.1:6379/2").unwrap();
+        assert_eq!(endpoint.addr, "127.0.0.1:6379");
+        let credentials = endpoint.credentials.unwrap();
+        assert_eq!(credentials.username.as_deref(), Some("service"));
+        assert_eq!(credentials.password, "pw");
+        let endpoint = parse_redis_endpoint("localhost:6379").unwrap();
+        assert_eq!(endpoint.addr, "localhost:6379");
+        assert!(endpoint.credentials.is_none());
     }
 
     #[test]

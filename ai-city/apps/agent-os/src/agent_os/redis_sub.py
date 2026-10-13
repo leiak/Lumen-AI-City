@@ -10,7 +10,8 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 
-from agent_os.redis_pub import parse_redis_addr
+from agent_os.redis_pub import _format_auth as _encode_auth
+from agent_os.redis_pub import parse_redis_connection
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ class RedisSub:
     """长连接订阅者；`messages(channel)` 产出一条条 payload，断开自动重连。"""
 
     def __init__(self, url: str, *, connect_timeout: float = 1.0) -> None:
-        self._host, self._port, self._db = parse_redis_addr(url)
+        self._conn = parse_redis_connection(url)
         self._timeout = connect_timeout
 
     async def messages(self, channel: str) -> AsyncIterator[str]:
@@ -84,17 +85,21 @@ class RedisSub:
         while True:
             try:
                 reader, writer = await asyncio.open_connection(
-                    self._host, self._port, limit=64 * 1024
+                    self._conn.host, self._conn.port, limit=64 * 1024
                 )
             except (TimeoutError, OSError):
                 logger.warning(
                     "redis subscribe connect failed",
-                    extra={"host": self._host, "port": self._port, "err": ""},
+                    extra={"host": self._conn.host, "port": self._conn.port, "err": ""},
                 )
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 5.0)
                 continue
             try:
+                if self._conn.username or self._conn.password:
+                    writer.write(_encode_auth(self._conn))
+                    await asyncio.wait_for(writer.drain(), timeout=self._timeout)
+
                 writer.write(_encode_subscribe(channel))
                 await asyncio.wait_for(writer.drain(), timeout=self._timeout)
                 backoff = 1.0  # 连接成功即重置退避

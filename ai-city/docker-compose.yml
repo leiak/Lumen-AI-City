@@ -55,10 +55,22 @@ services:
 
   redis:
     image: redis:7-alpine
+    environment:
+      REDIS_ACL_PASSWORD_PROBE: "${REDIS_ACL_PASSWORD_PROBE:-acl_probe_dev}"
+      REDIS_ACL_PASSWORD_WORLD_ENGINE: "${REDIS_ACL_PASSWORD_WORLD_ENGINE:-world_engine_dev}"
+      REDIS_ACL_PASSWORD_AGENT_OS: "${REDIS_ACL_PASSWORD_AGENT_OS:-agent_os_dev}"
+      REDIS_ACL_PASSWORD_API_GATEWAY: "${REDIS_ACL_PASSWORD_API_GATEWAY:-api_gateway_dev}"
+      REDIS_ACL_PASSWORD_WS_GATEWAY: "${REDIS_ACL_PASSWORD_WS_GATEWAY:-ws_gateway_dev}"
+      REDIS_ACL_PASSWORD_A2A_GATEWAY: "${REDIS_ACL_PASSWORD_A2A_GATEWAY:-a2a_gateway_dev}"
+      REDIS_ACL_PASSWORD_ECONOMY: "${REDIS_ACL_PASSWORD_ECONOMY:-economy_dev}"
+    command: ["sh", "/usr/local/bin/start-redis.sh"]
     ports:
       - '127.0.0.1:16379:6379'
+    volumes:
+      - ./deploy/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./deploy/redis/start-redis.sh:/usr/local/bin/start-redis.sh:ro
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD-SHELL', "redis-cli --user probe --pass \"$$REDIS_ACL_PASSWORD_PROBE\" ping | grep -q PONG"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -73,7 +85,7 @@ services:
       - '50052:50052'   # REST
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-aicity}:${POSTGRES_PASSWORD:-aicity_dev}@postgres:5432/${POSTGRES_DB:-aicity}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://world_engine:${REDIS_ACL_PASSWORD_WORLD_ENGINE:-world_engine_dev}@redis:6379/0
       REDIS_CHANNEL_MOVED: aicity:player:moved
       RUST_LOG: info
       # WORLD_GRPC_ADDR / WORLD_BIND_ADDR 默认已是 0.0.0.0，不覆盖
@@ -109,7 +121,7 @@ services:
     environment:
       API_GATEWAY_PORT: '8080'
       DATABASE_URL: postgresql://${POSTGRES_USER:-aicity}:${POSTGRES_PASSWORD:-aicity_dev}@postgres:5432/${POSTGRES_DB:-aicity}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://api_gateway:${REDIS_ACL_PASSWORD_API_GATEWAY:-api_gateway_dev}@redis:6379/0
       WORLD_ENGINE_URL: http://world-engine:50052
       WORLD_ENGINE_GRPC_ADDR: world-engine:50051
       ECONOMY_SERVICE_URL: http://economy-service:8005
@@ -180,6 +192,7 @@ services:
       WORLD_ENGINE_URL: http://world-engine:50052
       NPC_TEMPLATE_DIR: /app/npc-templates
       OPERATOR_API_KEY: "${OPERATOR_API_KEY:-}"
+      REDIS_URL: redis://a2a_gateway:${REDIS_ACL_PASSWORD_A2A_GATEWAY:-a2a_gateway_dev}@redis:6379/0
       # 3.0 v2：跨城金币本地经济与远端 A2A RPC 接线。
       CITY_ID: city_a
       ECONOMY_SERVICE_URL: http://economy-service:8005
@@ -210,7 +223,7 @@ services:
       - '8082:8082'
     environment:
       WS_GATEWAY_PORT: '8082'
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://ws_gateway:${REDIS_ACL_PASSWORD_WS_GATEWAY:-ws_gateway_dev}@redis:6379/0
       # 必须与 world-engine 的 REDIS_CHANNEL_MOVED 一致，否则订阅不到事件
       REDIS_CHANNEL_MOVED: aicity:player:moved
       # 必须与 api-gateway 的 JWT_SECRET 一致，否则登录签发的 token 在这里验不过
@@ -262,7 +275,7 @@ services:
     ports:
       - '8084:8084'
     environment:
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://agent_os:${REDIS_ACL_PASSWORD_AGENT_OS:-agent_os_dev}@redis:6379/0
       REDIS_CHANNEL_NPC_DIALOGUE: aicity:npc_dialogue
       # 2.0 stage 2：NpcSayPublisher 发流频道；与 ws-gateway 多频道订阅对齐。
       # publisher.py 当前仍用常量 CHANNEL_SAY_STREAM，未来可在 settings 覆盖。
@@ -314,7 +327,7 @@ services:
       - "8005:8005"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-aicity}:${POSTGRES_PASSWORD:-aicity_dev}@postgres:5432/${POSTGRES_DB:-aicity}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://economy:${REDIS_ACL_PASSWORD_ECONOMY:-economy_dev}@redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       # 与 api/v1/admin.py:12 默认值一致；admin 路由验签用 secrets.compare_digest
       ADMIN_TOKEN: "${ADMIN_TOKEN:-dev-admin-token}"

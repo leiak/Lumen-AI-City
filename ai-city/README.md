@@ -80,7 +80,7 @@
 > - **NPC 商品目录 + 玩家购买**：`product` 表 + `SELECT FOR UPDATE` 原子扣款 + stock-1
 > - **中央银行发钞 + NPC sink**：asyncio scheduler 6h 跑 1 次发钞 + 反通胀公式 + `MAX_GOLD_PER_PLAYER = 100000` 硬上限（数学上不可能溢出）
 > - **Kafka 3 topic**：`econ.tx.completed` / `econ.gold.emitted` / `econ.gold.sunk`（fire-and-forget）
-> - **Redis 余额缓存**：`econ:{user_id}:{gold,token}` TTL 1h + partial-update kwargs 写时双写
+> - **Redis 余额缓存**：`aicity:econ:{user_id}:{gold,token}` TTL 1h + partial-update kwargs 写时双写
 > - **agent-os BT 集成**：`npc_sell_to_player` action（5 → 6 entries）+ dispatcher post-hook（opt-in via env + kwarg）
 > - **新错误码**：R_018~R_026（BAD_REQUEST / INSUFFICIENT_BALANCE / TRANSFER_SELF / OUT_OF_STOCK / NOT_FOUND / ADMIN_REQUIRED）
 > - **DoD：** 10/10 acceptance 通过 (`acceptance_economy_v1.py`) + 46 unit/e2e tests pass + 14 容器 healthy + 23 commits
@@ -106,6 +106,7 @@ cd ai-city
 #    postgres / redis / world-engine / api-gateway / ws-gateway /
 #    web / a2a-gateway / agent-os
 #    schema 与种子数据由 postgres initdb 自动应用
+cp .env.example .env
 docker compose up -d --build
 
 # 4. 查看状态（健康服务应为 Up (healthy)）

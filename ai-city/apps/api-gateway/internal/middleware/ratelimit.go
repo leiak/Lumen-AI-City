@@ -110,7 +110,7 @@ func rateLimitHandler(store rateLimiterStore) gin.HandlerFunc {
 			identity = c.ClientIP()
 		}
 
-		key := "rl:" + scope.prefix + ":" + identity
+        key := "aicity:ratelimit:" + scope.prefix + ":" + identity
 		count, err := store.Hit(ctx, key, time.Minute)
 		if err != nil || count > scope.limit {
 			if err != nil {

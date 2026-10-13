@@ -6,8 +6,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
-GOLD_KEY = "econ:{user_id}:gold"
-TOKEN_KEY = "econ:{user_id}:token"
+GOLD_KEY = "aicity:econ:{user_id}:gold"
+TOKEN_KEY = "aicity:econ:{user_id}:token"
 DEFAULT_TTL = 3600  # 1h 缓存
 
 

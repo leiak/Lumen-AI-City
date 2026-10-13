@@ -25,6 +25,15 @@ class RedisStats:
     ping_failure: int = 0
 
 
+@dataclass(frozen=True)
+class RedisConnection:
+    host: str
+    port: int
+    db: int | None
+    username: str | None
+    password: str | None
+
+
 def parse_redis_addr(url: str) -> tuple[str, int, int | None]:
     """redis://host:port[/db] → (host, port, db_or_None).
 
@@ -46,6 +55,22 @@ def parse_redis_addr(url: str) -> tuple[str, int, int | None]:
     return u.hostname, u.port, db
 
 
+def parse_redis_connection(url: str) -> RedisConnection:
+    """Parse host/port/db plus optional ACL credentials for Redis >= 6."""
+    u = urlparse(url)
+    if u.scheme not in ("redis", "rediss"):
+        raise ValueError(f"unsupported scheme: {u.scheme}")
+    if not u.hostname or u.port is None:
+        raise ValueError(f"missing host/port: {url}")
+    db: int | None = None
+    if u.path and u.path != "/":
+        try:
+            db = int(u.path.lstrip("/"))
+        except ValueError:
+            raise ValueError(f"invalid db index: {u.path}")
+    return RedisConnection(u.hostname, u.port, db, u.username, u.password)
+
+
 def _format_publish(channel: str, payload: str) -> bytes:
     """Serialize a PUBLISH command in RESP.
 
@@ -65,11 +90,24 @@ def _format_ping() -> bytes:
     return b"*1\r\n$4\r\nPING\r\n"
 
 
+def _format_auth(conn: RedisConnection) -> bytes:
+    if conn.username:
+        username = conn.username.encode("utf-8")
+        password = conn.password.encode("utf-8")
+        return (
+            b"*3\r\n$4\r\nAUTH\r\n"
+            + b"$" + str(len(username)).encode() + b"\r\n" + username + b"\r\n"
+            + b"$" + str(len(password)).encode() + b"\r\n" + password + b"\r\n"
+        )
+    password = (conn.password or "").encode("utf-8")
+    return b"*2\r\n$4\r\nAUTH\r\n" + b"$" + str(len(password)).encode() + b"\r\n" + password + b"\r\n"
+
+
 class RedisPub:
     """fire-and-forget publisher。"""
 
     def __init__(self, url: str, *, connect_timeout: float = 1.0) -> None:
-        self._host, self._port, self._db = parse_redis_addr(url)
+        self._conn = parse_redis_connection(url)
         self._url = url
         self._timeout = connect_timeout
         self._stats = RedisStats()
@@ -82,16 +120,20 @@ class RedisPub:
         cmd = _format_publish(channel, payload)
         try:
             reader, writer = await asyncio.open_connection(
-                self._host, self._port, limit=64 * 1024
+                self._conn.host, self._conn.port, limit=64 * 1024
             )
         except (OSError, asyncio.TimeoutError) as e:
             self._stats.connect_errors += 1
             logger.warning(
-                "redis connect failed", extra={"host": self._host, "port": self._port, "err": str(e)}
+                "redis connect failed", extra={"host": self._conn.host, "port": self._conn.port, "err": str(e)}
             )
             return
 
         try:
+            if self._conn.username or self._conn.password:
+                writer.write(_format_auth(self._conn))
+                await asyncio.wait_for(writer.drain(), timeout=self._timeout)
+
             writer.write(cmd)
             await asyncio.wait_for(writer.drain(), timeout=self._timeout)
             self._stats.messages_published += 1
@@ -109,12 +151,20 @@ class RedisPub:
         """独立短连接 PING。用于 /healthz。"""
         try:
             reader, writer = await asyncio.open_connection(
-                self._host, self._port, limit=64
+                self._conn.host, self._conn.port, limit=64
             )
         except (OSError, asyncio.TimeoutError):
             self._stats.ping_failure += 1
             return False
         try:
+            if self._conn.username or self._conn.password:
+                writer.write(_format_auth(self._conn))
+                await asyncio.wait_for(writer.drain(), timeout=self._timeout)
+                auth_reply = await asyncio.wait_for(reader.readline(), timeout=self._timeout)
+                if auth_reply != b"+OK\r\n":
+                    self._stats.ping_failure += 1
+                    return False
+
             writer.write(_format_ping())
             await asyncio.wait_for(writer.drain(), timeout=self._timeout)
             line = await asyncio.wait_for(reader.readline(), timeout=self._timeout)
