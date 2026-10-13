@@ -36,6 +36,7 @@ interface InboxMessage {
   to_agent_id: string;
   type: string;
   payload: string;
+  trace_id?: string;
 }
 
 interface ChatEntry {
@@ -43,7 +44,13 @@ interface ChatEntry {
   from: string;
   text: string;
   contact: string;
+  messageId?: string;
+  traceId?: string;
   ts: number;
+}
+
+function inboxCursorKey(agentId: string): string {
+  return `aicity_agent_inbox_cursor_${agentId}`;
 }
 
 export function AgentPanel() {
@@ -63,6 +70,7 @@ export function AgentPanel() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const inboxTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inboxCursor = useRef<string>('');
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -85,8 +93,22 @@ export function AgentPanel() {
     };
   }, []);
 
-  const addMsg = useCallback((role: ChatEntry['role'], from: string, text: string, contact = 'system') => {
-    setMessages((m) => [...m, { role, from, text, contact, ts: Date.now() }]);
+  const addMsg = useCallback((
+    role: ChatEntry['role'],
+    from: string,
+    text: string,
+    contact = 'system',
+    metadata?: { messageId?: string; traceId?: string },
+  ) => {
+    setMessages((m) => [...m, {
+      role,
+      from,
+      text,
+      contact,
+      messageId: metadata?.messageId,
+      traceId: metadata?.traceId,
+      ts: Date.now(),
+    }]);
   }, []);
 
   const register = useCallback(async () => {
@@ -107,6 +129,7 @@ export function AgentPanel() {
       const data = await resp.json();
       if (data.accepted) {
         setRegistered(true);
+        inboxCursor.current = window.localStorage.getItem(inboxCursorKey(agentId)) || '';
         setStatus(`Registered as ${agentId}`);
         addMsg('system', 'gateway', `Agent ${agentId} registered`);
       } else {
@@ -139,17 +162,20 @@ export function AgentPanel() {
   const send = useCallback(async () => {
     if (!input.trim() || !registered || !selectedContact) return;
     setSending(true);
-    addMsg('agent', agentId, input.trim(), selectedContact);
+    const messageId = `msg-${Date.now()}`;
+    const traceId = `trace-${Date.now().toString(36)}`;
+    addMsg('agent', agentId, input.trim(), selectedContact, { messageId, traceId });
     try {
       await fetch(`${A2A_BASE}/v1/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message_id: `msg-${Date.now()}`,
+          message_id: messageId,
           from_agent_id: agentId,
           to_agent_id: selectedContact,
           type: 'request',
           payload: JSON.stringify({ text: input.trim() }),
+          trace_id: traceId,
         }),
       });
     } catch (e) {
@@ -223,15 +249,27 @@ export function AgentPanel() {
     inboxTimer.current = setInterval(async () => {
       if (!registered) return;
       try {
-        const resp = await fetch(`${A2A_BASE}/v1/inbox/${agentId}?mark_read=true&limit=10`);
+        const params = new URLSearchParams({
+          limit: '20',
+          mark_read: 'true',
+        });
+        if (inboxCursor.current) params.set('cursor', inboxCursor.current);
+        const resp = await fetch(`${A2A_BASE}/v1/inbox/${agentId}?${params.toString()}`);
         const data = await resp.json();
+        if (data.next_cursor) {
+          inboxCursor.current = data.next_cursor;
+          window.localStorage.setItem(inboxCursorKey(agentId), data.next_cursor);
+        }
         for (const msg of data.messages || []) {
           let text = msg.payload;
           try {
             const p = JSON.parse(msg.payload);
             text = p.say || p.text || msg.payload;
           } catch { /* raw */ }
-          addMsg('npc', msg.from_agent_id, text, msg.from_agent_id);
+          addMsg('npc', msg.from_agent_id, text, msg.from_agent_id, {
+            messageId: msg.message_id,
+            traceId: msg.trace_id,
+          });
         }
       } catch { /* silent */ }
     }, 2000);
@@ -249,7 +287,7 @@ export function AgentPanel() {
   );
 
   return (
-    <div className="absolute top-4 right-4 w-80 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 32px)' }}>
+    <div className="absolute top-4 left-4 right-4 sm:left-auto sm:w-80 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-32px)]">
       <div className="px-4 py-3 bg-gradient-to-r from-indigo-600/40 to-purple-600/40 border-b border-white/10">
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${
@@ -419,6 +457,13 @@ export function AgentPanel() {
                 }`}>
                   {m.text}
                 </div>
+                {(m.messageId || m.traceId) && (
+                  <div className={`text-[10px] text-gray-600 mt-1 ${m.role === 'agent' ? 'mr-1' : 'ml-1'}`}>
+                    {m.messageId ? `#${m.messageId.slice(-8)}` : ''}
+                    {m.messageId && m.traceId ? ' · ' : ''}
+                    {m.traceId ? `trace:${m.traceId.slice(-8)}` : ''}
+                  </div>
+                )}
               </div>
             ))}
           </div>

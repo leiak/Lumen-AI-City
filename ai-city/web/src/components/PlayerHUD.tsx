@@ -152,7 +152,7 @@ export function PlayerHUD() {
   }
 
   return (
-    <div className="absolute top-4 left-4 bg-gray-800/80 backdrop-blur p-4 rounded-lg shadow-lg">
+    <div className="absolute top-4 left-4 max-w-[calc(100vw-32px)] bg-gray-800/80 backdrop-blur p-4 rounded-lg shadow-lg">
       <div className="text-sm">
         <div className="font-bold mb-1">{identityLabel}</div>
         {!isGuest && playerId && <div className="text-xs text-gray-400">ID: {playerId}</div>}
@@ -167,7 +167,7 @@ export function PlayerHUD() {
               ? `Gold: ${wallet.gold} · Token: ${wallet.token}`
               : '余额: 加载失败'}
         </div>
-        <div className="mt-2 flex items-center gap-3">
+        <div className="mt-2 flex flex-wrap items-center gap-3">
           {isGuest ? (
             <Link href="/login" className="text-brand-400 hover:text-brand-300">
               登录
