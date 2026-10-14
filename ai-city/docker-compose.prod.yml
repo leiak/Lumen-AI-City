@@ -105,8 +105,7 @@ services:
         NEXT_PUBLIC_API_GATEWAY: "${PUBLIC_API_GATEWAY_URL:?set PUBLIC_API_GATEWAY_URL}"
         NEXT_PUBLIC_WS_GATEWAY: "${PUBLIC_WS_GATEWAY_URL:?set PUBLIC_WS_GATEWAY_URL}"
         NEXT_PUBLIC_A2A_GATEWAY: "${PUBLIC_A2A_GATEWAY_URL:?set PUBLIC_A2A_GATEWAY_URL}"
-    ports: !override
-      - "${WEB_HOST_PORT:-3000}:3000"
+    ports: !override []
 
   agent-os:
     environment:

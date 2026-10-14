@@ -31,6 +31,7 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 	if err != nil {
 		log.Fatalf("invalid WORLD_ENGINE_URL %q: %v", cfg.WorldURL, err)
 	}
+	complianceHandler := handlers.NewComplianceHandler(db)
 	walletHandler := handlers.NewEconomyWalletHandler(cfg.EconomyURL)
 	economyProxy, economyProxyErr := handlers.NewEconomyProxy(cfg.EconomyURL)
 	if economyProxyErr != nil {
@@ -67,6 +68,10 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		// 玩家相关
 		authed.GET("/players/me", playerHandler.Me)
 		authed.GET("/wallet", walletHandler.Me)
+		authed.GET("/privacy/consent", complianceHandler.GetConsent)
+		authed.PUT("/privacy/consent", complianceHandler.UpdateConsent)
+		authed.GET("/privacy/export", complianceHandler.Export)
+		authed.POST("/privacy/erase", complianceHandler.Erase)
 		authed.GET("/inventory", walletHandler.Inventory)
 		authed.POST("/wallet/purchase", economyProxy.Purchase)
 		authed.GET("/transactions", economyProxy.Transactions)

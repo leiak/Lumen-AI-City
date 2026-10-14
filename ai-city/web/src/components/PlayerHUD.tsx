@@ -44,6 +44,16 @@ export function PlayerHUD() {
   const [showMarket, setShowMarket] = useState(false);
   const [showRevenue, setShowRevenue] = useState(false);
   const [showStudio, setShowStudio] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [privacyConsent, setPrivacyConsent] = useState<{
+    essential: boolean;
+    analytics: boolean;
+    marketing: boolean;
+    third_party_sharing: boolean;
+    policy_version: string;
+  } | null>(null);
+  const [privacyMessage, setPrivacyMessage] = useState('');
+  const [privacyBusy, setPrivacyBusy] = useState<'export' | 'erase' | 'consent' | null>(null);
   const [marketVersion, setMarketVersion] = useState(0);
   const [toUserId, setToUserId] = useState('');
   const [transferAmount, setTransferAmount] = useState('1');
@@ -112,12 +122,89 @@ export function PlayerHUD() {
       cancelled = true;
     };
   }, [sessionStatus, showInventory, inventoryVersion]);
+
+  useEffect(() => {
+    if (!showPrivacy || sessionStatus !== 'authenticated') return;
+    let cancelled = false;
+    api
+      .getPrivacyConsent()
+      .then((response) => {
+        if (!cancelled) setPrivacyConsent(response);
+      })
+      .catch(() => {
+        if (!cancelled) setPrivacyMessage('隐私设置加载失败');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionStatus, showPrivacy, privacyBusy]);
   const identityLabel =
     sessionStatus === 'restoring'
       ? '恢复中...'
       : isGuest
         ? '游客'
         : displayName || '已登录';
+
+  async function updateConsent(next: Partial<{ analytics: boolean; marketing: boolean; third_party_sharing: boolean; withdraw_all_optional: boolean }>) {
+    if (sessionStatus !== 'authenticated') return;
+    setPrivacyBusy('consent');
+    setPrivacyMessage('');
+    try {
+      const response = await api.updatePrivacyConsent({
+        analytics: next.analytics ?? privacyConsent?.analytics ?? false,
+        marketing: next.marketing ?? privacyConsent?.marketing ?? false,
+        third_party_sharing: next.third_party_sharing ?? privacyConsent?.third_party_sharing ?? false,
+        withdraw_all_optional: next.withdraw_all_optional,
+      });
+      setPrivacyConsent((current) => ({
+        essential: true,
+        analytics: response.analytics,
+        marketing: response.marketing,
+        third_party_sharing: response.third_party_sharing,
+        policy_version: current?.policy_version || '2026-10-14',
+      }));
+      setPrivacyMessage('隐私设置已保存');
+    } catch (error) {
+      setPrivacyMessage(error instanceof Error ? error.message : '隐私设置保存失败');
+    } finally {
+      setPrivacyBusy(null);
+    }
+  }
+
+  async function exportData() {
+    setPrivacyBusy('export');
+    setPrivacyMessage('');
+    try {
+      const response = await api.exportPrivacyData();
+      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `aicity-data-export-${response.request_id}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setPrivacyMessage(`导出完成 · ${response.request_id.slice(-8)}`);
+    } catch (error) {
+      setPrivacyMessage(error instanceof Error ? error.message : '导出失败');
+    } finally {
+      setPrivacyBusy(null);
+    }
+  }
+
+  async function eraseData() {
+    if (!window.confirm('确认匿名化账户数据？财务与审计记录将依法保留。')) return;
+    setPrivacyBusy('erase');
+    setPrivacyMessage('');
+    try {
+      await api.erasePrivacyData();
+      setPrivacyMessage('账户已匿名化，即将退出');
+      logout();
+    } catch (error) {
+      setPrivacyMessage(error instanceof Error ? error.message : '删除请求失败');
+    } finally {
+      setPrivacyBusy(null);
+    }
+  }
 
   async function submitTransfer() {
     if (sessionStatus !== 'authenticated') return;
@@ -225,13 +312,20 @@ export function PlayerHUD() {
               >
                 {showTransactions ? '隐藏交易' : '交易'}
               </button>
+              <button
+                type="button"
+                onClick={() => setShowPrivacy((value) => !value)}
+                className="text-gray-400 hover:text-gray-200"
+              >
+                {showPrivacy ? '隐藏隐私' : '隐私'}
+              </button>
             </>
           )}
         </div>
 
         {showInventory && (
           <div className="mt-2 max-h-32 overflow-y-auto border-t border-slate-700 pt-2">
-            {inventory == null ? (
+            {inventory === null ? (
               <div className="text-xs text-gray-400">背包加载失败</div>
             ) : inventory.length === 0 ? (
               <div className="text-xs text-gray-400">暂无物品</div>
@@ -248,6 +342,68 @@ export function PlayerHUD() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {showPrivacy && (
+          <div className="mt-2 space-y-2 border-t border-slate-700 pt-2" data-testid="privacy-panel">
+            <div className="text-xs text-gray-400">
+              必需处理始终开启 · 政策 {privacyConsent?.policy_version || '...'}
+            </div>
+            <div className="grid grid-cols-1 gap-1">
+              <label className="flex items-center justify-between gap-2 text-xs text-gray-300">
+                分析
+                <input
+                  type="checkbox"
+                  checked={privacyConsent?.analytics || false}
+                  disabled={privacyBusy !== null}
+                  onChange={(event) => void updateConsent({ analytics: event.target.checked })}
+                />
+              </label>
+              <label className="flex items-center justify-between gap-2 text-xs text-gray-300">
+                营销
+                <input
+                  type="checkbox"
+                  checked={privacyConsent?.marketing || false}
+                  disabled={privacyBusy !== null}
+                  onChange={(event) => void updateConsent({ marketing: event.target.checked })}
+                />
+              </label>
+              <label className="flex items-center justify-between gap-2 text-xs text-gray-300">
+                第三方共享
+                <input
+                  type="checkbox"
+                  checked={privacyConsent?.third_party_sharing || false}
+                  disabled={privacyBusy !== null}
+                  onChange={(event) => void updateConsent({ third_party_sharing: event.target.checked })}
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              onClick={() => void updateConsent({ withdraw_all_optional: true })}
+              disabled={privacyBusy !== null}
+              className="w-full rounded bg-slate-700 px-3 py-1 text-xs text-white hover:bg-slate-600 disabled:opacity-50"
+            >
+              撤回全部可选授权
+            </button>
+            <button
+              type="button"
+              onClick={() => void exportData()}
+              disabled={privacyBusy !== null}
+              className="w-full rounded bg-brand-500 px-3 py-1 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {privacyBusy === 'export' ? '导出中...' : '导出我的数据'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void eraseData()}
+              disabled={privacyBusy !== null}
+              className="w-full rounded bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+            >
+              {privacyBusy === 'erase' ? '匿名化中...' : '匿名化我的账户'}
+            </button>
+            {privacyMessage && <div className="text-xs text-amber-400">{privacyMessage}</div>}
           </div>
         )}
 
@@ -303,7 +459,7 @@ export function PlayerHUD() {
 
         {showTransactions && (
           <div className="mt-2 max-h-44 overflow-y-auto border-t border-slate-700 pt-2">
-            {transactions == null ? (
+            {transactions === null ? (
               <div className="text-xs text-gray-400">交易加载失败</div>
             ) : transactions.transactions.length === 0 ? (
               <div className="text-xs text-gray-400">暂无交易</div>

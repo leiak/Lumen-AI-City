@@ -143,7 +143,7 @@ export function CreatorMarket() {
                   disabled={
                     sessionStatus !== 'authenticated' ||
                     buyingId === itemKey ||
-                    (wallet != null && wallet.gold < item.price)
+                    (wallet !== null && wallet.gold < item.price)
                   }
                   onClick={() => void buy(item)}
                   className="rounded bg-brand-500 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -152,7 +152,7 @@ export function CreatorMarket() {
                     ? '购买中'
                     : sessionStatus !== 'authenticated'
                       ? '登录'
-                      : wallet != null && wallet.gold < item.price
+                      : wallet !== null && wallet.gold < item.price
                         ? '余额不足'
                         : `${item.price} G`}
                 </button>

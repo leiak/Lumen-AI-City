@@ -3,6 +3,7 @@
 .gocache/
 .pytest_cache/
 .pytest-tmp/
+ai-city/build-tmp/
 
 # OS
 Thumbs.db

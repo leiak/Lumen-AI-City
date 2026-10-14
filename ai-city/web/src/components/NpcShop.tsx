@@ -67,7 +67,7 @@ export function NpcShop({ npcId }: { npcId: string }) {
       setState((prev) => ({
         ...prev,
         products: prev.products.map((item) =>
-          item.id === product.id && item.stock != null
+          item.id === product.id && item.stock !== null
             ? { ...item, stock: Math.max(0, item.stock - 1) }
             : item,
         ),
@@ -109,8 +109,8 @@ export function NpcShop({ npcId }: { npcId: string }) {
               <div className="truncate text-sm text-slate-100">{product.name}</div>
               <div className="text-xs text-slate-400">
                 {product.price_gold} Gold · 实扣 {totalGoldCost(product)} G
-                {product.price_token != null ? ` · ${product.price_token} Token` : ''}
-                {product.stock != null ? ` · 库存 ${product.stock}` : ''}
+                {product.price_token !== null ? ` · ${product.price_token} Token` : ''}
+                {product.stock !== null ? ` · 库存 ${product.stock}` : ''}
               </div>
             </div>
             <button
@@ -118,8 +118,8 @@ export function NpcShop({ npcId }: { npcId: string }) {
               disabled={
                 sessionStatus !== 'authenticated' ||
                 buyingId !== null ||
-                (product.stock != null && product.stock <= 0) ||
-                (wallet != null && wallet.gold < totalGoldCost(product))
+                (product.stock !== null && product.stock <= 0) ||
+                (wallet !== null && wallet.gold < totalGoldCost(product))
               }
               onClick={() => void buy(product)}
               className="rounded bg-brand-500 px-3 py-1 text-xs font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -128,9 +128,9 @@ export function NpcShop({ npcId }: { npcId: string }) {
                 ? '购买中'
                 : sessionStatus !== 'authenticated'
                   ? '登录购买'
-                  : product.stock != null && product.stock <= 0
+                  : product.stock !== null && product.stock <= 0
                     ? '缺货'
-                    : wallet != null && wallet.gold < totalGoldCost(product)
+                    : wallet !== null && wallet.gold < totalGoldCost(product)
                       ? '余额不足'
                       : '购买'}
             </button>

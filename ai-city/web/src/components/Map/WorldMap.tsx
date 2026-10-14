@@ -196,6 +196,7 @@ export function WorldMap() {
       const tile = state.tiles.find((t) => t.npc_ids.includes(npcId));
       const tileId = tile?.id ?? '';
       const displayName = getNpcDisplayName(npcId);
+      useGameStore.getState().selectNpc(npcId);
       // Sprint 13：点 NPC 先拉真实初始节点（say + options）；失败降级为 legacy 问候。
       let say = `${displayName}在。`;
       let options: Array<{ id: string; text: string }> = [

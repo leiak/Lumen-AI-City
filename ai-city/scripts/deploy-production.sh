@@ -17,6 +17,7 @@ fi
 compose() {
     docker compose --env-file "$ENV_FILE" \
         -f docker-compose.yml \
+        -f "${SCALE_OVERLAY:-docker-compose.scale.yml}" \
         -f docker-compose.prod.yml "$@"
 }
 

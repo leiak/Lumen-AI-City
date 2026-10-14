@@ -228,7 +228,7 @@ export function CreatorStudio({ onPublished }: { onPublished?: () => void }) {
       </button>
       <div className="space-y-1 border-t border-slate-700 pt-2">
         <div className="text-xs font-semibold text-slate-300">我的作品</div>
-        {works == null ? (
+        {works === null ? (
           <div className="text-xs text-slate-400">作品加载中...</div>
         ) : works.length === 0 ? (
           <div className="text-xs text-slate-400">暂无作品</div>

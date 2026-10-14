@@ -129,8 +129,17 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	tx, err := h.pool.Begin(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error", "detail": err.Error()})
+		return
+	}
+	defer func() {
+		_ = tx.Rollback(c.Request.Context())
+	}()
+
 	playerID := ""
-	err = h.pool.QueryRow(c.Request.Context(), `
+	err = tx.QueryRow(c.Request.Context(), `
 		INSERT INTO player (username, email, password_hash, display_name)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id
@@ -145,6 +154,36 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "insert_failed"})
 			return
 		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error", "detail": err.Error()})
+		return
+	}
+
+	// New accounts need a usable wallet. The starter grant is recorded in the
+	// append-only economy ledger so a player can immediately try purchases.
+	if _, err := tx.Exec(c.Request.Context(), `
+		INSERT INTO wallet (user_id, gold_balance, token_balance)
+		VALUES ($1, 100, 0)
+	`, playerID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "wallet_setup_failed", "detail": err.Error()})
+		return
+	}
+	if _, err := tx.Exec(c.Request.Context(), `
+		INSERT INTO central_bank_ledger (event_type, currency, amount, reason, trigger_user_id)
+		VALUES ('emit', 'gold', 100, 'registration starter grant', $1)
+	`, playerID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "wallet_setup_failed", "detail": err.Error()})
+		return
+	}
+	if _, err := tx.Exec(c.Request.Context(), `
+		INSERT INTO transaction
+			(tx_type, user_id, currency, amount, balance_after, trace_id)
+		VALUES
+			('central_bank_emit', $1, 'gold', 100, 100, 'registration-starter-grant')
+	`, playerID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "wallet_setup_failed", "detail": err.Error()})
+		return
+	}
+	if err := tx.Commit(c.Request.Context()); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error", "detail": err.Error()})
 		return
 	}

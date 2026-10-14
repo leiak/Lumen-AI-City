@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { getNpcDisplayName } from '@/lib/npc-positions';
 import { useGameStore } from '@/store/game';
 
 interface Message {
@@ -15,29 +16,30 @@ interface DialogOption {
   text: string;
 }
 
-const NPC_ID = 'npc_wang_boss_001';
-const NPC_NAME = '王老板';
-
 export function ChatBox() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [options, setOptions] = useState<DialogOption[]>([]);
   const [sending, setSending] = useState(false);
   const playerId = useGameStore((s) => s.playerId);
+  const npcId = useGameStore((s) => s.selectedNpcId);
+  const npcName = npcId ? getNpcDisplayName(npcId) : '';
+
+  useEffect(() => {
+    setMessages([]);
+    setOptions([]);
+    setInput('');
+  }, [npcId]);
 
   const talk = async (text: string, choiceId = 'root') => {
-    if (!text.trim() || sending) return;
+    if (!npcId || !text.trim() || sending) return;
     setMessages((m) => [...m, { from: '我', content: text, isPlayer: true }]);
     setSending(true);
     setInput('');
 
     try {
-      const reply = await api.postNpcTalk(
-        NPC_ID,
-        choiceId,
-        playerId || 'guest-preview-player',
-      );
-      setMessages((m) => [...m, { from: NPC_NAME, content: reply.say, isPlayer: false }]);
+      const reply = await api.postNpcTalk(npcId, choiceId, playerId || 'guest-preview-player');
+      setMessages((m) => [...m, { from: npcName, content: reply.say, isPlayer: false }]);
       setOptions(reply.options || []);
     } catch (error) {
       setMessages((m) => [...m, {
@@ -51,6 +53,7 @@ export function ChatBox() {
   };
 
   const send = () => {
+    if (!npcId) return;
     void talk(input);
   };
 
@@ -63,7 +66,9 @@ export function ChatBox() {
       <div className="h-48 overflow-y-auto p-3 space-y-2">
         {messages.length === 0 && (
           <div className="text-gray-500 text-sm text-center py-8">
-            正在和 {NPC_NAME} 对话；点击选项或直接发送消息...
+            {npcId
+              ? `正在和 ${npcName} 对话；点击选项或直接发送消息...`
+              : '点击地图上的 NPC 开始对话。'}
           </div>
         )}
         {messages.map((m, i) => (
@@ -97,7 +102,8 @@ export function ChatBox() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && send()}
           className="flex-1 bg-transparent p-3 outline-none"
-          placeholder={`和 ${NPC_NAME} 说点什么...`}
+          disabled={!npcId}
+          placeholder={npcId ? `和 ${npcName} 说点什么...` : '先选中一个 NPC'}
         />
         <button
           onClick={send}

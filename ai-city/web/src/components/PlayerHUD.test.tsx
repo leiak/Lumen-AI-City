@@ -77,6 +77,29 @@ vi.mock('@/lib/api', () => ({
     listCreatorSagaTemplates: vi.fn().mockResolvedValue([]),
     publishMarketTemplate: vi.fn().mockResolvedValue({ status: 'live' }),
     takeDownMarketTemplate: vi.fn().mockResolvedValue({ status: 'taken_down' }),
+    getPrivacyConsent: vi.fn().mockResolvedValue({
+      essential: true,
+      analytics: false,
+      marketing: false,
+      third_party_sharing: false,
+      policy_version: '2026-10-14',
+    }),
+    updatePrivacyConsent: vi.fn().mockResolvedValue({
+      analytics: true,
+      marketing: false,
+      third_party_sharing: false,
+    }),
+    exportPrivacyData: vi.fn().mockResolvedValue({
+      request_id: '12345678-0000-0000-0000-000000000000',
+      status: 'completed',
+      completed_at: '2026-10-14T00:00:00Z',
+      data: {},
+    }),
+    erasePrivacyData: vi.fn().mockResolvedValue({
+      request_id: '87654321-0000-0000-0000-000000000000',
+      status: 'completed',
+      completed_at: '2026-10-14T00:00:00Z',
+    }),
   },
 }));
 
@@ -227,6 +250,18 @@ describe('PlayerHUD inventory', () => {
       expect.objectContaining({ status: 'draft' }),
     ));
     expect(await screen.findByText('已保存草稿 #12')).toBeInTheDocument();
+  });
+
+  it('updates optional privacy consent from the player HUD', async () => {
+    render(<PlayerHUD />);
+
+    fireEvent.click(screen.getByRole('button', { name: '隐私' }));
+    fireEvent.click(await screen.findByLabelText('分析'));
+
+    await waitFor(() => expect(api.updatePrivacyConsent).toHaveBeenCalledWith(
+      expect.objectContaining({ analytics: true }),
+    ));
+    expect(await screen.findByText('隐私设置已保存')).toBeInTheDocument();
   });
 
   it('lets creators take down their own marketplace template', async () => {

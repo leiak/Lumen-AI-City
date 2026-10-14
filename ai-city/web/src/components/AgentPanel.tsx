@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 
+import { AgentTemplateEditor } from './AgentTemplateEditor';
+
 const A2A_BASE = process.env.NEXT_PUBLIC_A2A_GATEWAY || 'http://localhost:8083';
 
 interface AgentCard {
@@ -87,6 +89,7 @@ export function AgentPanel() {
   const [creatingTemplate, setCreatingTemplate] = useState(false);
   const [submittingTemplate, setSubmittingTemplate] = useState<number | null>(null);
   const [simulatingTemplate, setSimulatingTemplate] = useState<number | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
   const inboxTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const inboxCursor = useRef<string>('');
   const chatRef = useRef<HTMLDivElement>(null);
@@ -387,7 +390,7 @@ export function AgentPanel() {
     if (registered && tab === 'template') loadTemplateDrafts();
   }, [registered, tab, loadTemplateDrafts]);
 
-  useEffect(() => { discover(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { discover(); }, []);
 
   const visibleMessages = messages.filter(
     (m) => m.contact === selectedContact || m.contact === 'system'
@@ -498,6 +501,15 @@ export function AgentPanel() {
                 {creatingTemplate ? 'Creating...' : 'Create sandbox draft'}
               </button>
               {templateMessage && <div className="text-[10px] text-gray-400">{templateMessage}</div>}
+              {editingTemplateId !== null && (
+                <AgentTemplateEditor
+                  agentId={agentId}
+                  templateId={editingTemplateId}
+                  templateName={templateDrafts.find((draft) => draft.id === editingTemplateId)?.name || `Template #${editingTemplateId}`}
+                  onClosed={() => setEditingTemplateId(null)}
+                  onSaved={() => { void loadTemplateDrafts(); }}
+                />
+              )}
               <div className="space-y-1">
                 {templateDrafts.map((draft) => (
                   <div key={draft.id} className="rounded-lg bg-gray-800/60 px-2 py-1.5 text-xs">
@@ -513,6 +525,12 @@ export function AgentPanel() {
                         className="flex-1 rounded bg-blue-600/80 px-2 py-1 text-[10px] text-white hover:bg-blue-500 disabled:opacity-40">
                         {simulatingTemplate === draft.id ? 'Running...' : 'Simulate'}
                       </button>
+                      {(draft.status === 'draft' || draft.status === 'rejected') && (
+                        <button onClick={() => setEditingTemplateId(draft.id)}
+                          className="flex-1 rounded bg-purple-600/80 px-2 py-1 text-[10px] text-white hover:bg-purple-500">
+                          Edit
+                        </button>
+                      )}
                       {(draft.status === 'draft' || draft.status === 'rejected') && (
                         <button onClick={() => submitTemplateDraft(draft.id)} disabled={submittingTemplate === draft.id}
                           className="flex-1 rounded bg-emerald-600/80 px-2 py-1 text-[10px] text-white hover:bg-emerald-500 disabled:opacity-40">

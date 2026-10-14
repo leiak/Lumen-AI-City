@@ -17,6 +17,10 @@
 const NPC_DISPLAY_NAMES: Record<string, string> = {
   npc_wang_boss_001: '王老板',
   npc_lihua_001: '李华',
+  npc_book_keeper_001: '书店掌柜',
+  npc_dance_leader_001: '广场舞领队',
+  npc_grace_healer_001: 'Grace',
+  npc_snack_owner_001: '小吃摊老板',
 };
 
 /** 查 NPC 显示名。找不到时返回 npc_id 自身（Sprint 12 NPCDialog 的同款兜底） */

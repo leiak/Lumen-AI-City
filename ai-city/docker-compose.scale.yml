@@ -1,0 +1,27 @@
+# M4 rolling-upgrade overlay. Base service ports are removed so two or more
+# replicas can coexist; edge-gateway is the only published player entrypoint.
+services:
+  api-gateway:
+    ports: !override []
+
+  web:
+    ports: !override []
+
+  edge-gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "${EDGE_GATEWAY_HOST_PORT:-18090}:80"
+    volumes:
+      - ./deploy/nginx/scale.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+      web:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped

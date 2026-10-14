@@ -211,6 +211,26 @@ class ApiClient {
       body: JSON.stringify({ username, password }),
     });
 
+  register = (params: {
+    username: string;
+    email: string;
+    password: string;
+    displayName: string;
+  }) =>
+    this.request<{
+      player_id: string;
+      username: string;
+      display_name: string;
+    }>('/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: params.username,
+        email: params.email,
+        password: params.password,
+        display_name: params.displayName,
+      }),
+    });
+
   getMe = () => this.request<MeResponse>('/v1/players/me');
 
 
@@ -353,6 +373,40 @@ class ApiClient {
   publishMarketTemplate = (params: { kind: 'npc' | 'saga'; templateId: number }) =>
     this.request<{ status: string }>(
       `/v1/marketplace/${params.kind === 'npc' ? 'npc' : 'saga'}-templates/${params.templateId}/publish`,
+      { method: 'POST' },
+    );
+
+  getPrivacyConsent = () =>
+    this.request<{
+      essential: boolean;
+      analytics: boolean;
+      marketing: boolean;
+      third_party_sharing: boolean;
+      policy_version: string;
+    }>('/v1/privacy/consent');
+
+  updatePrivacyConsent = (params: {
+    analytics: boolean;
+    marketing: boolean;
+    third_party_sharing: boolean;
+    withdraw_all_optional?: boolean;
+  }) =>
+    this.request<{ analytics: boolean; marketing: boolean; third_party_sharing: boolean }>(
+      '/v1/privacy/consent',
+      { method: 'PUT', body: JSON.stringify(params) },
+    );
+
+  exportPrivacyData = () =>
+    this.request<{
+      request_id: string;
+      status: string;
+      completed_at: string;
+      data: Record<string, unknown>;
+    }>('/v1/privacy/export');
+
+  erasePrivacyData = () =>
+    this.request<{ request_id: string; status: string; completed_at: string }>(
+      '/v1/privacy/erase',
       { method: 'POST' },
     );
 

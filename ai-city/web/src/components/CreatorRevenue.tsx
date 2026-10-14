@@ -79,7 +79,7 @@ export function CreatorRevenue() {
     <div className="mt-2 space-y-2 border-t border-slate-700 pt-2">
       {error ? (
         <div className="text-xs text-red-400">{error}</div>
-      ) : revenue == null ? (
+      ) : revenue === null ? (
         <div className="text-xs text-slate-400">收益加载中...</div>
       ) : (
         <>
