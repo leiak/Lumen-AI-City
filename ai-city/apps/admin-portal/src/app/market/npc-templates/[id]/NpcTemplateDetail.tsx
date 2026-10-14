@@ -128,7 +128,6 @@ export function NpcTemplateDetail({ templateId }: { templateId: number }) {
       <div className="bg-white border border-gray-200 rounded p-6">
         <div className="flex flex-col md:flex-row gap-6">
           {data.avatar_url && (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={data.avatar_url}
               alt={data.name}

@@ -58,6 +58,8 @@ def run_step(step: Step, dry_run: bool) -> dict[str, Any]:
             command,
             cwd=step.cwd,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
             check=False,
             timeout=3600,

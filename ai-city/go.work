@@ -4,6 +4,7 @@ use (
 	./apps/a2a-gateway
 	./apps/api-gateway
 	./apps/observability-agent
+	./apps/saga-orchestrator
 	./apps/ws-gateway
 	./packages/proto
 	./packages/sdk-go

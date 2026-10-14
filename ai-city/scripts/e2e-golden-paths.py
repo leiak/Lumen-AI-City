@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import time
@@ -17,9 +18,16 @@ CREATOR_USER = os.environ.get("AICITY_CREATOR_USER", "creator_demo")
 CREATOR_PASS = os.environ.get("AICITY_CREATOR_PASS", "creatorpass")
 
 
+def safe_json(text: str):
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+
 class Suite:
     def __init__(self) -> None:
-        self.client = httpx.Client(base_url=API, timeout=10.0)
+        self.client = httpx.Client(base_url=API, timeout=10.0, trust_env=False)
         self.passed = 0
         self.failed = 0
         self.run_id = uuid.uuid4().hex[:8]
@@ -52,7 +60,7 @@ def main() -> int:
     print(f"==> Golden-path E2E against {API}")
 
     r = c.get("/health")
-    suite.check("01 health", r.status_code, 200, r.text, r.json().get("status") == "ok")
+    suite.check("01 health", r.status_code, 200, r.text, safe_json(r.text).get("status") == "ok")
 
     r = c.get("/metrics")
     suite.check("02 metrics", r.status_code, 200, r.text)
