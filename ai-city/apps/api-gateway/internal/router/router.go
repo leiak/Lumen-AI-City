@@ -37,6 +37,10 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 	if economyProxyErr != nil {
 		log.Fatalf("invalid ECONOMY_SERVICE_URL %q: %v", cfg.EconomyURL, economyProxyErr)
 	}
+	sagaProxy, sagaProxyErr := handlers.NewSagaProxy(cfg.SagaURL)
+	if sagaProxyErr != nil {
+		log.Fatalf("invalid SAGA_ORCHESTRATOR_URL %q: %v", cfg.SagaURL, sagaProxyErr)
+	}
 
 	r.Use(middleware.AuditCritical(logger))
 
@@ -100,8 +104,8 @@ func Register(r *gin.Engine, cfg *config.Config, db *pgxpool.Pool, playerStore *
 		authed.GET("/npcs/:id", npcTalkHandler.HandleInfo)
 
 		// 剧本相关（占位）
-		authed.POST("/sagas", func(c *gin.Context) { c.JSON(501, gin.H{"error": "TODO"}) })
-		authed.GET("/sagas/:id", func(c *gin.Context) { c.JSON(501, gin.H{"error": "TODO"}) })
+		authed.POST("/sagas", sagaProxy.Create)
+		authed.GET("/sagas/:id", sagaProxy.Get)
 
 		// 世界相关：读路径（tiles）继续走 REST proxy（web 用，便于缓存），
 		// 写路径（move）走 gRPC（Sprint 3.5）

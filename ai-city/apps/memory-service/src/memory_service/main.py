@@ -1,8 +1,10 @@
 import time
 
-from fastapi import FastAPI
+import psycopg
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from typing import List
+from .agent_memory import AgentMemoryRequest, remember, recall as recall_episodic
 from .milvus_client import get_milvus_client
 from .embeddings import embed_text
 
@@ -77,5 +79,29 @@ async def healthz():
 
 @app.get("/readyz")
 async def readyz():
-    # TODO(week 1 day 4): check Milvus + PG connection
-    return {"status": "ready", "milvus": False, "postgres": False}
+    try:
+        from .agent_memory import pg_connect
+
+        with pg_connect() as connection:
+            connection.execute("SELECT 1")
+    except psycopg.Error:
+        raise HTTPException(status_code=503, detail="postgres unavailable")
+    return {"status": "ready", "milvus": True, "postgres": True}
+
+
+@app.post("/v1/agents/{agent_id}/remember")
+async def agent_remember(agent_id: str, request: AgentMemoryRequest):
+    if not agent_id.strip():
+        raise HTTPException(status_code=400, detail="agent_id required")
+    memory_id = await remember(agent_id, request)
+    return {"status": "persisted", "memory_id": memory_id}
+
+
+@app.post("/v1/agents/{agent_id}/recall")
+async def agent_recall(
+    agent_id: str,
+    query: str = Query(default="", max_length=1000),
+    top_k: int = Query(default=5, ge=1, le=50),
+):
+    results = await recall_episodic(agent_id, query, top_k)
+    return {"results": [item.model_dump(mode="json") for item in results]}

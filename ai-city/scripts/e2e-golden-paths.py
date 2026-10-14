@@ -12,6 +12,7 @@ import uuid
 import httpx
 
 API = os.environ.get("AICITY_API_URL", "http://localhost:18080")
+MEMORY_URL = os.environ.get("AICITY_MEMORY_URL", "http://localhost:9200")
 DEMO_USER = os.environ.get("AICITY_DEMO_USER", "demo")
 DEMO_PASS = os.environ.get("AICITY_DEMO_PASS", "demo123")
 CREATOR_USER = os.environ.get("AICITY_CREATOR_USER", "creator_demo")
@@ -236,6 +237,61 @@ def main() -> int:
 
     r = c.get("/v1/marketplace/revenue", headers=creator_headers)
     suite.check("20 revenue list", r.status_code, 200, r.text)
+
+    saga_id = f"ga_e2e_saga_{suffix}"
+    r = c.post(
+        "/v1/sagas",
+        headers=suite.auth_headers(),
+        json={
+            "saga_id": saga_id,
+            "steps": [
+                {
+                    "worker_id": "worker-1",
+                    "action": "say",
+                    "payload": {"text": "hello"},
+                }
+            ],
+        },
+    )
+    suite.check("21 saga create", r.status_code, 200, r.text)
+
+    r = c.get(f"/v1/sagas/{saga_id}", headers=suite.auth_headers())
+    body = r.json() if r.status_code == 200 else {}
+    suite.check(
+        "22 saga get",
+        r.status_code,
+        200,
+        r.text,
+        body.get("player_id") == suite.player_id,
+    )
+
+    memory_agent = f"ga_e2e_agent_{suffix}"
+    memory_text = f"golden path memory {suffix}"
+    memory_response = httpx.post(
+        f"{MEMORY_URL}/v1/agents/{memory_agent}/remember",
+        json={
+            "percept": {"content": memory_text, "player_id": suite.player_id},
+            "importance": 5,
+        },
+        timeout=10.0,
+        trust_env=False,
+    )
+    suite.check("23 agent memory write", memory_response.status_code, 200, memory_response.text)
+
+    memory_response = httpx.post(
+        f"{MEMORY_URL}/v1/agents/{memory_agent}/recall",
+        params={"query": suffix, "top_k": 5},
+        timeout=10.0,
+        trust_env=False,
+    )
+    memory_body = memory_response.json() if memory_response.status_code == 200 else {}
+    suite.check(
+        "24 agent memory recall",
+        memory_response.status_code,
+        200,
+        memory_response.text,
+        any(item.get("content") == memory_text for item in memory_body.get("results", [])),
+    )
 
     print(f"==> passed={suite.passed} failed={suite.failed}")
     return 0 if suite.failed == 0 else 1

@@ -18,6 +18,8 @@ type Config struct {
 	WorldURL    string
 	// Economy URL 用于受 JWT 保护的玩家侧只读代理。
 	EconomyURL string
+	// Saga URL 用于受 JWT 保护的 Saga 实例代理。
+	SagaURL string
 	// Sprint 3.5：world-engine gRPC 地址（默认 127.0.0.1:50051）
 	WorldGRPCAddr string
 	// CORS allowlist（逗号分隔的 origin），默认放通 web 的 http://localhost:3000
@@ -38,6 +40,7 @@ func Load() *Config {
 		LogLevel:      getEnv("LOG_LEVEL", "info"),
 		WorldURL:      getEnv("WORLD_ENGINE_URL", "http://localhost:50052"),
 		EconomyURL:    getEnv("ECONOMY_SERVICE_URL", "http://localhost:8005"),
+		SagaURL:       getEnv("SAGA_ORCHESTRATOR_URL", "http://localhost:9100"),
 		WorldGRPCAddr: getEnv("WORLD_ENGINE_GRPC_ADDR", "127.0.0.1:50051"),
 		CORSAllowedOrigins: strings.Split(
 			getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"), ","),

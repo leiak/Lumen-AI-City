@@ -147,6 +147,7 @@ services:
       WORLD_ENGINE_URL: http://world-engine:50052
       WORLD_ENGINE_GRPC_ADDR: world-engine:50051
       ECONOMY_SERVICE_URL: http://economy-service:8005
+      SAGA_ORCHESTRATOR_URL: http://saga-orchestrator:9100
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       # 浏览器从 web(:3000) 跨源调本服务(:8080)，必须放通该 origin，
       # 否则登录响应被浏览器丢弃（curl 看不出问题）

@@ -108,7 +108,7 @@ restore 脚本会停止核心写服务、重建数据库对象，再重启核心
 | 备份恢复 | `pg_dump` / restore 演练通过 | ✅ |
 | Observability | metrics、日志、告警接入 staging | ✅ |
 | 限流与审计 | 登录、转账、购买、提现有限流与审计 | ✅ |
-| E2E | 20 条 golden path 通过 | ✅ |
+| E2E | 24 条 golden path 通过 | ✅ |
 | 压测 | 50 玩家 + 10 Agent 稳定 | ✅ |
 | 合规 | 同意、导出、匿名化删除 API 与审计证据 | ✅ |
 | 滚动发布 | 2 副本滚动升级 + 镜像回滚 | ✅ |
@@ -123,14 +123,14 @@ restore 脚本会停止核心写服务、重建数据库对象，再重启核心
 
 ## 8. GA 验收命令
 
-### 20 条 golden path
+### 24 条 golden path
 
 ```bash
 python scripts/e2e-golden-paths.py
 ```
 
 默认覆盖本机 API Gateway `http://localhost:18080`，可用 `AICITY_API_URL` 覆盖。
-2026-10-12 结果：20/20 通过。
+2026-10-14 结果：24/24 通过；新增 Saga 创建/查询与 Agent 情节记忆读/写。
 
 ### 50 玩家 + 10 Agent 压测
 
@@ -157,7 +157,7 @@ docker compose --env-file .env.production \
 - PostgreSQL 使用 SCRAM-SHA-256；Redis / Kafka / Milvus / etcd / Minio 不发布宿主机端口。
 - `world-engine` 修复了 Redis URL password 被丢弃的问题，现在 `PING` / `PUBLISH` / `SUBSCRIBE` 前都会先 `AUTH`。
 - `a2a-gateway` 生产 overlay 补上带密码的 `REDIS_URL`。
-- 20 条 golden path 在生产栈通过：20/20。
+- 24 条 golden path 在本机多副本栈通过：24/24。
 - 压测：1440 ops，0 错误，p95 2.267s，p99 3.114s。错误率达标；p95 略高于 2s，受本机 Windows Docker + 同机其他工作负载影响，不能作为生产容量结论。
 
 ## 10. 生产可观测性

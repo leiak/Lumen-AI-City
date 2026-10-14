@@ -62,9 +62,18 @@ func main() {
 	// GET /v1/saga/:id — 查询 Saga
 	r.GET("/v1/saga/:id", func(c *gin.Context) {
 		id := c.Param("id")
+		playerID := c.Query("player_id")
+		if playerID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "player_id required"})
+			return
+		}
 		saga, err := sagaStore.Get(id)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		if saga.PlayerID != playerID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "saga owner mismatch"})
 			return
 		}
 		c.JSON(http.StatusOK, saga)
