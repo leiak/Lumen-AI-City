@@ -72,7 +72,7 @@ func TestRateLimitIgnoresIdentityHeader(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 60; i++ {
 		request := httptest.NewRequest(http.MethodPost, "/v1/auth/login", nil)
 		request.Header.Set("X-Player-ID", fmt.Sprintf("player-%d", i))
 		recorder := httptest.NewRecorder()
@@ -83,7 +83,7 @@ func TestRateLimitIgnoresIdentityHeader(t *testing.T) {
 	}
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/auth/login", nil)
-	request.Header.Set("X-Player-ID", "player-11")
+	request.Header.Set("X-Player-ID", "player-61")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusTooManyRequests {

@@ -152,8 +152,13 @@ def main() -> int:
         "/v1/auth/login",
         json={"username": DEMO_USER, "password": DEMO_PASS},
     )
-    demo_token = r.json().get("token", "") if r.status_code == 200 else ""
-    demo_player_id = r.json().get("player_id", "") if r.status_code == 200 else ""
+    demo_body = r.json() if r.status_code == 200 else {}
+    demo_token = demo_body.get("token", "")
+    demo_player_id = demo_body.get("player_id", "")
+    if not demo_token:
+        suite.check("demo login", 429, 200, r.text)
+        print(f"==> passed={suite.passed} failed={suite.failed}")
+        return 1
     demo_headers = {"Authorization": f"Bearer {demo_token}"}
 
     r = c.get("/v1/wallet", headers=demo_headers)
@@ -163,6 +168,20 @@ def main() -> int:
     suite.check("13 inventory read", r.status_code, 200, r.text)
 
     demo_gold = c.get("/v1/wallet", headers=demo_headers).json().get("gold_balance", 0)
+    if demo_gold < 10:
+        r = c.post(
+            "/v1/wallet/transfer",
+            headers=suite.auth_headers(),
+            json={
+                "from_user_id": suite.player_id,
+                "to_user_id": demo_player_id,
+                "currency": "gold",
+                "amount": 11,
+                "idempotency_key": f"ga-demo-fund-{suffix}",
+            },
+        )
+        if r.status_code == 200:
+            demo_gold += 11
     purchasable = [
         p
         for p in products
@@ -229,7 +248,12 @@ def main() -> int:
         "/v1/auth/login",
         json={"username": CREATOR_USER, "password": CREATOR_PASS},
     )
-    creator_token = r.json().get("token", "") if r.status_code == 200 else ""
+    creator_body = r.json() if r.status_code == 200 else {}
+    creator_token = creator_body.get("token", "")
+    if not creator_token:
+        suite.check("creator login", 429, 200, r.text)
+        print(f"==> passed={suite.passed} failed={suite.failed}")
+        return 1
     creator_headers = {"Authorization": f"Bearer {creator_token}"}
 
     r = c.get("/v1/marketplace/revenue-summary", headers=creator_headers)

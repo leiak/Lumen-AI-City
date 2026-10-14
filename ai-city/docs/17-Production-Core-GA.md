@@ -129,8 +129,9 @@ restore 脚本会停止核心写服务、重建数据库对象，再重启核心
 python scripts/e2e-golden-paths.py
 ```
 
-默认覆盖本机 API Gateway `http://localhost:18080`，可用 `AICITY_API_URL` 覆盖。
-2026-10-14 结果：24/24 通过；新增 Saga 创建/查询与 Agent 情节记忆读/写。
+默认覆盖本机 API Gateway `http://localhost:18080`，可用 `AICITY_API_URL` 覆盖。多副本 scale 栈入口是 `http://127.0.0.1:18090`。
+
+2026-10-14 结果：24/24 通过；新增 Saga 创建/查询与 Agent 情节记忆读/写。E2E 会在演示账号余额不足时自动自筹最低购买额，避免演示数据被消耗后套件不可重复。资金接口按用户保持 20/min 限流，因此连续复测应在窗口间等待 62 秒；本日按该节奏复测 6 轮，均为 24/24 通过。
 
 ### 50 玩家 + 10 Agent 压测
 

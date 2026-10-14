@@ -53,7 +53,7 @@ var criticalMoneyPrefixes = []string{
 func rateLimitScopeFor(path string) rateLimitScope {
 	switch {
 	case path == "/v1/auth/login" || path == "/v1/auth/register":
-		return rateLimitScope{prefix: "auth", limit: 10}
+		return rateLimitScope{prefix: "auth", limit: 60}
 	case containsPrefix(criticalMoneyPrefixes, path):
 		return rateLimitScope{prefix: "money", limit: 20}
 	default:
