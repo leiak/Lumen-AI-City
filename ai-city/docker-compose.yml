@@ -608,11 +608,37 @@ services:
       saga-orchestrator:
         condition: service_started
     restart: unless-stopped
+
     healthcheck:
       test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9101/healthz', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 3
+
+  stability-monitor:
+    profiles: ["stability"]
+    image: python:3.12-alpine
+    command:
+      - python
+      - /workspace/scripts/stability-7d.py
+      - --api-url
+      - http://api-gateway:8080
+      - --interval-seconds
+      - "30"
+      - --output-dir
+      - /workspace/artifacts/stability
+    volumes:
+      - ./scripts/stability-7d.py:/workspace/scripts/stability-7d.py:ro
+      - ./artifacts:/workspace/artifacts
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'test', '-f', '/workspace/artifacts/stability/m4-7d-state.json']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
 
 volumes:
   pg_data:

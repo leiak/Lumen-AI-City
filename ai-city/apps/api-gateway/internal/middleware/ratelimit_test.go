@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +12,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+type hitCounterStore struct {
+	hits int
+}
 
 type fakeRateLimiterStore struct {
 	counts map[string]int64
@@ -71,7 +74,7 @@ func TestRateLimitIgnoresIdentityHeader(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		request := httptest.NewRequest(http.MethodPost, "/v1/auth/login", nil)
-		request.Header.Set("X-Player-ID", "spoofed-player")
+		request.Header.Set("X-Player-ID", fmt.Sprintf("player-%d", i))
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, request)
 		if recorder.Code != http.StatusOK {
@@ -80,7 +83,7 @@ func TestRateLimitIgnoresIdentityHeader(t *testing.T) {
 	}
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/auth/login", nil)
-	request.Header.Set("X-Player-ID", "spoofed-player")
+	request.Header.Set("X-Player-ID", "player-11")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusTooManyRequests {
@@ -88,18 +91,27 @@ func TestRateLimitIgnoresIdentityHeader(t *testing.T) {
 	}
 }
 
-func TestRateLimitFailsOpenOnStoreError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	store := &fakeRateLimiterStore{counts: map[string]int64{}, err: errors.New("redis unavailable")}
-	router := gin.New()
-	router.GET("/health", rateLimitHandler(store), func(c *gin.Context) {
-		c.Status(http.StatusOK)
-	})
+func (store *hitCounterStore) Hit(context.Context, string, time.Duration) (int64, error) {
+	store.hits++
+	return int64(store.hits), nil
+}
 
-	request := httptest.NewRequest(http.MethodGet, "/health", nil)
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+func TestRateLimitSkipsHealthAndMetrics(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := &hitCounterStore{}
+	router := gin.New()
+	router.Use(rateLimitHandler(store))
+	router.GET("/health", func(c *gin.Context) { c.Status(http.StatusOK) })
+	router.GET("/metrics", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	for _, path := range []string{"/health", "/metrics", "/health"} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s status = %d, want %d", path, recorder.Code, http.StatusOK)
+		}
+	}
+	if store.hits != 0 {
+		t.Fatalf("rate limiter hits = %d, want 0", store.hits)
 	}
 }

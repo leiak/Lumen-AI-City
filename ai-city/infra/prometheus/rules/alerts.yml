@@ -62,6 +62,31 @@ groups:
           summary: "API Gateway 5xx 率超过 5%"
           description: "过去 5 分钟核心 API 可用性异常"
 
+      - alert: APIGateway_5xx_Budget_Breach
+        expr: |
+          sum(rate(aicity_http_requests_total{status=~"5.."}[10m]))
+            /
+          sum(rate(aicity_http_requests_total[10m])) > 0.001
+        for: 10m
+        labels:
+          severity: p1
+        annotations:
+          summary: "API Gateway 5xx 错误预算 breached"
+          description: "10 分钟 5xx 率超过 0.1%，M4 稳定性窗口失败"
+
+      - alert: APIGateway_P95_Latency_Budget_Breach
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(aicity_http_request_duration_seconds_bucket[10m])) by (le)
+          ) > 2
+        for: 10m
+        labels:
+          severity: p1
+        annotations:
+          summary: "API Gateway P95 延迟预算 breached"
+          description: "10 分钟 P95 超过 2 秒，M4 稳定性窗口失败"
+
       - alert: APIGateway_Latency_P99_High
         expr: |
           histogram_quantile(

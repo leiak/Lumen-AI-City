@@ -3,9 +3,9 @@ package middleware
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
-	"encoding/base64"
 	"strings"
 	"time"
 
@@ -103,6 +103,10 @@ func RateLimit(redisURL string) gin.HandlerFunc {
 
 func rateLimitHandler(store rateLimiterStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.Request.URL.Path == "/health" || c.Request.URL.Path == "/metrics" {
+			c.Next()
+			return
+		}
 		ctx := c.Request.Context()
 		scope := rateLimitScopeFor(c.Request.URL.Path)
 		identity := rateLimitIdentity(strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer "))
@@ -110,7 +114,7 @@ func rateLimitHandler(store rateLimiterStore) gin.HandlerFunc {
 			identity = c.ClientIP()
 		}
 
-        key := "aicity:ratelimit:" + scope.prefix + ":" + identity
+		key := "aicity:ratelimit:" + scope.prefix + ":" + identity
 		count, err := store.Hit(ctx, key, time.Minute)
 		if err != nil || count > scope.limit {
 			if err != nil {

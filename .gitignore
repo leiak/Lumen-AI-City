@@ -4,6 +4,7 @@
 .pytest_cache/
 .pytest-tmp/
 ai-city/build-tmp/
+ai-city/artifacts/
 
 # OS
 Thumbs.db
